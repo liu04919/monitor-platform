@@ -15,12 +15,7 @@ export {
   resourceErrorPlugin,
   vueErrorPlugin,
 } from '../error'
-export {
-  crashPlugin,
-  exceptionPlugins,
-  stutterPlugin,
-  whiteScreenPlugin,
-} from '../exception'
+export { crashPlugin, stabilityPlugins, stutterPlugin, whiteScreenPlugin } from '../stability'
 export {
   fcpPlugin,
   fetchPlugin,
