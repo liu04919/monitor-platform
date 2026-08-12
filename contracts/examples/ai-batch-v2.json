@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 2,
+  "batchId": "018f8c78-4fb1-7cb1-a319-06ea417bbf01",
+  "sentAt": 1717243601000,
+  "app": {
+    "id": "ai-chat-web",
+    "name": "AI Chat Web"
+  },
+  "events": [
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbf02",
+      "category": "ai",
+      "eventType": "stream_metric",
+      "timestamp": 1717243600100,
+      "pageUrl": "https://chat.example.com/chat/123",
+      "userId": "user-42",
+      "payload": {
+        "name": "ai-stream",
+        "value": 2840.5,
+        "unit": "ms",
+        "attributes": {
+          "traceId": "trace-01J0A1B2C3D4E5F6G7H8J9K0M",
+          "streamKind": "sse",
+          "url": "https://chat.example.com/api/chat",
+          "method": "POST",
+          "status": 200,
+          "success": true,
+          "ttfb": 418.2,
+          "ttlb": 2840.5,
+          "chunkCount": 37,
+          "totalBytes": 12984
+        }
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbf03",
+      "category": "ai",
+      "eventType": "stream_stall",
+      "timestamp": 1717243600200,
+      "pageUrl": "https://chat.example.com/chat/123",
+      "userId": "user-42",
+      "payload": {
+        "name": "ai-stream-stall",
+        "value": 2360.8,
+        "unit": "ms",
+        "attributes": {
+          "traceId": "trace-01J0A1B2C3D4E5F6G7H8J9K0M",
+          "url": "https://chat.example.com/api/chat",
+          "method": "POST",
+          "threshold": 2000,
+          "chunkCount": 12,
+          "since": "last-chunk"
+        }
+      }
+    }
+  ],
+  "sendType": "fetch"
+}

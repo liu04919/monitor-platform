@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 2,
+  "batchId": "018f8c78-4fb1-7cb1-a319-06ea417bbe01",
+  "sentAt": 1717243501000,
+  "app": {
+    "id": "monitor-web",
+    "name": "Monitor Web"
+  },
+  "events": [
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbe02",
+      "category": "stability",
+      "eventType": "white_screen",
+      "timestamp": 1717243500100,
+      "pageUrl": "https://monitor.example.com/projects/demo",
+      "userId": "user-42",
+      "level": "error",
+      "breadcrumbs": [
+        {
+          "timestamp": 1717243494000,
+          "category": "navigation",
+          "message": "Opened demo project"
+        }
+      ],
+      "payload": {
+        "message": "Page remained blank for more than 6 seconds",
+        "metrics": {
+          "duration": 6000
+        }
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbe03",
+      "category": "stability",
+      "eventType": "stutter",
+      "timestamp": 1717243500200,
+      "pageUrl": "https://monitor.example.com/projects/demo",
+      "userId": "user-42",
+      "level": "warning",
+      "breadcrumbs": [],
+      "payload": {
+        "message": "Page FPS dropped to 18",
+        "metrics": {
+          "fps": 18
+        }
+      }
+    }
+  ],
+  "sendType": "beacon"
+}

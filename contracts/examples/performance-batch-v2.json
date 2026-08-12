@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 2,
+  "batchId": "018f8c78-4fb1-7cb1-a319-06ea417bbc01",
+  "sentAt": 1717243301000,
+  "app": {
+    "id": "monitor-web",
+    "name": "Monitor Web"
+  },
+  "events": [
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbc02",
+      "category": "performance",
+      "eventType": "web_vital",
+      "timestamp": 1717243300100,
+      "pageUrl": "https://monitor.example.com/dashboard",
+      "userId": "user-42",
+      "payload": {
+        "name": "FCP",
+        "value": 836.4,
+        "unit": "ms",
+        "attributes": {
+          "entryType": "paint"
+        }
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbc03",
+      "category": "performance",
+      "eventType": "page_load",
+      "timestamp": 1717243300200,
+      "pageUrl": "https://monitor.example.com/dashboard",
+      "userId": "user-42",
+      "payload": {
+        "name": "page-load",
+        "value": 1248.7,
+        "unit": "ms"
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbc04",
+      "category": "performance",
+      "eventType": "http_request",
+      "timestamp": 1717243300300,
+      "pageUrl": "https://monitor.example.com/dashboard",
+      "userId": "user-42",
+      "payload": {
+        "name": "fetch",
+        "value": 182.6,
+        "unit": "ms",
+        "attributes": {
+          "url": "https://api.monitor.example.com/api/v1/projects",
+          "method": "GET",
+          "status": 200,
+          "success": true,
+          "startTime": 913.2,
+          "endTime": 1095.8
+        }
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbc05",
+      "category": "performance",
+      "eventType": "resource_timing",
+      "timestamp": 1717243300400,
+      "pageUrl": "https://monitor.example.com/dashboard",
+      "userId": "user-42",
+      "payload": {
+        "name": "resource",
+        "value": 1,
+        "unit": "count",
+        "attributes": {
+          "resources": [
+            {
+              "name": "https://monitor.example.com/assets/dashboard.js",
+              "sourceType": "script",
+              "duration": 76.2,
+              "dns": 0,
+              "tcp": 0,
+              "redirect": 0,
+              "ttfb": 21.3,
+              "protocol": "h2",
+              "responseBodySize": 48120,
+              "responseHeaderSize": 612,
+              "transferSize": 48732,
+              "resourceSize": 48120,
+              "startTime": 455.8
+            }
+          ]
+        }
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbc06",
+      "category": "performance",
+      "eventType": "react_render",
+      "timestamp": 1717243300500,
+      "pageUrl": "https://monitor.example.com/dashboard",
+      "userId": "user-42",
+      "payload": {
+        "name": "react-render",
+        "value": 42.8,
+        "unit": "ms",
+        "attributes": {
+          "id": "DashboardChart",
+          "windowStart": 1717243299000,
+          "windowEnd": 1717243300500,
+          "commitCount": 4,
+          "mountCount": 1,
+          "updateCount": 3,
+          "slowCommitCount": 1
+        }
+      }
+    }
+  ],
+  "sendType": "fetch"
+}

@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 2,
+  "batchId": "018f8c78-4fb1-7cb1-a319-06ea417bbd01",
+  "sentAt": 1717243401000,
+  "app": {
+    "id": "monitor-web",
+    "name": "Monitor Web"
+  },
+  "events": [
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbd02",
+      "category": "behavior",
+      "eventType": "page_view",
+      "timestamp": 1717243400100,
+      "pageUrl": "https://monitor.example.com/projects/demo",
+      "userId": "user-42",
+      "payload": {
+        "message": "view /projects/demo",
+        "data": {
+          "pageInfo": {
+            "host": "monitor.example.com",
+            "hostname": "monitor.example.com",
+            "href": "https://monitor.example.com/projects/demo",
+            "protocol": "https:",
+            "origin": "https://monitor.example.com",
+            "port": "",
+            "pathname": "/projects/demo",
+            "search": "",
+            "hash": "",
+            "title": "Demo project",
+            "language": "zh",
+            "userAgent": "Mozilla/5.0",
+            "winScreen": "1920x1080",
+            "docScreen": "1440x900",
+            "pageLoadType": "navigate"
+          },
+          "originInfo": {
+            "referrer": "https://monitor.example.com/projects",
+            "navigationType": 0
+          }
+        }
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbd03",
+      "category": "behavior",
+      "eventType": "route_change",
+      "timestamp": 1717243400200,
+      "pageUrl": "https://monitor.example.com/projects/demo/issues",
+      "userId": "user-42",
+      "payload": {
+        "message": "/projects/demo -> /projects/demo/issues",
+        "data": {
+          "from": "https://monitor.example.com/projects/demo",
+          "to": "https://monitor.example.com/projects/demo/issues",
+          "jumpType": "pushState",
+          "pageTime": 18342
+        }
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbd04",
+      "category": "behavior",
+      "eventType": "click",
+      "timestamp": 1717243400300,
+      "pageUrl": "https://monitor.example.com/projects/demo/issues",
+      "userId": "user-42",
+      "payload": {
+        "message": "click button",
+        "data": {
+          "tagName": "BUTTON",
+          "path": "#root > main > header > button",
+          "textContent": "Create issue"
+        }
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbd05",
+      "category": "behavior",
+      "eventType": "custom",
+      "timestamp": 1717243400400,
+      "pageUrl": "https://monitor.example.com/projects/demo/issues",
+      "userId": "user-42",
+      "payload": {
+        "message": "filter: status",
+        "data": {
+          "eventKey": "status",
+          "eventAction": "filter",
+          "eventValue": "unresolved"
+        }
+      }
+    }
+  ],
+  "sendType": "fetch"
+}

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 2,
+  "batchId": "018f8c78-4fb1-7cb1-a319-06ea417bbe10",
+  "sentAt": 1717243500300,
+  "app": {
+    "id": "monitor-web",
+    "name": "Monitor Web"
+  },
+  "events": [
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbe11",
+      "category": "stability",
+      "eventType": "crash",
+      "timestamp": 1717243500300,
+      "pageUrl": "https://monitor.example.com/projects/demo",
+      "userId": "user-42",
+      "level": "error",
+      "breadcrumbs": [],
+      "payload": {
+        "message": "Main thread remained unresponsive",
+        "metrics": {
+          "timeout": 15000,
+          "unresponsiveDuration": 15324.6
+        }
+      }
+    }
+  ],
+  "sendType": "fetch"
+}

@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 2,
+  "batchId": "018f8c78-4fb1-7cb1-a319-06ea417bbb61",
+  "sentAt": 1717243200456,
+  "app": {
+    "id": "monitor-web",
+    "name": "Monitor Web"
+  },
+  "events": [
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbb62",
+      "category": "error",
+      "eventType": "js_error",
+      "timestamp": 1717243200123,
+      "pageUrl": "https://monitor.example.com/projects/demo/issues",
+      "userId": "user-42",
+      "level": "error",
+      "breadcrumbs": [
+        {
+          "timestamp": 1717243199000,
+          "category": "navigation",
+          "message": "Opened project issues",
+          "data": {
+            "from": "/projects/demo",
+            "to": "/projects/demo/issues"
+          }
+        },
+        {
+          "timestamp": 1717243200000,
+          "category": "click",
+          "message": "Clicked issue row",
+          "data": {
+            "issueId": "issue-101"
+          }
+        }
+      ],
+      "payload": {
+        "exception": {
+          "name": "TypeError",
+          "message": "Cannot read properties of undefined (reading 'title')",
+          "stack": [
+            {
+              "filename": "https://monitor.example.com/assets/app.js",
+              "functionName": "openIssue",
+              "line": 42,
+              "column": 17
+            }
+          ]
+        },
+        "mechanism": {
+          "type": "window.onerror",
+          "handled": false
+        }
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "eventId": "018f8c78-4fb1-7cb1-a319-06ea417bbb63",
+      "category": "error",
+      "eventType": "resource_error",
+      "timestamp": 1717243200234,
+      "pageUrl": "https://monitor.example.com/projects/demo/issues",
+      "userId": "user-42",
+      "level": "error",
+      "breadcrumbs": [],
+      "payload": {
+        "message": "Failed to load script resource",
+        "resource": {
+          "url": "https://monitor.example.com/assets/issues.js",
+          "tagName": "SCRIPT",
+          "path": "html > body > script",
+          "html": "<script src=\"/assets/issues.js\"></script>"
+        },
+        "mechanism": {
+          "type": "resource.error",
+          "handled": false
+        }
+      }
+    }
+  ],
+  "sendType": "fetch"
+}
