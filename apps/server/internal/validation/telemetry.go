@@ -144,6 +144,9 @@ func validateTelemetryEvent(event dto.TelemetryEvent, index int) error {
 	if !isJSONObject(event.Payload) {
 		return invalid(prefix+".payload", "must be a JSON object")
 	}
+	if err := validateEventPayload(event, prefix); err != nil {
+		return err
+	}
 
 	return nil
 }

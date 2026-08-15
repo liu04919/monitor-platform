@@ -250,7 +250,17 @@ func validTelemetryBatch() dto.TelemetryBatch {
 				PageURL:       "https://monitor.example.com",
 				Level:         &level,
 				Breadcrumbs:   []dto.Breadcrumb{},
-				Payload:       json.RawMessage(`{"exception":{},"mechanism":{}}`),
+				Payload: json.RawMessage(`{
+					"exception": {
+						"name": "TypeError",
+						"message": "boom",
+						"stack": []
+					},
+					"mechanism": {
+						"type": "window.onerror",
+						"handled": false
+					}
+				}`),
 			},
 		},
 		SendType: dto.SendTypeFetch,
