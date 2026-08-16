@@ -2,6 +2,7 @@
   "schemaVersion": 2,
   "batchId": "018f8c78-4fb1-7cb1-a319-06ea417bbe10",
   "sentAt": 1717243500300,
+  "publicKey": "pk_monitor_web_demo",
   "app": {
     "id": "monitor-web",
     "name": "Monitor Web"

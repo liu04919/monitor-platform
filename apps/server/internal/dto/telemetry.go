@@ -40,6 +40,7 @@ type TelemetryBatch struct {
 	SchemaVersion int              `json:"schemaVersion"`
 	BatchID       string           `json:"batchId"`
 	SentAt        int64            `json:"sentAt"`
+	PublicKey     string           `json:"publicKey"`
 	App           App              `json:"app"`
 	Events        []TelemetryEvent `json:"events"`
 	SendType      SendType         `json:"sendType"`

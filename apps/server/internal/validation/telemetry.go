@@ -11,11 +11,12 @@ import (
 )
 
 const (
-	schemaVersion     = 2
-	maxIDLength       = 128
-	maxAppNameLength  = 128
-	maxPageURLLength  = 4096
-	maxEventsPerBatch = 100
+	schemaVersion      = 2
+	maxIDLength        = 128
+	maxPublicKeyLength = 128
+	maxAppNameLength   = 128
+	maxPageURLLength   = 4096
+	maxEventsPerBatch  = 100
 )
 
 var eventTypesByCategory = map[dto.EventCategory]map[string]struct{}{
@@ -69,6 +70,9 @@ func ValidateTelemetryBatch(batch dto.TelemetryBatch) error {
 	}
 	if batch.SentAt < 0 {
 		return invalid("sentAt", "must be a non-negative Unix millisecond timestamp")
+	}
+	if err := validateRequiredString("publicKey", batch.PublicKey, maxPublicKeyLength); err != nil {
+		return err
 	}
 	if err := validateRequiredString("app.id", batch.App.ID, maxIDLength); err != nil {
 		return err

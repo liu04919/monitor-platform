@@ -19,7 +19,7 @@ Content-Type: application/json
 
 请求体最大为 1 MiB，一个批次必须包含 1 到 100 个事件。服务端只接受 UTF-8 JSON。
 
-第一版使用 `app.id` 识别项目，仅用于本地开发和打通数据链路。它不是可信的鉴权凭证；接入真实用户或公开部署前，必须增加独立的项目上报密钥。
+使用 `app.id` 识别项目，并使用独立的 `publicKey` 判断浏览器 SDK 是否可以向该项目上报。`publicKey` 会暴露在浏览器中，不是服务端秘密，也不能用于项目管理接口。
 
 ## 2. 批次结构
 
@@ -28,6 +28,7 @@ Content-Type: application/json
   "schemaVersion": 2,
   "batchId": "018f8c78-4fb1-7cb1-a319-06ea417bbb61",
   "sentAt": 1717243200456,
+  "publicKey": "pk_monitor_web_demo",
   "app": {
     "id": "monitor-web",
     "name": "Monitor Web"
@@ -42,12 +43,17 @@ Content-Type: application/json
 | `schemaVersion` | number | 是 | 当前只能为 `2`。表示整个传输批次的协议版本。 |
 | `batchId` | string | 是 | 本批次的幂等键，非空且不超过 128 个字符。它是 opaque ID，服务端不能假定它一定是 UUID。 |
 | `sentAt` | number | 是 | SDK 创建批次时的 Unix 毫秒时间戳，必须是非负整数。 |
+| `publicKey` | string | 是 | 浏览器公开上报 Key，非空且不超过 128 个字符。它必须与 `app.id` 对应，但不是可保密的管理端凭证。 |
 | `app.id` | string | 是 | 项目的稳定标识，非空且不超过 128 个字符。 |
 | `app.name` | string | 是 | 便于诊断的项目名称，非空且不超过 128 个字符。项目正式名称以后以服务端业务数据为准。 |
 | `events` | array | 是 | 1 到 100 个监控事件。整个批次成功校验或整体拒绝，不做部分接收。 |
 | `sendType` | string | 是 | 只能为 `fetch` 或 `beacon`，表示 SDK 本次使用的传输方式。它不改变事件语义。 |
 
 `schemaVersion` 在批次和单个事件中都会出现。批次版本描述 envelope，事件版本描述事件结构；v2 中两者都必须为 `2`。
+
+普通 fetch、页面退出时的 beacon 和 Crash Worker 直接 fetch 都把 `publicKey` 放在同一个 JSON 批次中，不依赖自定义 HTTP Header。接收 Handler 实现后，服务端必须校验 `(app.id, publicKey)` 是否对应一个允许上报的项目；未知、禁用或不匹配的 Key 必须拒绝，不能仅凭 `app.id` 接收数据。
+
+由于浏览器使用者可以查看 `publicKey`，它的作用是项目级接入控制、禁用和轮换，而不是证明请求来自可信后端。公开部署后仍需结合请求大小限制、项目级限流和可选的来源域名限制控制滥用。
 
 ## 3. 公共事件结构
 
@@ -231,6 +237,7 @@ SDK 的 beacon 调用无法读取响应，但服务端仍执行完全相同的�
 | HTTP 状态 | code 示例 | 使用场景 | SDK 是否重试 |
 | --- | --- | --- | --- |
 | `400 Bad Request` | `MALFORMED_JSON` | JSON 语法错误、存在尾随内容。 | 否 |
+| `403 Forbidden` | `INVALID_PUBLIC_KEY` | `publicKey` 未知、已禁用，或与 `app.id` 不匹配。 | 否 |
 | `409 Conflict` | `BATCH_ID_CONFLICT` | 同一幂等键对应不同请求内容。 | 否 |
 | `413 Content Too Large` | `PAYLOAD_TOO_LARGE` | 请求体超过 1 MiB。 | 否 |
 | `415 Unsupported Media Type` | `UNSUPPORTED_MEDIA_TYPE` | Content-Type 不是 JSON。 | 否 |
@@ -242,7 +249,8 @@ SDK 当前还会重试 `408 Request Timeout` 和其他 5xx 响应。4xx（除 40
 
 ## 9. 本版本暂不包含
 
-- 项目上报密钥和签名鉴权
+- `publicKey` 的创建、轮换和项目管理接口
+- 服务端 Secret 或请求签名鉴权
 - gzip 请求体
 - OpenAPI 或 JSON Schema 代码生成
 - 单事件接收接口

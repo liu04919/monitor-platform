@@ -43,6 +43,9 @@ func TestTelemetryBatchDecodesContractExamples(t *testing.T) {
 			if batch.BatchID == "" {
 				t.Fatal("expected a batch ID")
 			}
+			if batch.PublicKey == "" {
+				t.Fatal("expected a public ingestion key")
+			}
 			if batch.App.ID == "" || batch.App.Name == "" {
 				t.Fatalf("expected app identity, got %#v", batch.App)
 			}

@@ -4,6 +4,7 @@ const config: ConfigType = {
   url: 'http://127.0.0.1:3000/api/data', // 上报地址
   projectName: 'monitor', // 项目名称
   appId: '123456', // 项目id
+  publicKey: 'pk_local_development', // 浏览器公开上报 Key，不是服务端密钥
   userId: '123456', // 用户id
   isAjax: false, // 是否开启ajax上报
   batchSize: 5, // 批量上报大小

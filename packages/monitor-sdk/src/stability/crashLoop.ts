@@ -43,6 +43,7 @@ export default function crashLoop(ctx: MonitorContext): () => void {
     let reportUrl = '';
     let appId = '';
     let projectName = '';
+    let publicKey = '';
     let userId = '';
 
     let pageUrl = '';
@@ -85,6 +86,10 @@ export default function crashLoop(ctx: MonitorContext): () => void {
 
       if (typeof data.projectName === 'string') {
         projectName = data.projectName;
+      }
+
+      if (typeof data.publicKey === 'string') {
+        publicKey = data.publicKey;
       }
 
       if (typeof data.userId === 'string') {
@@ -169,6 +174,7 @@ export default function crashLoop(ctx: MonitorContext): () => void {
         schemaVersion,
         batchId,
         sentAt: timestamp,
+        publicKey,
 
         app: {
           id: appId,
@@ -331,7 +337,7 @@ export default function crashLoop(ctx: MonitorContext): () => void {
     }
   };
 
-  const { url, appId, projectName, userId } = ctx.getConfig();
+  const { url, appId, projectName, publicKey, userId } = ctx.getConfig();
 
   worker.onmessage = (event: MessageEvent<{ type?: string }>) => {
     if (event.data?.type !== "heartbeat") {
@@ -350,6 +356,7 @@ export default function crashLoop(ctx: MonitorContext): () => void {
     reportUrl: url,
     appId,
     projectName,
+    publicKey,
     userId,
     hidden: document.hidden,
   });

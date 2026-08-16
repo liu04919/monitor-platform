@@ -65,6 +65,20 @@ func TestValidateTelemetryBatchRejectsInvalidStructure(t *testing.T) {
 			wantField: "sentAt",
 		},
 		{
+			name: "missing public key",
+			mutate: func(batch *dto.TelemetryBatch) {
+				batch.PublicKey = ""
+			},
+			wantField: "publicKey",
+		},
+		{
+			name: "public key too long",
+			mutate: func(batch *dto.TelemetryBatch) {
+				batch.PublicKey = strings.Repeat("a", maxPublicKeyLength+1)
+			},
+			wantField: "publicKey",
+		},
+		{
 			name: "missing app ID",
 			mutate: func(batch *dto.TelemetryBatch) {
 				batch.App.ID = ""
@@ -236,6 +250,7 @@ func validTelemetryBatch() dto.TelemetryBatch {
 		SchemaVersion: schemaVersion,
 		BatchID:       "batch-1",
 		SentAt:        2,
+		PublicKey:     "pk_monitor_web_demo",
 		App: dto.App{
 			ID:   "monitor-web",
 			Name: "Monitor Web",

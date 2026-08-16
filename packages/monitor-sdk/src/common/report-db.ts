@@ -6,6 +6,7 @@ export interface ReportPayload {
 
   batchId: string
   sentAt: number
+  publicKey: string
 
   app: {
     id: string
@@ -46,7 +47,7 @@ interface MonitorReportDB extends DBSchema {
 }
 
 const DATABASE_NAME = 'monitor-sdk'
-const DATABASE_VERSION = 2
+const DATABASE_VERSION = 3
 const STORE_NAME = 'reportQueue'
 
 let databasePromise: Promise<IDBPDatabase<MonitorReportDB>> | null = null
@@ -72,10 +73,14 @@ function getDatabase(): Promise<IDBPDatabase<MonitorReportDB>> {
         }
 
         /**
-         * 学习项目直接清理 v1 遗留的离线批次，
-         * 防止旧 data[] 被发送给 v2 后端。
+         * 学习项目直接清理旧协议遗留的离线批次：
+         *
+         * - v1 使用旧 data[]；
+         * - v2 批次还没有 publicKey。
+         *
+         * 防止升级后的 SDK 继续发送不符合当前契约的历史任务。
          */
-        if (oldVersion < 2) {
+        if (oldVersion < 3) {
           transaction.objectStore(STORE_NAME).clear()
         }
       },

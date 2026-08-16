@@ -57,6 +57,7 @@ function createReportTask(events: MonitorEvent[]): ReportTask {
       schemaVersion: 2,
       batchId,
       sentAt: Date.now(),
+      publicKey: config.publicKey,
 
       app: {
         id: config.appId,

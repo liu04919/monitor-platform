@@ -2,6 +2,7 @@
   "schemaVersion": 2,
   "batchId": "018f8c78-4fb1-7cb1-a319-06ea417bbf01",
   "sentAt": 1717243601000,
+  "publicKey": "pk_ai_chat_web_demo",
   "app": {
     "id": "ai-chat-web",
     "name": "AI Chat Web"

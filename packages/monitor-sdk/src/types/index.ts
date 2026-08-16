@@ -41,6 +41,7 @@ export type ConfigType = {
   url: string
   projectName: string
   appId: string
+  publicKey: string
   userId: string
   batchSize: number
   isAjax: boolean
