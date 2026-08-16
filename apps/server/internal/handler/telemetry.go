@@ -17,15 +17,15 @@ import (
 
 const maxTelemetryBodyBytes int64 = 1 << 20
 
-type Telemetry struct {
+type TelemetryHandler struct {
 	ingestor ingestion.Service
 }
 
-func NewTelemetry(ingestor ingestion.Service) *Telemetry {
-	return &Telemetry{ingestor: ingestor}
+func NewTelemetryHandler(ingestor ingestion.Service) *TelemetryHandler {
+	return &TelemetryHandler{ingestor: ingestor}
 }
 
-func (h *Telemetry) Batch(c *gin.Context) {
+func (h *TelemetryHandler) Batch(c *gin.Context) {
 	if !isJSONContentType(c.GetHeader("Content-Type")) {
 		writeAPIError(
 			c,
@@ -91,13 +91,7 @@ func (h *Telemetry) Batch(c *gin.Context) {
 
 	result, err := h.ingestor.Ingest(c.Request.Context(), batch)
 	if err != nil {
-		writeAPIError(
-			c,
-			http.StatusInternalServerError,
-			"INTERNAL_ERROR",
-			"server could not accept the telemetry batch",
-			nil,
-		)
+		writeIngestionError(c, err)
 		return
 	}
 
@@ -108,6 +102,35 @@ func (h *Telemetry) Batch(c *gin.Context) {
 			Duplicate: result.Duplicate,
 		},
 	})
+}
+
+func writeIngestionError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, ingestion.ErrInvalidPublicKey):
+		writeAPIError(
+			c,
+			http.StatusForbidden,
+			"INVALID_PUBLIC_KEY",
+			"publicKey is unknown, disabled, or does not match app.id",
+			nil,
+		)
+	case errors.Is(err, ingestion.ErrBatchIDConflict):
+		writeAPIError(
+			c,
+			http.StatusConflict,
+			"BATCH_ID_CONFLICT",
+			"batchId already exists with different content",
+			nil,
+		)
+	default:
+		writeAPIError(
+			c,
+			http.StatusInternalServerError,
+			"INTERNAL_ERROR",
+			"server could not accept the telemetry batch",
+			nil,
+		)
+	}
 }
 
 func isJSONContentType(value string) bool {

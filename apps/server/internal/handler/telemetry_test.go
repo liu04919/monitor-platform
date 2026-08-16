@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -188,6 +189,50 @@ func TestTelemetryBatchDoesNotExposeIngestionFailure(t *testing.T) {
 	}
 }
 
+func TestTelemetryBatchMapsKnownIngestionErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantCode   string
+	}{
+		{
+			name:       "invalid public key",
+			err:        fmt.Errorf("verify project key: %w", ingestion.ErrInvalidPublicKey),
+			wantStatus: http.StatusForbidden,
+			wantCode:   "INVALID_PUBLIC_KEY",
+		},
+		{
+			name:       "batch ID conflict",
+			err:        fmt.Errorf("save batch: %w", ingestion.ErrBatchIDConflict),
+			wantStatus: http.StatusConflict,
+			wantCode:   "BATCH_ID_CONFLICT",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service := &stubIngestionService{err: test.err}
+			response := performTelemetryRequest(
+				t,
+				service,
+				mustMarshal(t, contractBatch(t)),
+				"application/json",
+			)
+
+			if response.Code != test.wantStatus {
+				t.Fatalf("expected status %d, got %d: %s", test.wantStatus, response.Code, response.Body.String())
+			}
+
+			var body errorEnvelope
+			decodeResponse(t, response, &body)
+			if body.Error.Code != test.wantCode {
+				t.Fatalf("expected error code %q, got %q", test.wantCode, body.Error.Code)
+			}
+		})
+	}
+}
+
 type stubIngestionService struct {
 	result ingestion.Result
 	err    error
@@ -214,7 +259,7 @@ func performTelemetryRequest(
 	gin.SetMode(gin.TestMode)
 
 	engine := gin.New()
-	engine.POST("/api/v1/events/batch", NewTelemetry(service).Batch)
+	engine.POST("/api/v1/events/batch", NewTelemetryHandler(service).Batch)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
