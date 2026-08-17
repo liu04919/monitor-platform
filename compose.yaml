@@ -13,6 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql
       - ./apps/server/migrations/000001_create_projects.up.sql:/docker-entrypoint-initdb.d/000001_create_projects.sql:ro
+      - ./apps/server/migrations/000002_create_ingestion_batches.up.sql:/docker-entrypoint-initdb.d/000002_create_ingestion_batches.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -38,6 +39,7 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - ./apps/server/clickhouse/000001_create_telemetry_events.sql:/docker-entrypoint-initdb.d/000001_create_telemetry_events.sql:ro
+      - ./apps/server/clickhouse/000002_enable_insert_deduplication.sql:/docker-entrypoint-initdb.d/000002_enable_insert_deduplication.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "clickhouse-client --user \"$$CLICKHOUSE_USER\" --password \"$$CLICKHOUSE_PASSWORD\" --database \"$$CLICKHOUSE_DB\" --query \"SELECT 1\""]
       interval: 5s
