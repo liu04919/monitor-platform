@@ -18,7 +18,7 @@ docker compose stop postgres
 运行真实 PostgreSQL 集成测试：
 
 ```powershell
-$env:TEST_DATABASE_URL = "postgres://monitor:monitor_dev_password@localhost:5433/monitor_platform?sslmode=disable"
+$env:TEST_DATABASE_URL = "postgres://monitor:monitor_dev_password@localhost:5432/monitor_platform?sslmode=disable"
 go test -tags=integration ./internal/storage/postgres
 ```
 
