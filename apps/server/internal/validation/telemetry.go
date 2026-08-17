@@ -133,7 +133,7 @@ func validateTelemetryEvent(event dto.TelemetryEvent, index int) error {
 		if *event.Level != dto.EventLevelError && *event.Level != dto.EventLevelWarning {
 			return invalid(prefix+".level", "must be error or warning")
 		}
-		// A nil slice means the field was missing or null; an empty array is valid.
+		// nil 切片表示字段缺失或值为 null；空数组则是合法输入。
 		if event.Breadcrumbs == nil {
 			return invalid(prefix+".breadcrumbs", "is required for error and stability events")
 		}

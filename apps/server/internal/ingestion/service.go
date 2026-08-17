@@ -13,23 +13,20 @@ var (
 	ErrBatchIDConflict  = errors.New("batch ID conflict")
 )
 
-// Result describes the durable outcome returned by the ingestion service.
-// The HTTP handler must not infer these values before key checks, idempotency,
-// and persistence have actually succeeded.
+// Result 表示 ingestion service 已经完成的持久化结果。
+// 在 Key 校验、幂等判断和持久化真正成功之前，HTTP Handler 不能自行推断这些值。
 type Result struct {
 	Accepted  int
 	Duplicate bool
 }
 
-// Service owns the business work that begins after the HTTP request has been
-// decoded and structurally validated.
+// Service 负责 HTTP 请求完成解码和结构校验之后的业务流程。
 type Service interface {
 	Ingest(ctx context.Context, batch dto.TelemetryBatch) (Result, error)
 }
 
-// ProjectKeyVerifier checks whether a browser-visible public key may report to
-// the requested app. Implementations return ErrInvalidPublicKey for unknown,
-// disabled, or mismatched keys.
+// ProjectKeyVerifier 判断浏览器可见的 publicKey 是否允许向指定项目上报。
+// Key 不存在、已禁用或与项目不匹配时，实现应返回 ErrInvalidPublicKey。
 type ProjectKeyVerifier interface {
 	Verify(ctx context.Context, appID, publicKey string) error
 }
@@ -38,9 +35,8 @@ type BatchStoreResult struct {
 	Duplicate bool
 }
 
-// BatchStore owns durable batch idempotency and persistence. Implementations
-// return ErrBatchIDConflict when the same app ID and batch ID identify different
-// request content.
+// BatchStore 负责批次的持久化和幂等判断。
+// 相同 appID 和 batchID 对应不同请求内容时，实现应返回 ErrBatchIDConflict。
 type BatchStore interface {
 	Save(ctx context.Context, batch dto.TelemetryBatch) (BatchStoreResult, error)
 }
