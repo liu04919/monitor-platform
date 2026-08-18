@@ -12,8 +12,8 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"gorm.io/gorm"
 
-	clickhousemigrations "github.com/liu04919/monitor-platform/apps/server/clickhouse"
-	postgresmigrations "github.com/liu04919/monitor-platform/apps/server/migrations"
+	clickhousemigrations "github.com/liu04919/monitor-platform/apps/server/migrations/clickhouse"
+	postgresmigrations "github.com/liu04919/monitor-platform/apps/server/migrations/postgres"
 )
 
 const (

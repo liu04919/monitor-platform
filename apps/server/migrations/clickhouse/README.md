@@ -22,7 +22,7 @@ docker compose logs clickhouse
 docker compose stop clickhouse
 ```
 
-迁移命令需要同时设置 `DATABASE_URL` 和 `CLICKHOUSE_DSN`，完整示例见 `apps/server/migrations/README.md`。
+迁移命令需要同时设置 `DATABASE_URL` 和 `CLICKHOUSE_DSN`，完整示例见 `apps/server/migrations/postgres/README.md`。
 
 运行真实 ClickHouse 集成测试：
 

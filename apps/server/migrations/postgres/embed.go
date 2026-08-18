@@ -1,5 +1,5 @@
-// migrations 包提供编译进迁移命令的 PostgreSQL SQL 文件。
-package migrations
+// postgres 包提供编译进迁移命令的 PostgreSQL SQL 文件。
+package postgres
 
 import (
 	"embed"
