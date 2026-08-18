@@ -1,4 +1,4 @@
-import { type ComponentType, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { memo, type ComponentType, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { REACT_PROFILER_CAPABILITY } from 'minitor-sdk/plugins'
 import { monitor, REPORT_URL } from './monitor'
 
@@ -84,10 +84,46 @@ function ScenarioIcon({ id }: { id: ScenarioId }) {
   return <span className="scenario-icon" aria-hidden="true">{icons[id]}</span>
 }
 
-export function App() {
-  const [statuses, setStatuses] = useState<Record<string, TestStatus>>({})
+const ReactLab = memo(function ReactLab() {
   const [reactBomb, setReactBomb] = useState(false)
   const [renderCount, setRenderCount] = useState(0)
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('auto') !== '1') return
+
+    const timer = window.setTimeout(() => setReactBomb(true), 3_500)
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  const profilerContent = (
+    <div className="profiler-test">
+      <div><span>React Profiler</span><strong>{renderCount}</strong><small>次状态更新</small></div>
+      <button type="button" onClick={() => setRenderCount((count) => count + 1)}>触发渲染 +</button>
+    </div>
+  )
+
+  return (
+    <section id="react-lab" className="react-lab" aria-labelledby="reactLabTitle">
+      <div className="section-heading"><div><p className="eyebrow">02 / REACT PLUGINS</p><h2 id="reactLabTitle">React 专项验证</h2></div></div>
+      <div className="react-grid">
+        <article>
+          <span className="lab-label">PROFILER</span>
+          {MonitorProfiler ? <MonitorProfiler id="demo-counter">{profilerContent}</MonitorProfiler> : profilerContent}
+        </article>
+        <article>
+          <span className="lab-label">ERROR BOUNDARY</span>
+          <div className="boundary-test">
+            {ErrorBoundary ? <ErrorBoundary key={String(reactBomb)} Fallback={BoundaryFallback}>{reactBomb ? <Bomb /> : <p>组件运行正常，点击按钮触发渲染错误。</p>}</ErrorBoundary> : <p>React ErrorBoundary 能力未注册</p>}
+            <button type="button" onClick={() => setReactBomb(true)}>触发 React 错误</button>
+          </div>
+        </article>
+      </div>
+    </section>
+  )
+})
+
+export function App() {
+  const [statuses, setStatuses] = useState<Record<string, TestStatus>>({})
   const [reportedCount, setReportedCount] = useState(0)
   const [reportState, setReportState] = useState<'waiting' | 'success' | 'failed'>('waiting')
   const autoRan = useRef(false)
@@ -143,7 +179,10 @@ export function App() {
       for (const id of ['fetch', 'xhr', 'stream', 'custom', 'route', 'longtask', 'js', 'promise', 'resource'] as ScenarioId[]) {
         await execute(id)
       }
-      setReactBomb(true)
+
+      // 自动验证用于一次性联调，等待最后一批事件发送后关闭采集，避免页面长期驻留。
+      await sleep(2_000)
+      monitor.destroy()
     })()
   }, [execute])
 
@@ -152,13 +191,6 @@ export function App() {
   }
 
   const completedCount = Object.values(statuses).filter((status) => status === 'done').length
-
-  const profilerContent = (
-    <div className="profiler-test">
-      <div><span>React Profiler</span><strong>{renderCount}</strong><small>次状态更新</small></div>
-      <button type="button" onClick={() => setRenderCount((count) => count + 1)}>触发渲染 +</button>
-    </div>
-  )
 
   return (
     <div className="console-shell">
@@ -205,22 +237,7 @@ export function App() {
           </div>
         </section>
 
-        <section id="react-lab" className="react-lab" aria-labelledby="reactLabTitle">
-          <div className="section-heading"><div><p className="eyebrow">02 / REACT PLUGINS</p><h2 id="reactLabTitle">React 专项验证</h2></div></div>
-          <div className="react-grid">
-            <article>
-              <span className="lab-label">PROFILER</span>
-              {MonitorProfiler ? <MonitorProfiler id="demo-counter">{profilerContent}</MonitorProfiler> : profilerContent}
-            </article>
-            <article>
-              <span className="lab-label">ERROR BOUNDARY</span>
-              <div className="boundary-test">
-                {ErrorBoundary ? <ErrorBoundary key={String(reactBomb)} Fallback={BoundaryFallback}>{reactBomb ? <Bomb /> : <p>组件运行正常，点击按钮触发渲染错误。</p>}</ErrorBoundary> : <p>React ErrorBoundary 能力未注册</p>}
-                <button type="button" onClick={() => setReactBomb(true)}>触发 React 错误</button>
-              </div>
-            </article>
-          </div>
-        </section>
+        <ReactLab />
       </main>
 
       <footer><span>MONITOR INGESTION LAB</span><span>Browser SDK → Go → PostgreSQL → ClickHouse</span></footer>

@@ -22,7 +22,8 @@ pnpm --dir apps/monitor-demo dev
 ```
 
 访问 `http://127.0.0.1:5173`，可以逐项触发网络、行为、性能和错误场景。
-`http://127.0.0.1:5173/?auto=1` 会自动运行基础场景。
+`http://127.0.0.1:5173/?auto=1` 会自动运行基础场景，并在最后一批事件发送后销毁
+Monitor，避免无人值守的测试页面持续采集。Vite 热更新也会销毁旧 Monitor 实例。
 
 页面显示“Go ingestion 已接通”只代表 SDK 的 Fetch 上报收到成功响应。页面退出时的
 `sendBeacon` 不会向 JavaScript 暴露服务端响应，必须到 PostgreSQL 和 ClickHouse 中

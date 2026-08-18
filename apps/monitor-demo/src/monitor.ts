@@ -46,3 +46,9 @@ export const monitor = createMonitor({
     window.dispatchEvent(new Event('monitor:report-failed'))
   },
 })
+
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    monitor.destroy()
+  })
+}
