@@ -1,9 +1,9 @@
 import { ConfigType } from '../types'
 
 const config: ConfigType = {
-  url: 'http://127.0.0.1:3000/api/data', // 上报地址
+  url: 'http://127.0.0.1:8080/api/v1/events/batch', // 上报地址
   projectName: 'monitor', // 项目名称
-  appId: '123456', // 项目id
+  appId: 'monitor-local', // 项目id
   publicKey: 'pk_local_development', // 浏览器公开上报 Key，不是服务端密钥
   userId: '123456', // 用户id
   isAjax: false, // 是否开启ajax上报
