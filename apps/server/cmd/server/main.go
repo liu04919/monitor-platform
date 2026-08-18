@@ -13,8 +13,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/liu04919/monitor-platform/apps/server/internal/app"
 	"github.com/liu04919/monitor-platform/apps/server/internal/config"
-	"github.com/liu04919/monitor-platform/apps/server/internal/router"
 )
 
 const (
@@ -32,7 +32,7 @@ func main() {
 	}
 }
 
-func run() error {
+func run() (runErr error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -42,21 +42,31 @@ func run() error {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	server := &http.Server{
-		Addr:              cfg.HTTPAddress,
-		Handler:           router.New(),
-		ReadHeaderTimeout: readHeaderTimeout,
-		ReadTimeout:       readTimeout,
-		WriteTimeout:      writeTimeout,
-		IdleTimeout:       idleTimeout,
-	}
-
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
 		syscall.SIGTERM,
 	)
 	defer stop()
+
+	application, err := app.New(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("create application: %w", err)
+	}
+	defer func() {
+		if err := application.Close(); err != nil {
+			runErr = errors.Join(runErr, fmt.Errorf("close application: %w", err))
+		}
+	}()
+
+	server := &http.Server{
+		Addr:              cfg.HTTPAddress,
+		Handler:           application.Handler,
+		ReadHeaderTimeout: readHeaderTimeout,
+		ReadTimeout:       readTimeout,
+		WriteTimeout:      writeTimeout,
+		IdleTimeout:       idleTimeout,
+	}
 
 	serverErr := make(chan error, 1)
 
@@ -85,7 +95,15 @@ func run() error {
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("shutdown HTTP server: %w", err)
+		shutdownErr := fmt.Errorf("shutdown HTTP server: %w", err)
+		if closeErr := server.Close(); closeErr != nil {
+			shutdownErr = errors.Join(
+				shutdownErr,
+				fmt.Errorf("force close HTTP server: %w", closeErr),
+			)
+		}
+
+		return shutdownErr
 	}
 
 	if err := <-serverErr; !errors.Is(err, http.ErrServerClosed) {
