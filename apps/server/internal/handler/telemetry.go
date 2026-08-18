@@ -26,12 +26,12 @@ func NewTelemetryHandler(ingestor ingestion.Service) *TelemetryHandler {
 }
 
 func (h *TelemetryHandler) Batch(c *gin.Context) {
-	if !isJSONContentType(c.GetHeader("Content-Type")) {
+	if !isTelemetryContentType(c.GetHeader("Content-Type")) {
 		writeAPIError(
 			c,
 			http.StatusUnsupportedMediaType,
 			"UNSUPPORTED_MEDIA_TYPE",
-			"Content-Type must be application/json",
+			"Content-Type must be application/json or text/plain",
 			nil,
 		)
 		return
@@ -133,9 +133,9 @@ func writeIngestionError(c *gin.Context, err error) {
 	}
 }
 
-func isJSONContentType(value string) bool {
+func isTelemetryContentType(value string) bool {
 	mediaType, _, err := mime.ParseMediaType(value)
-	return err == nil && mediaType == "application/json"
+	return err == nil && (mediaType == "application/json" || mediaType == "text/plain")
 }
 
 func decodeTelemetryBatch(c *gin.Context, batch *dto.TelemetryBatch) error {

@@ -11,13 +11,19 @@ import {
 
 export const REPORT_URL = 'http://127.0.0.1:8080/api/v1/events/batch'
 
+const searchParams = new URLSearchParams(window.location.search)
+
+export const BEACON_TEST_MODE = searchParams.get('beacon') === '1'
+export const BEACON_TEST_RUN_ID = searchParams.get('runId') || crypto.randomUUID()
+
 export const monitor = createMonitor({
   url: REPORT_URL,
   projectName: 'monitor',
   appId: 'monitor-local',
   publicKey: 'pk_local_development',
   userId: `local-${new Date().toISOString().slice(0, 10)}`,
-  batchSize: 1,
+  // Beacon 测试要把事件留在内存队列中，等 pagehide 时由 sendBeacon 发送。
+  batchSize: BEACON_TEST_MODE ? 100 : 1,
   plugins: [
     ...behaviorPlugins(),
     ...browserErrorPlugins(),

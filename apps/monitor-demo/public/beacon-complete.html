@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Beacon 测试已触发</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: #08110f; color: #e9fff7; }
+      main { width: min(620px, calc(100% - 48px)); padding: 36px; border: 1px solid #24433a; border-radius: 20px; background: #0d1b17; }
+      p { color: #9eb9af; line-height: 1.7; }
+      code { color: #75f0bd; overflow-wrap: anywhere; }
+      a { color: #75f0bd; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>页面退出已触发</h1>
+      <p>原页面已经通过 <code>pagehide → navigator.sendBeacon</code> 尝试发送缓存事件。此完成页不加载 SDK，请用下方 runId 到 PostgreSQL 和 ClickHouse 验证最终结果。</p>
+      <p>runId：<code id="runId">未提供</code></p>
+      <a href="/">返回测试控制台</a>
+    </main>
+    <script>
+      document.querySelector('#runId').textContent = new URLSearchParams(location.search).get('runId') || '未提供'
+    </script>
+  </body>
+</html>

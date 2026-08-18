@@ -51,6 +51,27 @@ func TestTelemetryBatchReturnsAcceptedResult(t *testing.T) {
 	}
 }
 
+func TestTelemetryBatchAcceptsBeaconSimpleContentType(t *testing.T) {
+	batch := contractBatch(t)
+	service := &stubIngestionService{
+		result: ingestion.Result{Accepted: len(batch.Events)},
+	}
+
+	response := performTelemetryRequest(
+		t,
+		service,
+		mustMarshal(t, batch),
+		"text/plain;charset=UTF-8",
+	)
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusAccepted, response.Code, response.Body.String())
+	}
+	if service.calls != 1 {
+		t.Fatalf("expected service to be called once, got %d calls", service.calls)
+	}
+}
+
 func TestTelemetryBatchReturnsDuplicateResult(t *testing.T) {
 	batch := contractBatch(t)
 	service := &stubIngestionService{
@@ -93,7 +114,7 @@ func TestTelemetryBatchMapsRequestAndValidationErrors(t *testing.T) {
 	}{
 		{
 			name:        "unsupported content type",
-			contentType: "text/plain",
+			contentType: "application/octet-stream",
 			body:        mustMarshal(t, validBatch),
 			wantStatus:  http.StatusUnsupportedMediaType,
 			wantCode:    "UNSUPPORTED_MEDIA_TYPE",

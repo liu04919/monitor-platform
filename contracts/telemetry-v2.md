@@ -14,10 +14,12 @@
 
 ```http
 POST /api/v1/events/batch
-Content-Type: application/json
+Content-Type: application/json | text/plain;charset=UTF-8
 ```
 
-请求体最大为 1 MiB，一个批次必须包含 1 到 100 个事件。服务端只接受 UTF-8 JSON。
+请求体最大为 1 MiB，一个批次必须包含 1 到 100 个事件。请求体始终是 UTF-8 JSON：
+Fetch 使用 `application/json`；跨源 `sendBeacon` 使用 CORS 简单请求允许的 `text/plain`，
+避免页面退出时因等待预检而丢失真正的 POST。
 
 使用 `app.id` 识别项目，并使用独立的 `publicKey` 判断浏览器 SDK 是否可以向该项目上报。`publicKey` 会暴露在浏览器中，不是服务端秘密，也不能用于项目管理接口。
 
@@ -240,7 +242,7 @@ SDK 的 beacon 调用无法读取响应，但服务端仍执行完全相同的�
 | `403 Forbidden` | `INVALID_PUBLIC_KEY` | `publicKey` 未知、已禁用，或与 `app.id` 不匹配。 | 否 |
 | `409 Conflict` | `BATCH_ID_CONFLICT` | 同一幂等键对应不同请求内容。 | 否 |
 | `413 Content Too Large` | `PAYLOAD_TOO_LARGE` | 请求体超过 1 MiB。 | 否 |
-| `415 Unsupported Media Type` | `UNSUPPORTED_MEDIA_TYPE` | Content-Type 不是 JSON。 | 否 |
+| `415 Unsupported Media Type` | `UNSUPPORTED_MEDIA_TYPE` | Content-Type 不是 `application/json` 或 `text/plain`。 | 否 |
 | `422 Unprocessable Content` | `INVALID_BATCH`、`INVALID_EVENT` | JSON 可解析，但字段、数量或事件组合不合法。 | 否 |
 | `429 Too Many Requests` | `RATE_LIMITED` | 项目超过上报速率限制。应同时返回 `Retry-After`。 | 是 |
 | `500 Internal Server Error` | `INTERNAL_ERROR` | 服务端暂时无法承担该批次。 | 是 |

@@ -1,6 +1,6 @@
 import { memo, type ComponentType, type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { REACT_PROFILER_CAPABILITY } from 'minitor-sdk/plugins'
-import { monitor, REPORT_URL } from './monitor'
+import { BEACON_TEST_MODE, BEACON_TEST_RUN_ID, monitor, REPORT_URL } from './monitor'
 
 type TestStatus = 'idle' | 'running' | 'done' | 'failed'
 
@@ -127,6 +127,26 @@ export function App() {
   const [reportedCount, setReportedCount] = useState(0)
   const [reportState, setReportState] = useState<'waiting' | 'success' | 'failed'>('waiting')
   const autoRan = useRef(false)
+  const beaconRan = useRef(false)
+
+  useEffect(() => {
+    if (!BEACON_TEST_MODE || beaconRan.current) return
+    beaconRan.current = true
+
+    const behavior = monitor.getCapability<{ customHandler: (data: object) => void }>('behavior:instance')
+    if (!behavior) throw new Error('Behavior 能力未注册，无法执行 Beacon 测试')
+
+    behavior.customHandler({
+      eventKey: `beacon_exit_${BEACON_TEST_RUN_ID}`,
+      eventAction: 'page-exit',
+      eventValue: { runId: BEACON_TEST_RUN_ID, transport: 'sendBeacon' },
+    })
+
+    // 完成页不加载 SDK，避免 IndexedDB 中的同一批数据立刻被 Fetch 重传。
+    const completeUrl = new URL('/beacon-complete.html', window.location.origin)
+    completeUrl.searchParams.set('runId', BEACON_TEST_RUN_ID)
+    window.location.replace(completeUrl)
+  }, [])
 
   useEffect(() => {
     const handleReported = (event: Event) => {

@@ -155,8 +155,10 @@ function beaconRequest(task: ReportTask): boolean {
 
   const body = serializeReportTask(task, 'beacon')
 
+  // text/plain 属于 CORS 简单请求类型。页面退出时不能依赖 application/json
+  // 触发的异步预检，否则导航可能在真正的 Beacon POST 前结束请求。
   const blob = new Blob([body], {
-    type: 'application/json',
+    type: 'text/plain;charset=UTF-8',
   })
 
   return navigator.sendBeacon(task.url, blob)
