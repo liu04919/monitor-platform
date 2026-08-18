@@ -40,6 +40,21 @@ publicKey: pk_local_development
 服务启动后可访问 `http://127.0.0.1:8080/healthz` 检查进程是否存活。SDK 默认上报地址为
 `http://127.0.0.1:8080/api/v1/events/batch`。
 
+## 启动浏览器 SDK 联调应用
+
+先构建仓库内 SDK，再安装并启动 React/Vite Demo：
+
+```powershell
+pnpm --dir packages/monitor-sdk install
+pnpm --dir packages/monitor-sdk build
+pnpm --dir apps/monitor-demo install
+pnpm --dir apps/monitor-demo dev
+```
+
+访问 `http://127.0.0.1:5173`。Demo 使用 `monitor-local`、`monitor` 和
+`pk_local_development` 连接本地 Go ingestion；详细场景与验证边界见
+`apps/monitor-demo/README.md`。
+
 停止容器不会删除数据卷：
 
 ```powershell
