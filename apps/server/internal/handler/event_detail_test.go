@@ -30,6 +30,7 @@ func TestEventDetailHandlerReturnsStructuredJSON(t *testing.T) {
 			EventType:     "js_error",
 			Timestamp:     timestamp,
 			PageURL:       "https://example.com",
+			Message:       "boom",
 			Breadcrumbs:   json.RawMessage(`[{"category":"click"}]`),
 			Payload:       json.RawMessage(`{"message":"boom"}`),
 			ReceivedAt:    timestamp.Add(time.Second),
@@ -50,12 +51,13 @@ func TestEventDetailHandlerReturnsStructuredJSON(t *testing.T) {
 		Data struct {
 			Payload     map[string]any `json:"payload"`
 			Breadcrumbs []any          `json:"breadcrumbs"`
+			Message     string         `json:"message"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 		t.Fatalf("decode response: %v, body = %s", err, recorder.Body.String())
 	}
-	if response.Data.Payload["message"] != "boom" || len(response.Data.Breadcrumbs) != 1 {
+	if response.Data.Message != "boom" || response.Data.Payload["message"] != "boom" || len(response.Data.Breadcrumbs) != 1 {
 		t.Fatalf("structured JSON response = %#v", response.Data)
 	}
 }

@@ -36,6 +36,7 @@ func (h *EventListHandler) Detail(c *gin.Context) {
 			PageURL:       event.PageURL,
 			UserID:        event.UserID,
 			Level:         event.Level,
+			Message:       event.Message,
 			Breadcrumbs:   event.Breadcrumbs,
 			ReplayData:    event.ReplayData,
 			Payload:       event.Payload,
@@ -99,6 +100,7 @@ type eventDetailData struct {
 	PageURL       string            `json:"pageUrl"`
 	UserID        *string           `json:"userId"`
 	Level         *dto.EventLevel   `json:"level"`
+	Message       string            `json:"message"`
 	Breadcrumbs   json.RawMessage   `json:"breadcrumbs"`
 	ReplayData    *string           `json:"replayData"`
 	Payload       json.RawMessage   `json:"payload"`

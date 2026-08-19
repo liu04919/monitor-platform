@@ -114,6 +114,9 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 	if detail.ReplayData == nil || *detail.ReplayData != "event-reader-replay" {
 		t.Fatalf("事件详情 ReplayData = %#v", detail.ReplayData)
 	}
+	if detail.Message != "oldest error" {
+		t.Fatalf("事件详情 Message = %q", detail.Message)
+	}
 
 	var payload map[string]any
 	if err := json.Unmarshal(detail.Payload, &payload); err != nil || payload["message"] != "oldest error" {

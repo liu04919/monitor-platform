@@ -37,6 +37,7 @@ type EventDetail struct {
 	PageURL       string
 	UserID        *string
 	Level         *dto.EventLevel
+	Message       string
 	Breadcrumbs   json.RawMessage
 	ReplayData    *string
 	Payload       json.RawMessage
