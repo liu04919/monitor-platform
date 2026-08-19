@@ -1,7 +1,7 @@
 # Management API v1
 
-本文档描述当前已实现的管理端事件列表和详情接口。它负责读取 ClickHouse 事件，尚不包含
-用户登录和项目管理。
+本文档描述当前已实现的管理端项目发现、事件列表和详情接口。它从 PostgreSQL 读取项目，
+从 ClickHouse 读取事件，尚不包含用户登录和项目增删改。
 
 ## 鉴权边界
 
@@ -15,6 +15,33 @@ Authorization: Bearer <MANAGEMENT_API_TOKEN>
 
 当前管理接口不会复用 ingestion 的通配 CORS。后续浏览器管理页面应配合登录会话和明确的
 来源白名单，而不是把该 Token 打包进前端资源。
+
+## 项目列表
+
+```http
+GET /api/v1/projects
+```
+
+项目按 `(created_at ASC, id ASC)` 稳定排序。禁用项目仍会返回，便于管理端继续查看历史事件，
+调用方通过 `enabled` 区分其接入状态。响应只包含项目选择所需字段，不返回 SDK 使用的
+`publicKey`：
+
+```json
+{
+  "data": {
+    "projects": [
+      {
+        "id": "monitor-local",
+        "name": "monitor",
+        "enabled": true,
+        "createdAt": 1787068800000
+      }
+    ]
+  }
+}
+```
+
+数据库故障返回不暴露内部错误的 `500 INTERNAL_ERROR`。
 
 ## 事件列表
 

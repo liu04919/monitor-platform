@@ -80,7 +80,8 @@ pnpm --dir apps/monitor-admin dev
 
 访问 `http://127.0.0.1:5174/events`。本地 Vite 代理在服务端注入管理 Token，Token 不会
 进入浏览器构建；该代理只用于本地开发，不能代替生产环境的登录会话和项目鉴权。当前页面
-只展示后端已经支持的原始事件列表与详情，更多说明见 `apps/monitor-admin/README.md`。
+支持从 PostgreSQL 项目列表切换项目，并展示后端已经支持的原始事件列表与详情，更多说明见
+`apps/monitor-admin/README.md`。
 
 停止容器不会删除数据卷：
 

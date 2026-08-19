@@ -101,6 +101,31 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 
 	assertTelemetryPreflight(t, server.URL)
 
+	status, projectList := getApplicationProjects(t, server.URL, "")
+	if status != http.StatusUnauthorized || projectList.Error.Code != "UNAUTHORIZED" {
+		t.Fatalf("无管理 Token 查询项目结果 = status %d, code %q", status, projectList.Error.Code)
+	}
+
+	status, projectList = getApplicationProjects(t, server.URL, managementToken)
+	if status != http.StatusOK {
+		t.Fatalf("查询项目列表状态码 = %d, want %d, code = %q", status, http.StatusOK, projectList.Error.Code)
+	}
+	projectFound := false
+	for _, listedProject := range projectList.Data.Projects {
+		if listedProject.ID == projectID {
+			projectFound = true
+			if listedProject.Name != project.Name || !listedProject.Enabled {
+				t.Fatalf("项目列表记录 = %#v", listedProject)
+			}
+			if listedProject.PublicKey != nil {
+				t.Fatalf("项目列表暴露 publicKey = %q", *listedProject.PublicKey)
+			}
+		}
+	}
+	if !projectFound {
+		t.Fatalf("项目列表未返回测试项目 %q", projectID)
+	}
+
 	batch := applicationBatch(projectID, publicKey, "normal-"+suffix, now)
 	status, response := postTelemetryBatch(t, server.URL, batch)
 	if status != http.StatusAccepted {
@@ -310,6 +335,21 @@ type applicationHTTPResponse struct {
 	} `json:"error"`
 }
 
+type applicationProjectListResponse struct {
+	Data struct {
+		Projects []struct {
+			ID        string  `json:"id"`
+			Name      string  `json:"name"`
+			Enabled   bool    `json:"enabled"`
+			CreatedAt int64   `json:"createdAt"`
+			PublicKey *string `json:"publicKey"`
+		} `json:"projects"`
+	} `json:"data"`
+	Error struct {
+		Code string `json:"code"`
+	} `json:"error"`
+}
+
 type applicationEventListResponse struct {
 	Data struct {
 		Events []struct {
@@ -335,6 +375,35 @@ type applicationEventDetailResponse struct {
 	Error struct {
 		Code string `json:"code"`
 	} `json:"error"`
+}
+
+func getApplicationProjects(
+	t *testing.T,
+	serverURL string,
+	managementToken string,
+) (int, applicationProjectListResponse) {
+	t.Helper()
+
+	request, err := http.NewRequest(http.MethodGet, serverURL+"/api/v1/projects", nil)
+	if err != nil {
+		t.Fatalf("创建项目列表请求失败: %v", err)
+	}
+	if managementToken != "" {
+		request.Header.Set("Authorization", "Bearer "+managementToken)
+	}
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("发送项目列表请求失败: %v", err)
+	}
+	defer response.Body.Close()
+
+	var decoded applicationProjectListResponse
+	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+		t.Fatalf("解码项目列表响应失败: %v", err)
+	}
+
+	return response.StatusCode, decoded
 }
 
 func getApplicationEvents(

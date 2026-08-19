@@ -17,7 +17,7 @@ func TestHealth(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 
-	newTestRouter(&stubTelemetryHandler{}, &stubEventListHandler{}).ServeHTTP(recorder, request)
+	newTestRouter(&stubTelemetryHandler{}, &stubProjectListHandler{}, &stubEventListHandler{}).ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
@@ -46,7 +46,7 @@ func TestTelemetryRoute(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/events/batch", nil)
 	request.Header.Set("Origin", "http://localhost:5173")
 
-	newTestRouter(telemetryHandler, &stubEventListHandler{}).ServeHTTP(recorder, request)
+	newTestRouter(telemetryHandler, &stubProjectListHandler{}, &stubEventListHandler{}).ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusAccepted {
 		t.Fatalf("expected status %d, got %d", http.StatusAccepted, recorder.Code)
@@ -72,7 +72,7 @@ func TestTelemetryPreflight(t *testing.T) {
 	request.Header.Set("Access-Control-Request-Method", http.MethodPost)
 	request.Header.Set("Access-Control-Request-Headers", "content-type")
 
-	newTestRouter(telemetryHandler, &stubEventListHandler{}).ServeHTTP(recorder, request)
+	newTestRouter(telemetryHandler, &stubProjectListHandler{}, &stubEventListHandler{}).ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusNoContent {
 		t.Fatalf("expected status %d, got %d", http.StatusNoContent, recorder.Code)
@@ -92,7 +92,7 @@ func TestManagementEventListRouteRequiresBearerToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	eventListHandler := &stubEventListHandler{}
-	engine := newTestRouter(&stubTelemetryHandler{}, eventListHandler)
+	engine := newTestRouter(&stubTelemetryHandler{}, &stubProjectListHandler{}, eventListHandler)
 
 	unauthorized := httptest.NewRecorder()
 	engine.ServeHTTP(
@@ -135,11 +135,43 @@ func TestManagementEventListRouteRequiresBearerToken(t *testing.T) {
 	}
 }
 
+func TestManagementProjectListRouteRequiresBearerToken(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	projectListHandler := &stubProjectListHandler{}
+	engine := newTestRouter(&stubTelemetryHandler{}, projectListHandler, &stubEventListHandler{})
+
+	unauthorized := httptest.NewRecorder()
+	engine.ServeHTTP(
+		unauthorized,
+		httptest.NewRequest(http.MethodGet, "/api/v1/projects", nil),
+	)
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized status = %d, want %d", unauthorized.Code, http.StatusUnauthorized)
+	}
+	if projectListHandler.calls != 0 {
+		t.Fatalf("project list handler calls = %d, want 0", projectListHandler.calls)
+	}
+
+	authorized := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/projects", nil)
+	request.Header.Set("Authorization", "Bearer "+testManagementToken)
+	engine.ServeHTTP(authorized, request)
+
+	if authorized.Code != http.StatusOK {
+		t.Fatalf("authorized status = %d, want %d", authorized.Code, http.StatusOK)
+	}
+	if projectListHandler.calls != 1 {
+		t.Fatalf("project list handler calls = %d, want 1", projectListHandler.calls)
+	}
+}
+
 func newTestRouter(
 	telemetryHandler TelemetryBatchHandler,
+	projectQueryHandler ProjectQueryHandler,
 	eventQueryHandler EventQueryHandler,
 ) *gin.Engine {
-	return New(telemetryHandler, eventQueryHandler, testManagementToken)
+	return New(telemetryHandler, projectQueryHandler, eventQueryHandler, testManagementToken)
 }
 
 type stubTelemetryHandler struct {
@@ -154,6 +186,15 @@ func (h *stubTelemetryHandler) Batch(c *gin.Context) {
 type stubEventListHandler struct {
 	calls       int
 	detailCalls int
+}
+
+type stubProjectListHandler struct {
+	calls int
+}
+
+func (h *stubProjectListHandler) List(c *gin.Context) {
+	h.calls++
+	c.Status(http.StatusOK)
 }
 
 func (h *stubEventListHandler) Detail(c *gin.Context) {

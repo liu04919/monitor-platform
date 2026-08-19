@@ -19,9 +19,14 @@ type EventQueryHandler interface {
 	Detail(c *gin.Context)
 }
 
+type ProjectQueryHandler interface {
+	List(c *gin.Context)
+}
+
 // New 创建正式 HTTP Router，并分别注入上报与管理端读取能力。
 func New(
 	telemetryHandler TelemetryBatchHandler,
+	projectQueryHandler ProjectQueryHandler,
 	eventQueryHandler EventQueryHandler,
 	managementToken string,
 ) *gin.Engine {
@@ -39,6 +44,7 @@ func New(
 
 	management := engine.Group("/api/v1/projects")
 	management.Use(middleware.ManagementAuth(managementToken))
+	management.GET("", projectQueryHandler.List)
 	management.GET("/:projectId/events", eventQueryHandler.List)
 	management.GET("/:projectId/events/:eventId", eventQueryHandler.Detail)
 

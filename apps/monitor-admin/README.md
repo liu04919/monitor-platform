@@ -1,7 +1,7 @@
 # monitor-admin
 
-当前管理端只呈现后端已经实现的原始事件列表与详情，不模拟 Workspace、登录、事件聚合状态、
-环境筛选或项目管理。
+当前管理端呈现后端已经实现的只读项目切换、原始事件列表与详情，不模拟 Workspace、登录、
+事件聚合状态、环境筛选或项目增删改。
 
 ## 本地启动
 
@@ -14,8 +14,9 @@ pnpm install
 pnpm dev
 ```
 
-页面地址为 `http://127.0.0.1:5174/events`。默认项目是 `monitor-local`；如需切换，可在仓库
-根目录 `.env` 设置 `VITE_MONITOR_PROJECT_ID`。Go API 地址默认是
+页面地址为 `http://127.0.0.1:5174/events`。侧栏项目选择器从 PostgreSQL 项目列表读取数据。
+仓库根目录 `.env` 中的 `VITE_MONITOR_PROJECT_ID` 只是首次加载的首选项目，默认为
+`monitor-local`；如果该项目不存在，页面会选择接口返回的第一个项目。Go API 地址默认是
 `http://127.0.0.1:8080`，可用服务端变量 `MONITOR_API_ORIGIN` 覆盖。
 
 ## 鉴权边界
@@ -41,8 +42,8 @@ src/
 ```
 
 - React Router 管理 `/events` 与 `/events/:eventId`。
-- TanStack Query 管理列表、详情、游标分页、缓存、重试和取消信号。
-- Zustand 当前保存项目上下文，为后续真实项目切换提供稳定入口；事件数据不进入 Store。
+- TanStack Query 管理项目、事件列表、详情、游标分页、缓存、重试和取消信号。
+- Zustand 只保存当前项目上下文；切换项目后，包含 `projectId` 的事件 query key 会自然隔离缓存并重新查询，事件数据不进入 Store。
 - 页面与组件使用 CSS Modules，全局样式只包含设计变量、reset 和无障碍基础规则。
 
 ## 质量检查
@@ -54,4 +55,4 @@ pnpm test
 pnpm build
 ```
 
-Vitest 与 Testing Library 覆盖列表到详情的路由、URL 筛选条件和管理端鉴权错误状态。
+Vitest 与 Testing Library 覆盖项目切换、列表到详情的路由、URL 筛选条件和管理端鉴权错误状态。

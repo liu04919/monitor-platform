@@ -1,0 +1,52 @@
+.switcher {
+  margin: 38px 0 24px;
+  padding: 13px 14px 14px;
+  border: 1px solid var(--sidebar-line);
+  border-radius: 10px;
+  background: rgb(255 255 255 / 2.5%);
+}
+
+.switcher label {
+  display: block;
+  margin-bottom: 8px;
+  color: #7f8b98;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.switcher select {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 28px 7px 8px;
+  overflow: hidden;
+  color: #eef3f8;
+  background: #161e27;
+  border: 1px solid #34404c;
+  border-radius: 7px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+}
+
+.switcher select:focus-visible {
+  outline: 2px solid #5792f3;
+  outline-offset: 2px;
+}
+
+.switcher select:disabled {
+  cursor: wait;
+  opacity: 0.68;
+}
+
+.switcher small {
+  display: block;
+  margin-top: 6px;
+  overflow: hidden;
+  color: #788490;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
