@@ -13,6 +13,7 @@ import (
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/config"
 	"github.com/liu04919/monitor-platform/apps/server/internal/database"
+	"github.com/liu04919/monitor-platform/apps/server/internal/eventquery"
 	"github.com/liu04919/monitor-platform/apps/server/internal/handler"
 	"github.com/liu04919/monitor-platform/apps/server/internal/ingestion"
 	"github.com/liu04919/monitor-platform/apps/server/internal/router"
@@ -59,12 +60,19 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	keyVerifier := postgresstore.NewProjectKeyVerifier(postgresDB)
 	batchReceipts := postgresstore.NewBatchReceiptStore(postgresDB)
 	eventWriter := clickhousestore.NewEventWriter(clickHouseConn)
+	eventReader := clickhousestore.NewEventReader(clickHouseConn)
 	batchStore := ingestion.NewBatchStore(batchReceipts, eventWriter)
 	ingestor := ingestion.NewService(keyVerifier, batchStore)
 	telemetryHandler := handler.NewTelemetryHandler(ingestor)
+	eventListService := eventquery.NewService(eventReader)
+	eventListHandler := handler.NewEventListHandler(eventListService)
 
 	return &App{
-		Handler:        router.New(telemetryHandler),
+		Handler: router.New(
+			telemetryHandler,
+			eventListHandler,
+			cfg.ManagementAPIToken,
+		),
 		postgresPool:   postgresPool,
 		clickHouseConn: clickHouseConn,
 	}, nil

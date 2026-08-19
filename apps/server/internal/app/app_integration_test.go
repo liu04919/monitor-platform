@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -25,7 +26,7 @@ import (
 	postgresstore "github.com/liu04919/monitor-platform/apps/server/internal/storage/postgres"
 )
 
-func TestApplicationTelemetryHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
+func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	postgresDSN := os.Getenv("TEST_DATABASE_URL")
 	clickHouseDSN := os.Getenv("TEST_CLICKHOUSE_DSN")
 	if postgresDSN == "" || clickHouseDSN == "" {
@@ -67,6 +68,7 @@ func TestApplicationTelemetryHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	suffix := fmt.Sprintf("%d", now.UnixNano())
 	projectID := "app-http-project-" + suffix
 	publicKey := "app-http-key-" + suffix
+	managementToken := "app-http-management-token-" + suffix
 	project := postgresstore.Project{
 		ID:        projectID,
 		Name:      "应用 HTTP 集成测试",
@@ -81,8 +83,9 @@ func TestApplicationTelemetryHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	})
 
 	application, err := app.New(ctx, config.Config{
-		DatabaseURL:   postgresDSN,
-		ClickHouseDSN: clickHouseDSN,
+		DatabaseURL:        postgresDSN,
+		ClickHouseDSN:      clickHouseDSN,
+		ManagementAPIToken: managementToken,
 	})
 	if err != nil {
 		t.Fatalf("创建应用失败: %v", err)
@@ -141,6 +144,53 @@ func TestApplicationTelemetryHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 		batch.BatchID,
 		uint64(len(batch.Events)),
 	)
+
+	status, eventList := getApplicationEvents(t, server.URL, projectID, "", nil)
+	if status != http.StatusUnauthorized || eventList.Error.Code != "UNAUTHORIZED" {
+		t.Fatalf("无管理 Token 查询结果 = status %d, code %q", status, eventList.Error.Code)
+	}
+
+	status, eventList = getApplicationEvents(t, server.URL, projectID, publicKey, nil)
+	if status != http.StatusUnauthorized || eventList.Error.Code != "UNAUTHORIZED" {
+		t.Fatalf("publicKey 冒充管理 Token 结果 = status %d, code %q", status, eventList.Error.Code)
+	}
+
+	status, eventList = getApplicationEvents(
+		t,
+		server.URL,
+		projectID,
+		managementToken,
+		url.Values{"limit": {"1"}},
+	)
+	if status != http.StatusOK {
+		t.Fatalf("查询第一页状态码 = %d, want %d, code = %q", status, http.StatusOK, eventList.Error.Code)
+	}
+	if len(eventList.Data.Events) != 1 || eventList.Data.Events[0].EventID != batch.Events[1].EventID {
+		t.Fatalf("查询第一页事件 = %#v", eventList.Data.Events)
+	}
+	if eventList.Data.NextCursor == "" {
+		t.Fatal("查询第一页 nextCursor 为空")
+	}
+
+	status, secondPage := getApplicationEvents(
+		t,
+		server.URL,
+		projectID,
+		managementToken,
+		url.Values{
+			"limit":  {"1"},
+			"cursor": {eventList.Data.NextCursor},
+		},
+	)
+	if status != http.StatusOK {
+		t.Fatalf("查询第二页状态码 = %d, want %d, code = %q", status, http.StatusOK, secondPage.Error.Code)
+	}
+	if len(secondPage.Data.Events) != 1 || secondPage.Data.Events[0].EventID != batch.Events[0].EventID {
+		t.Fatalf("查询第二页事件 = %#v", secondPage.Data.Events)
+	}
+	if secondPage.Data.NextCursor != "" {
+		t.Fatalf("查询第二页 nextCursor = %q, want empty", secondPage.Data.NextCursor)
+	}
 }
 
 func assertTelemetryPreflight(t *testing.T, serverURL string) {
@@ -225,6 +275,56 @@ type applicationHTTPResponse struct {
 	Error struct {
 		Code string `json:"code"`
 	} `json:"error"`
+}
+
+type applicationEventListResponse struct {
+	Data struct {
+		Events []struct {
+			EventID   string            `json:"eventId"`
+			Category  dto.EventCategory `json:"category"`
+			EventType string            `json:"eventType"`
+			Timestamp int64             `json:"timestamp"`
+		} `json:"events"`
+		NextCursor string `json:"nextCursor"`
+	} `json:"data"`
+	Error struct {
+		Code string `json:"code"`
+	} `json:"error"`
+}
+
+func getApplicationEvents(
+	t *testing.T,
+	serverURL string,
+	projectID string,
+	managementToken string,
+	query url.Values,
+) (int, applicationEventListResponse) {
+	t.Helper()
+
+	endpoint := serverURL + "/api/v1/projects/" + url.PathEscape(projectID) + "/events"
+	if len(query) > 0 {
+		endpoint += "?" + query.Encode()
+	}
+	request, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		t.Fatalf("创建事件列表请求失败: %v", err)
+	}
+	if managementToken != "" {
+		request.Header.Set("Authorization", "Bearer "+managementToken)
+	}
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("发送事件列表请求失败: %v", err)
+	}
+	defer response.Body.Close()
+
+	var decoded applicationEventListResponse
+	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+		t.Fatalf("解码事件列表响应失败: %v", err)
+	}
+
+	return response.StatusCode, decoded
 }
 
 func applicationBatch(

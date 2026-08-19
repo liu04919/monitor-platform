@@ -16,6 +16,7 @@ docker compose ps
 ```powershell
 $env:DATABASE_URL = "postgres://monitor:monitor_dev_password@localhost:5432/monitor_platform?sslmode=disable"
 $env:CLICKHOUSE_DSN = "clickhouse://monitor:monitor_dev_password@localhost:9000/monitor_platform?dial_timeout=5s&compress=lz4"
+$env:MANAGEMENT_API_TOKEN = "monitor_local_management_token_change_me"
 ```
 
 依次执行迁移、创建本地接入项目并启动服务：
@@ -39,6 +40,18 @@ publicKey: pk_local_development
 
 服务启动后可访问 `http://127.0.0.1:8080/healthz` 检查进程是否存活。SDK 默认上报地址为
 `http://127.0.0.1:8080/api/v1/events/batch`。
+
+管理端事件列表使用独立的服务端 Token，不能使用 SDK 的 `publicKey`：
+
+```powershell
+$headers = @{ Authorization = "Bearer $env:MANAGEMENT_API_TOKEN" }
+Invoke-RestMethod `
+  -Headers $headers `
+  -Uri "http://127.0.0.1:8080/api/v1/projects/monitor-local/events?limit=20"
+```
+
+接口支持 `category`、`eventType`、`limit` 和 `cursor` 查询参数，详细约定见
+`contracts/management-api-v1.md`。
 
 ## 启动浏览器 SDK 联调应用
 

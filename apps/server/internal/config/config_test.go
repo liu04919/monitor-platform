@@ -10,6 +10,7 @@ func TestLoad(t *testing.T) {
 	t.Setenv("HTTP_ADDR", "127.0.0.1:9090")
 	t.Setenv("DATABASE_URL", " postgres://monitor:password@localhost:5432/monitor_platform ")
 	t.Setenv("CLICKHOUSE_DSN", " clickhouse://monitor:password@localhost:9000/monitor_platform ")
+	t.Setenv("MANAGEMENT_API_TOKEN", " management-token-with-at-least-32-bytes ")
 
 	cfg, err := Load()
 	if err != nil {
@@ -28,6 +29,9 @@ func TestLoad(t *testing.T) {
 	if cfg.ClickHouseDSN != "clickhouse://monitor:password@localhost:9000/monitor_platform" {
 		t.Fatalf("ClickHouseDSN 未去除首尾空白: %q", cfg.ClickHouseDSN)
 	}
+	if cfg.ManagementAPIToken != "management-token-with-at-least-32-bytes" {
+		t.Fatalf("ManagementAPIToken 未去除首尾空白: %q", cfg.ManagementAPIToken)
+	}
 }
 
 func TestLoadUsesHTTPDefaults(t *testing.T) {
@@ -35,6 +39,7 @@ func TestLoadUsesHTTPDefaults(t *testing.T) {
 	t.Setenv("HTTP_ADDR", "")
 	t.Setenv("DATABASE_URL", "postgres://monitor:password@localhost:5432/monitor_platform")
 	t.Setenv("CLICKHOUSE_DSN", "clickhouse://monitor:password@localhost:9000/monitor_platform")
+	t.Setenv("MANAGEMENT_API_TOKEN", "management-token-with-at-least-32-bytes")
 
 	cfg, err := Load()
 	if err != nil {
@@ -51,30 +56,49 @@ func TestLoadUsesHTTPDefaults(t *testing.T) {
 
 func TestLoadRejectsInvalidOrMissingValues(t *testing.T) {
 	tests := []struct {
-		name          string
-		httpAddress   string
-		databaseURL   string
-		clickHouseDSN string
-		wantErrorPart string
+		name            string
+		httpAddress     string
+		databaseURL     string
+		clickHouseDSN   string
+		managementToken string
+		wantErrorPart   string
 	}{
 		{
-			name:          "invalid HTTP address",
-			httpAddress:   "8080",
-			databaseURL:   "postgres://database",
-			clickHouseDSN: "clickhouse://database",
-			wantErrorPart: "HTTP_ADDR",
+			name:            "invalid HTTP address",
+			httpAddress:     "8080",
+			databaseURL:     "postgres://database",
+			clickHouseDSN:   "clickhouse://database",
+			managementToken: "management-token-with-at-least-32-bytes",
+			wantErrorPart:   "HTTP_ADDR",
 		},
 		{
-			name:          "missing PostgreSQL DSN",
-			httpAddress:   ":8080",
-			clickHouseDSN: "clickhouse://database",
-			wantErrorPart: "DATABASE_URL",
+			name:            "missing PostgreSQL DSN",
+			httpAddress:     ":8080",
+			clickHouseDSN:   "clickhouse://database",
+			managementToken: "management-token-with-at-least-32-bytes",
+			wantErrorPart:   "DATABASE_URL",
 		},
 		{
-			name:          "missing ClickHouse DSN",
+			name:            "missing ClickHouse DSN",
+			httpAddress:     ":8080",
+			databaseURL:     "postgres://database",
+			managementToken: "management-token-with-at-least-32-bytes",
+			wantErrorPart:   "CLICKHOUSE_DSN",
+		},
+		{
+			name:          "missing management API token",
 			httpAddress:   ":8080",
 			databaseURL:   "postgres://database",
-			wantErrorPart: "CLICKHOUSE_DSN",
+			clickHouseDSN: "clickhouse://database",
+			wantErrorPart: "MANAGEMENT_API_TOKEN",
+		},
+		{
+			name:            "management API token too short",
+			httpAddress:     ":8080",
+			databaseURL:     "postgres://database",
+			clickHouseDSN:   "clickhouse://database",
+			managementToken: "too-short",
+			wantErrorPart:   "MANAGEMENT_API_TOKEN",
 		},
 	}
 
@@ -83,6 +107,7 @@ func TestLoadRejectsInvalidOrMissingValues(t *testing.T) {
 			t.Setenv("HTTP_ADDR", test.httpAddress)
 			t.Setenv("DATABASE_URL", test.databaseURL)
 			t.Setenv("CLICKHOUSE_DSN", test.clickHouseDSN)
+			t.Setenv("MANAGEMENT_API_TOKEN", test.managementToken)
 
 			_, err := Load()
 			if err == nil {

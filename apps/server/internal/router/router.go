@@ -14,8 +14,16 @@ type TelemetryBatchHandler interface {
 	Batch(c *gin.Context)
 }
 
-// New 创建正式 HTTP Router，并注入遥测批次 Handler。
-func New(telemetryHandler TelemetryBatchHandler) *gin.Engine {
+type EventListHandler interface {
+	List(c *gin.Context)
+}
+
+// New 创建正式 HTTP Router，并分别注入上报与管理端读取能力。
+func New(
+	telemetryHandler TelemetryBatchHandler,
+	eventListHandler EventListHandler,
+	managementToken string,
+) *gin.Engine {
 	engine := gin.New()
 	engine.Use(gin.Logger(), gin.Recovery())
 
@@ -27,6 +35,10 @@ func New(telemetryHandler TelemetryBatchHandler) *gin.Engine {
 		c.Status(http.StatusNoContent)
 	})
 	telemetry.POST("/batch", telemetryHandler.Batch)
+
+	management := engine.Group("/api/v1/projects")
+	management.Use(middleware.ManagementAuth(managementToken))
+	management.GET("/:projectId/events", eventListHandler.List)
 
 	return engine
 }
