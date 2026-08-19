@@ -14,6 +14,12 @@ import (
 	"github.com/liu04919/monitor-platform/apps/server/internal/eventquery"
 )
 
+const eventMessageExpression = `coalesce(
+			nullIf(JSONExtractString(payload_json, 'message'), ''),
+			nullIf(JSONExtractString(payload_json, 'exception', 'message'), ''),
+			''
+		)`
+
 const listTelemetryEventsSQL = `
 	SELECT
 		batch_id,
@@ -25,7 +31,7 @@ const listTelemetryEventsSQL = `
 		page_url,
 		user_id,
 		level,
-		JSONExtractString(payload_json, 'message') AS message,
+		` + eventMessageExpression + ` AS message,
 		received_at
 	FROM telemetry_events
 	WHERE project_id = ?
@@ -46,7 +52,7 @@ const getTelemetryEventSQL = `
 		page_url,
 		user_id,
 		level,
-		JSONExtractString(payload_json, 'message') AS message,
+		` + eventMessageExpression + ` AS message,
 		breadcrumbs_json,
 		replay_data,
 		payload_json,

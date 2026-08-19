@@ -97,6 +97,9 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 	if errorPage.Events[0].Level == nil || *errorPage.Events[0].Level != dto.EventLevelError {
 		t.Fatalf("错误事件 Level = %#v", errorPage.Events[0].Level)
 	}
+	if errorPage.Events[0].Message != "middle error" || errorPage.Events[1].Message != "oldest error" {
+		t.Fatalf("异常错误事件 Message = %q, %q", errorPage.Events[0].Message, errorPage.Events[1].Message)
+	}
 
 	detail, err := service.Detail(ctx, eventquery.DetailRequest{
 		ProjectID: projectID,
@@ -118,8 +121,12 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 		t.Fatalf("事件详情 Message = %q", detail.Message)
 	}
 
-	var payload map[string]any
-	if err := json.Unmarshal(detail.Payload, &payload); err != nil || payload["message"] != "oldest error" {
+	var payload struct {
+		Exception struct {
+			Message string `json:"message"`
+		} `json:"exception"`
+	}
+	if err := json.Unmarshal(detail.Payload, &payload); err != nil || payload.Exception.Message != "oldest error" {
 		t.Fatalf("事件详情 Payload = %s, error = %v", detail.Payload, err)
 	}
 	var breadcrumbs []dto.Breadcrumb
@@ -171,7 +178,9 @@ func queryBatch(projectID, batchID string, timestamp time.Time) dto.TelemetryBat
 					},
 				},
 				ReplayData: &replayData,
-				Payload:    json.RawMessage(`{"message":"oldest error"}`),
+				Payload: json.RawMessage(
+					`{"exception":{"name":"TypeError","message":"oldest error","stack":[]},"mechanism":{"type":"window.onerror","handled":false}}`,
+				),
 			},
 			{
 				SchemaVersion: 2,
@@ -192,7 +201,9 @@ func queryBatch(projectID, batchID string, timestamp time.Time) dto.TelemetryBat
 				PageURL:       "https://example.com/middle-c",
 				Level:         &level,
 				Breadcrumbs:   []dto.Breadcrumb{},
-				Payload:       json.RawMessage(`{"message":"middle error"}`),
+				Payload: json.RawMessage(
+					`{"exception":{"name":"TypeError","message":"middle error","stack":[]},"mechanism":{"type":"window.onerror","handled":false}}`,
+				),
 			},
 			{
 				SchemaVersion: 2,

@@ -60,6 +60,10 @@ GET /api/v1/projects/{projectId}/events
 没有下一页时，`nextCursor` 是空字符串。查询参数非法返回 `400 INVALID_QUERY`；数据库等
 内部故障返回不暴露内部错误的 `500 INTERNAL_ERROR`。
 
+列表和详情中的 `message` 是从 SDK payload 读取的展示摘要：优先使用顶层
+`payload.message`，为空时读取异常事件的 `payload.exception.message`。该字段只是读取投影，
+不会改写 ClickHouse 中保存的原始 `payload`。
+
 ## 事件详情
 
 ```http
