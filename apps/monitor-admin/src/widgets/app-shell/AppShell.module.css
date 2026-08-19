@@ -1,0 +1,44 @@
+.shell { min-height: 100vh; display: grid; grid-template-columns: 252px minmax(0, 1fr); }
+.sidebar { position: fixed; inset: 0 auto 0 0; z-index: 20; width: 252px; display: flex; flex-direction: column; padding: 25px 18px 18px; color: white; background: radial-gradient(circle at 4% 0%, #19222c 0, var(--sidebar) 36%); border-right: 1px solid #202833; }
+.brandLockup { height: 42px; display: flex; align-items: center; gap: 11px; padding: 0 8px; }
+.brandMark { width: 38px; height: 38px; display: grid; place-items: center; flex: 0 0 auto; color: #edf5ff; background: linear-gradient(145deg, #26323e, #161e27); border: 1px solid #303c48; border-radius: 11px; box-shadow: 0 8px 24px rgb(0 0 0 / 20%); }
+.brandMark svg { width: 24px; height: 24px; }
+.brandLockup > span:last-child, .sidebarFoot > span:last-child { display: flex; flex-direction: column; gap: 2px; }
+.brandLockup strong { font-size: 15px; letter-spacing: -.01em; }
+.brandLockup small { color: #8e9aa8; font-size: 10px; }
+.projectContext { margin: 38px 0 24px; padding: 13px 14px 14px; border: 1px solid var(--sidebar-line); border-radius: 10px; background: rgb(255 255 255 / 2.5%); }
+.projectContext span { display: block; margin-bottom: 8px; color: #7f8b98; font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+.projectContext strong { display: block; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.projectContext small { display: block; margin-top: 5px; color: #788490; font-size: 10px; }
+.sidebar nav { margin: 0 -2px; }
+.sidebar nav a { min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 13px; color: #aeb8c4; border-radius: 9px; text-decoration: none; font-size: 12px; font-weight: 650; }
+.sidebar nav a svg { width: 19px; height: 19px; }
+.sidebar nav a.active { color: white; background: linear-gradient(110deg, #1d5fd3, #2f75ef); box-shadow: 0 8px 25px rgb(20 78 185 / 34%); }
+.sidebarFoot { display: flex; align-items: center; gap: 10px; margin-top: auto; padding: 18px 10px 4px; border-top: 1px solid var(--sidebar-line); }
+.connectionDot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: #4dc987; box-shadow: 0 0 0 5px rgb(77 201 135 / 10%); }
+.sidebarFoot strong { color: #c8d1da; font-size: 9px; letter-spacing: .12em; }
+.sidebarFoot small { color: #6f7a86; font-size: 9px; }
+.workspace { grid-column: 2; min-width: 0; }
+.topbar { height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 clamp(24px, 3vw, 48px); background: rgb(255 255 255 / 90%); border-bottom: 1px solid var(--line); backdrop-filter: blur(12px); }
+.topbar nav { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
+.topbar nav a { color: var(--muted); text-decoration: none; }
+.topbar nav a:hover { color: var(--blue); }
+.topbar nav svg { width: 13px; height: 13px; color: #aeb6c1; }
+.topbar nav span { color: var(--ink); font-weight: 650; }
+.projectChip { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 11px; color: #596579; background: #f7f9fb; border: 1px solid var(--line); border-radius: 8px; font: 9px "Cascadia Code", Consolas, monospace; }
+.projectChip span { width: 6px; height: 6px; border-radius: 50%; background: #4fc58b; }
+.mobileBrand { display: none; }
+.workspace > main { min-height: calc(100vh - 64px); background: var(--page); }
+
+@media (max-width: 1080px) { .shell { grid-template-columns: 210px minmax(0, 1fr); } .sidebar { width: 210px; } }
+@media (max-width: 760px) {
+  .shell { display: block; }
+  .sidebar { display: none; }
+  .workspace { min-width: 0; }
+  .topbar { height: 58px; padding: 0 18px; }
+  .topbar > nav { display: none; }
+  .mobileBrand { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .mobileBrand .brandMark { width: 30px; height: 30px; color: white; }
+  .mobileBrand .brandMark svg { width: 18px; height: 18px; }
+}
+@media (max-width: 520px) { .projectChip { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }

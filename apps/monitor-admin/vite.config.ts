@@ -12,6 +12,9 @@ export default defineConfig(({ mode }) => {
   return {
     envDir: repositoryRoot,
     plugins: [react()],
+    resolve: {
+      alias: { '@': resolve(import.meta.dirname, 'src') },
+    },
     server: {
       port: 5174,
       strictPort: true,

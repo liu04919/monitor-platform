@@ -1,0 +1,29 @@
+:root {
+  color: #172033;
+  background: #f7f8fa;
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --ink: #172033;
+  --muted: #6c778b;
+  --subtle: #9aa4b4;
+  --line: #e1e6ed;
+  --panel: #ffffff;
+  --page: #f7f8fa;
+  --blue: #2767e7;
+  --blue-soft: #edf4ff;
+  --sidebar: #0d131a;
+  --sidebar-line: #202832;
+}
+
+* { box-sizing: border-box; }
+html { min-width: 320px; background: var(--page); }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input, select { font: inherit; }
+button, a, select { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgb(39 103 231 / 20%); outline-offset: 2px; }
+button:disabled { cursor: not-allowed; opacity: .58; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

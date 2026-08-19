@@ -1,0 +1,8 @@
+.skeleton { padding-top: 35px; }
+.skeleton span { display: block; width: 68%; height: 9px; border-radius: 20px; background: linear-gradient(90deg, #edf0f4 25%, #f7f8fa 45%, #edf0f4 65%); background-size: 240% 100%; animation: shimmer 1.4s ease-in-out infinite; }
+.skeleton .title { width: min(460px, 70%); height: 28px; margin-bottom: 35px; }
+.summary, .code { margin-top: 15px; background: white; border: 1px solid var(--line); border-radius: 12px; }
+.summary { min-height: 210px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px; padding: 30px; }
+.code { min-height: 300px; padding: 28px; }
+.code span { width: 100%; height: 240px; border-radius: 8px; }
+@keyframes shimmer { to { background-position: -180% 0; } }

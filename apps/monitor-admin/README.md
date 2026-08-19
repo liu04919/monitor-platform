@@ -25,3 +25,33 @@ pnpm dev
 
 这只是本地开发桥接。`vite build` 生成的静态资源没有生产代理，不能直接作为生产管理端部署。
 正式环境仍需要登录会话或 BFF，并在服务端完成用户与项目权限校验。
+
+## 前端架构
+
+管理端按职责分层，而不是把页面逻辑集中在入口组件：
+
+```text
+src/
+├─ app/       # Router、QueryClient 和全局 Provider
+├─ pages/     # 路由页面，只组合业务组件
+├─ features/  # 事件领域的 API、查询、类型和组件
+├─ widgets/   # AppShell 等跨页面布局
+├─ shared/    # API 客户端、配置、工具和基础 UI
+└─ store/     # Zustand 管理跨页面客户端状态
+```
+
+- React Router 管理 `/events` 与 `/events/:eventId`。
+- TanStack Query 管理列表、详情、游标分页、缓存、重试和取消信号。
+- Zustand 当前保存项目上下文，为后续真实项目切换提供稳定入口；事件数据不进入 Store。
+- 页面与组件使用 CSS Modules，全局样式只包含设计变量、reset 和无障碍基础规则。
+
+## 质量检查
+
+```powershell
+pnpm lint
+pnpm check
+pnpm test
+pnpm build
+```
+
+Vitest 与 Testing Library 覆盖列表到详情的路由、URL 筛选条件和管理端鉴权错误状态。

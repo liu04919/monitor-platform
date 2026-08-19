@@ -1,0 +1,23 @@
+.filterBar { display: flex; align-items: end; gap: 10px; margin-bottom: 14px; padding: 15px; background: white; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 2px 9px rgb(24 36 54 / 2.5%); }
+.filterBar label { display: flex; flex-direction: column; gap: 7px; }
+.filterBar label > span { color: #8993a2; font-size: 9px; font-weight: 730; letter-spacing: .04em; }
+.filterBar select, .filterBar input { height: 38px; color: #263247; background: #fbfcfd; border: 1px solid #dce2e9; border-radius: 8px; font-size: 11px; }
+.filterBar select { width: 180px; padding: 0 32px 0 12px; cursor: pointer; }
+.filterBar input { width: 100%; padding: 0 12px; }
+.filterBar input::placeholder { color: #adb5c0; }
+.filterBar select:hover, .filterBar input:hover { border-color: #c8d2df; }
+.eventTypeFilter { width: min(330px, 35vw); }
+.primaryButton { height: 38px; padding: 0 17px; color: white; background: var(--ink); border: 0; border-radius: 8px; font-size: 10px; font-weight: 720; cursor: pointer; }
+.primaryButton:hover { background: #26334a; }
+.textButton { height: 38px; padding: 0 9px; color: var(--muted); background: transparent; border: 0; font-size: 10px; cursor: pointer; }
+.textButton:hover { color: var(--blue); }
+
+@media (max-width: 760px) {
+  .filterBar { align-items: stretch; flex-wrap: wrap; }
+  .filterBar label, .eventTypeFilter { width: calc(50% - 5px); }
+  .filterBar select { width: 100%; }
+}
+@media (max-width: 520px) {
+  .filterBar label, .eventTypeFilter { width: 100%; }
+  .primaryButton { flex: 1; }
+}
