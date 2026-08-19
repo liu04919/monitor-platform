@@ -62,6 +62,7 @@ type ListFilter struct {
 // Store 从事件存储中按稳定顺序读取列表。
 type Store interface {
 	List(ctx context.Context, filter ListFilter) ([]EventSummary, error)
+	Get(ctx context.Context, projectID, eventID string) (EventDetail, bool, error)
 }
 
 type ListRequest struct {

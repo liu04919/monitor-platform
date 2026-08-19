@@ -1,7 +1,10 @@
 package clickhouse
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -26,6 +29,30 @@ const listTelemetryEventsSQL = `
 		received_at
 	FROM telemetry_events
 	WHERE project_id = ?
+`
+
+const getTelemetryEventSQL = `
+	SELECT
+		schema_version,
+		project_id,
+		app_name,
+		batch_id,
+		send_type,
+		sent_at,
+		event_id,
+		category,
+		event_type,
+		event_timestamp,
+		page_url,
+		user_id,
+		level,
+		breadcrumbs_json,
+		replay_data,
+		payload_json,
+		received_at
+	FROM telemetry_events
+	WHERE project_id = ? AND event_id = ?
+	LIMIT 1
 `
 
 // EventReader 从 ClickHouse 读取事件列表；公开路由和鉴权由后续管理端链路负责。
@@ -108,4 +135,95 @@ func (r *EventReader) List(
 	}
 
 	return events, nil
+}
+
+func (r *EventReader) Get(
+	ctx context.Context,
+	projectID string,
+	eventID string,
+) (eventquery.EventDetail, bool, error) {
+	rows, err := r.conn.Query(ctx, getTelemetryEventSQL, projectID, eventID)
+	if err != nil {
+		return eventquery.EventDetail{}, false, fmt.Errorf("执行 ClickHouse 事件详情查询: %w", err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return eventquery.EventDetail{}, false, fmt.Errorf("遍历 ClickHouse 事件详情: %w", err)
+		}
+		return eventquery.EventDetail{}, false, nil
+	}
+
+	var (
+		event           eventquery.EventDetail
+		schemaVersion   uint16
+		sendType        string
+		category        string
+		level           *string
+		breadcrumbsJSON string
+		payloadJSON     string
+	)
+	if err := rows.Scan(
+		&schemaVersion,
+		&event.ProjectID,
+		&event.AppName,
+		&event.BatchID,
+		&sendType,
+		&event.SentAt,
+		&event.EventID,
+		&category,
+		&event.EventType,
+		&event.Timestamp,
+		&event.PageURL,
+		&event.UserID,
+		&level,
+		&breadcrumbsJSON,
+		&event.ReplayData,
+		&payloadJSON,
+		&event.ReceivedAt,
+	); err != nil {
+		return eventquery.EventDetail{}, false, fmt.Errorf("扫描 ClickHouse 事件详情: %w", err)
+	}
+
+	breadcrumbs, err := storedJSONArray(breadcrumbsJSON)
+	if err != nil {
+		return eventquery.EventDetail{}, false, fmt.Errorf("解析 ClickHouse breadcrumbs_json: %w", err)
+	}
+	payload, err := storedJSONObject(payloadJSON)
+	if err != nil {
+		return eventquery.EventDetail{}, false, fmt.Errorf("解析 ClickHouse payload_json: %w", err)
+	}
+
+	event.SchemaVersion = int(schemaVersion)
+	event.SendType = dto.SendType(sendType)
+	event.Category = dto.EventCategory(category)
+	event.Breadcrumbs = breadcrumbs
+	event.Payload = payload
+	if level != nil {
+		eventLevel := dto.EventLevel(*level)
+		event.Level = &eventLevel
+	}
+
+	return event, true, nil
+}
+
+func storedJSONObject(value string) (json.RawMessage, error) {
+	return storedJSON(value, '{', nil)
+}
+
+func storedJSONArray(value string) (json.RawMessage, error) {
+	return storedJSON(value, '[', json.RawMessage("[]"))
+}
+
+func storedJSON(value string, prefix byte, nullValue json.RawMessage) (json.RawMessage, error) {
+	trimmed := bytes.TrimSpace([]byte(value))
+	if bytes.Equal(trimmed, []byte("null")) && nullValue != nil {
+		return nullValue, nil
+	}
+	if len(trimmed) < 2 || trimmed[0] != prefix || !json.Valid(trimmed) {
+		return nil, errors.New("stored value has an invalid JSON shape")
+	}
+
+	return json.RawMessage(trimmed), nil
 }

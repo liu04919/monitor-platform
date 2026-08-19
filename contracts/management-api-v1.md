@@ -1,7 +1,7 @@
 # Management API v1
 
-本文档描述当前已实现的管理端事件列表接口。它只负责读取 ClickHouse 事件摘要，尚不包含
-用户登录、项目管理和事件详情。
+本文档描述当前已实现的管理端事件列表和详情接口。它负责读取 ClickHouse 事件，尚不包含
+用户登录和项目管理。
 
 ## 鉴权边界
 
@@ -59,3 +59,42 @@ GET /api/v1/projects/{projectId}/events
 
 没有下一页时，`nextCursor` 是空字符串。查询参数非法返回 `400 INVALID_QUERY`；数据库等
 内部故障返回不暴露内部错误的 `500 INTERNAL_ERROR`。
+
+## 事件详情
+
+```http
+GET /api/v1/projects/{projectId}/events/{eventId}
+```
+
+`projectId` 和 `eventId` 共同确定查询范围，不能跨项目读取同名事件。响应包含列表摘要字段，
+并补充 `schemaVersion`、`appName`、`sentAt`、`payload`、`breadcrumbs` 和 `replayData`。
+数据库中的 JSON 字符串会在存储边界验证，API 返回真正的 JSON 对象和数组：
+
+```json
+{
+  "data": {
+    "schemaVersion": 2,
+    "projectId": "monitor-local",
+    "appName": "monitor",
+    "batchId": "batch-1",
+    "sendType": "fetch",
+    "sentAt": 1787068800000,
+    "eventId": "event-1",
+    "category": "error",
+    "eventType": "js_error",
+    "timestamp": 1787068800000,
+    "pageUrl": "https://example.com",
+    "userId": "user-1",
+    "level": "error",
+    "breadcrumbs": [],
+    "replayData": null,
+    "payload": {
+      "message": "boom"
+    },
+    "receivedAt": 1787068800100
+  }
+}
+```
+
+事件不存在或不属于指定项目时返回 `404 EVENT_NOT_FOUND`；路径参数非法返回
+`400 INVALID_PATH`；数据库或存储 JSON 异常返回不暴露内部细节的 `500 INTERNAL_ERROR`。

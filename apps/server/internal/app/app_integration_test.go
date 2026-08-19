@@ -191,6 +191,39 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	if secondPage.Data.NextCursor != "" {
 		t.Fatalf("查询第二页 nextCursor = %q, want empty", secondPage.Data.NextCursor)
 	}
+
+	status, eventDetail := getApplicationEventDetail(
+		t,
+		server.URL,
+		projectID,
+		batch.Events[0].EventID,
+		managementToken,
+	)
+	if status != http.StatusOK {
+		t.Fatalf("查询事件详情状态码 = %d, want %d, code = %q", status, http.StatusOK, eventDetail.Error.Code)
+	}
+	if eventDetail.Data.EventID != batch.Events[0].EventID || eventDetail.Data.ProjectID != projectID {
+		t.Fatalf("事件详情身份字段 = %#v", eventDetail.Data)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(eventDetail.Data.Payload, &payload); err != nil {
+		t.Fatalf("事件详情 payload 不是 JSON 对象: %v, value = %s", err, eventDetail.Data.Payload)
+	}
+	var breadcrumbs []any
+	if err := json.Unmarshal(eventDetail.Data.Breadcrumbs, &breadcrumbs); err != nil || len(breadcrumbs) != 0 {
+		t.Fatalf("事件详情 breadcrumbs = %s, error = %v", eventDetail.Data.Breadcrumbs, err)
+	}
+
+	status, missingDetail := getApplicationEventDetail(
+		t,
+		server.URL,
+		projectID,
+		"missing-event-"+suffix,
+		managementToken,
+	)
+	if status != http.StatusNotFound || missingDetail.Error.Code != "EVENT_NOT_FOUND" {
+		t.Fatalf("不存在事件详情结果 = status %d, code %q", status, missingDetail.Error.Code)
+	}
 }
 
 func assertTelemetryPreflight(t *testing.T, serverURL string) {
@@ -292,6 +325,18 @@ type applicationEventListResponse struct {
 	} `json:"error"`
 }
 
+type applicationEventDetailResponse struct {
+	Data struct {
+		ProjectID   string          `json:"projectId"`
+		EventID     string          `json:"eventId"`
+		Breadcrumbs json.RawMessage `json:"breadcrumbs"`
+		Payload     json.RawMessage `json:"payload"`
+	} `json:"data"`
+	Error struct {
+		Code string `json:"code"`
+	} `json:"error"`
+}
+
 func getApplicationEvents(
 	t *testing.T,
 	serverURL string,
@@ -322,6 +367,37 @@ func getApplicationEvents(
 	var decoded applicationEventListResponse
 	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
 		t.Fatalf("解码事件列表响应失败: %v", err)
+	}
+
+	return response.StatusCode, decoded
+}
+
+func getApplicationEventDetail(
+	t *testing.T,
+	serverURL string,
+	projectID string,
+	eventID string,
+	managementToken string,
+) (int, applicationEventDetailResponse) {
+	t.Helper()
+
+	endpoint := serverURL + "/api/v1/projects/" + url.PathEscape(projectID) +
+		"/events/" + url.PathEscape(eventID)
+	request, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		t.Fatalf("创建事件详情请求失败: %v", err)
+	}
+	request.Header.Set("Authorization", "Bearer "+managementToken)
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("发送事件详情请求失败: %v", err)
+	}
+	defer response.Body.Close()
+
+	var decoded applicationEventDetailResponse
+	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+		t.Fatalf("解码事件详情响应失败: %v", err)
 	}
 
 	return response.StatusCode, decoded

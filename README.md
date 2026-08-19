@@ -50,8 +50,8 @@ Invoke-RestMethod `
   -Uri "http://127.0.0.1:8080/api/v1/projects/monitor-local/events?limit=20"
 ```
 
-接口支持 `category`、`eventType`、`limit` 和 `cursor` 查询参数，详细约定见
-`contracts/management-api-v1.md`。
+列表接口支持 `category`、`eventType`、`limit` 和 `cursor` 查询参数；单个事件详情使用
+`/api/v1/projects/{projectId}/events/{eventId}`，详细约定见 `contracts/management-api-v1.md`。
 
 ## 启动浏览器 SDK 联调应用
 

@@ -5,6 +5,7 @@ package clickhouse_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -96,11 +97,47 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 	if errorPage.Events[0].Level == nil || *errorPage.Events[0].Level != dto.EventLevelError {
 		t.Fatalf("错误事件 Level = %#v", errorPage.Events[0].Level)
 	}
+
+	detail, err := service.Detail(ctx, eventquery.DetailRequest{
+		ProjectID: projectID,
+		EventID:   "event-a-" + suffix,
+	})
+	if err != nil {
+		t.Fatalf("查询事件详情失败: %v", err)
+	}
+	if detail.ProjectID != projectID || detail.BatchID != "batch-"+suffix || detail.AppName != "EventReader 集成测试" {
+		t.Fatalf("事件详情身份字段 = %#v", detail)
+	}
+	if detail.UserID == nil || *detail.UserID != "event-reader-user" || detail.Level == nil || *detail.Level != dto.EventLevelError {
+		t.Fatalf("事件详情可空字段 = %#v", detail)
+	}
+	if detail.ReplayData == nil || *detail.ReplayData != "event-reader-replay" {
+		t.Fatalf("事件详情 ReplayData = %#v", detail.ReplayData)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(detail.Payload, &payload); err != nil || payload["message"] != "oldest error" {
+		t.Fatalf("事件详情 Payload = %s, error = %v", detail.Payload, err)
+	}
+	var breadcrumbs []dto.Breadcrumb
+	if err := json.Unmarshal(detail.Breadcrumbs, &breadcrumbs); err != nil || len(breadcrumbs) != 1 {
+		t.Fatalf("事件详情 Breadcrumbs = %s, error = %v", detail.Breadcrumbs, err)
+	}
+
+	_, err = service.Detail(ctx, eventquery.DetailRequest{
+		ProjectID: otherProjectID,
+		EventID:   "event-a-" + suffix,
+	})
+	if !errors.Is(err, eventquery.ErrEventNotFound) {
+		t.Fatalf("跨项目详情查询错误 = %v, want %v", err, eventquery.ErrEventNotFound)
+	}
 }
 
 func queryBatch(projectID, batchID string, timestamp time.Time) dto.TelemetryBatch {
 	userID := "event-reader-user"
 	level := dto.EventLevelError
+	replayData := "event-reader-replay"
+	breadcrumbMessage := "clicked test button"
 	suffix := batchID
 	if len(batchID) >= len("batch-") && batchID[:len("batch-")] == "batch-" {
 		suffix = batchID[len("batch-"):]
@@ -122,8 +159,16 @@ func queryBatch(projectID, batchID string, timestamp time.Time) dto.TelemetryBat
 				PageURL:       "https://example.com/oldest",
 				UserID:        &userID,
 				Level:         &level,
-				Breadcrumbs:   []dto.Breadcrumb{},
-				Payload:       json.RawMessage(`{"message":"oldest error"}`),
+				Breadcrumbs: []dto.Breadcrumb{
+					{
+						Timestamp: timestamp.UnixMilli(),
+						Category:  dto.BreadcrumbCategoryClick,
+						Message:   &breadcrumbMessage,
+						Data:      json.RawMessage(`{"target":"button"}`),
+					},
+				},
+				ReplayData: &replayData,
+				Payload:    json.RawMessage(`{"message":"oldest error"}`),
 			},
 			{
 				SchemaVersion: 2,

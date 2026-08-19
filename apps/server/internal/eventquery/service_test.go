@@ -115,10 +115,23 @@ func TestServiceListWrapsStoreError(t *testing.T) {
 }
 
 type stubStore struct {
-	events []EventSummary
-	err    error
-	calls  int
-	filter ListFilter
+	events       []EventSummary
+	err          error
+	calls        int
+	filter       ListFilter
+	detail       EventDetail
+	found        bool
+	getErr       error
+	getCalls     int
+	getProjectID string
+	getEventID   string
+}
+
+func (s *stubStore) Get(_ context.Context, projectID, eventID string) (EventDetail, bool, error) {
+	s.getCalls++
+	s.getProjectID = projectID
+	s.getEventID = eventID
+	return s.detail, s.found, s.getErr
 }
 
 func (s *stubStore) List(_ context.Context, filter ListFilter) ([]EventSummary, error) {

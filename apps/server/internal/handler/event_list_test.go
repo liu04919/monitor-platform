@@ -134,10 +134,23 @@ func performEventListRequest(handler *EventListHandler, url string) *httptest.Re
 }
 
 type stubEventListService struct {
-	page    eventquery.ListPage
-	err     error
-	calls   int
-	request eventquery.ListRequest
+	page          eventquery.ListPage
+	err           error
+	calls         int
+	request       eventquery.ListRequest
+	detail        eventquery.EventDetail
+	detailErr     error
+	detailCalls   int
+	detailRequest eventquery.DetailRequest
+}
+
+func (s *stubEventListService) Detail(
+	_ context.Context,
+	request eventquery.DetailRequest,
+) (eventquery.EventDetail, error) {
+	s.detailCalls++
+	s.detailRequest = request
+	return s.detail, s.detailErr
 }
 
 func (s *stubEventListService) List(

@@ -117,13 +117,29 @@ func TestManagementEventListRouteRequiresBearerToken(t *testing.T) {
 	if eventListHandler.calls != 1 {
 		t.Fatalf("event list handler calls = %d, want 1", eventListHandler.calls)
 	}
+
+	detailRecorder := httptest.NewRecorder()
+	detailRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/projects/project-1/events/event-1",
+		nil,
+	)
+	detailRequest.Header.Set("Authorization", "Bearer "+testManagementToken)
+	engine.ServeHTTP(detailRecorder, detailRequest)
+
+	if detailRecorder.Code != http.StatusOK {
+		t.Fatalf("detail status = %d, want %d", detailRecorder.Code, http.StatusOK)
+	}
+	if eventListHandler.detailCalls != 1 {
+		t.Fatalf("event detail handler calls = %d, want 1", eventListHandler.detailCalls)
+	}
 }
 
 func newTestRouter(
 	telemetryHandler TelemetryBatchHandler,
-	eventListHandler EventListHandler,
+	eventQueryHandler EventQueryHandler,
 ) *gin.Engine {
-	return New(telemetryHandler, eventListHandler, testManagementToken)
+	return New(telemetryHandler, eventQueryHandler, testManagementToken)
 }
 
 type stubTelemetryHandler struct {
@@ -136,7 +152,13 @@ func (h *stubTelemetryHandler) Batch(c *gin.Context) {
 }
 
 type stubEventListHandler struct {
-	calls int
+	calls       int
+	detailCalls int
+}
+
+func (h *stubEventListHandler) Detail(c *gin.Context) {
+	h.detailCalls++
+	c.Status(http.StatusOK)
 }
 
 func (h *stubEventListHandler) List(c *gin.Context) {
