@@ -12,19 +12,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/liu04919/monitor-platform/apps/server/internal/projectquery"
+	"github.com/liu04919/monitor-platform/apps/server/internal/project"
 )
 
 func TestProjectListHandlerReturnsProjectsWithoutPublicKey(t *testing.T) {
 	createdAt := time.Date(2026, 8, 19, 1, 2, 3, 456_000_000, time.UTC)
-	service := &stubProjectQueryService{
-		projects: []projectquery.ProjectSummary{
+	service := &stubProjectService{
+		projects: []project.ProjectSummary{
 			{ID: "project-1", Name: "项目一", Enabled: true, CreatedAt: createdAt},
 			{ID: "project-2", Name: "项目二", Enabled: false, CreatedAt: createdAt.Add(time.Second)},
 		},
 	}
 
-	recorder := performProjectListRequest(NewProjectListHandler(service))
+	recorder := performProjectListRequest(NewProjectHandler(service))
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
@@ -51,8 +51,8 @@ func TestProjectListHandlerReturnsProjectsWithoutPublicKey(t *testing.T) {
 }
 
 func TestProjectListHandlerHidesServiceFailure(t *testing.T) {
-	service := &stubProjectQueryService{err: errors.New("postgres password leaked")}
-	recorder := performProjectListRequest(NewProjectListHandler(service))
+	service := &stubProjectService{err: errors.New("postgres password leaked")}
+	recorder := performProjectListRequest(NewProjectHandler(service))
 
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
@@ -62,7 +62,7 @@ func TestProjectListHandlerHidesServiceFailure(t *testing.T) {
 	}
 }
 
-func performProjectListRequest(handler *ProjectListHandler) *httptest.ResponseRecorder {
+func performProjectListRequest(handler *ProjectHandler) *httptest.ResponseRecorder {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	engine.GET("/api/v1/projects", handler.List)
@@ -73,13 +73,26 @@ func performProjectListRequest(handler *ProjectListHandler) *httptest.ResponseRe
 	return recorder
 }
 
-type stubProjectQueryService struct {
-	projects []projectquery.ProjectSummary
-	err      error
-	calls    int
+type stubProjectService struct {
+	projects      []project.ProjectSummary
+	err           error
+	calls         int
+	created       project.Project
+	createErr     error
+	createCalls   int
+	createRequest project.CreateRequest
 }
 
-func (s *stubProjectQueryService) List(_ context.Context) ([]projectquery.ProjectSummary, error) {
+func (s *stubProjectService) List(_ context.Context) ([]project.ProjectSummary, error) {
 	s.calls++
 	return s.projects, s.err
+}
+
+func (s *stubProjectService) Create(
+	_ context.Context,
+	request project.CreateRequest,
+) (project.Project, error) {
+	s.createCalls++
+	s.createRequest = request
+	return s.created, s.createErr
 }

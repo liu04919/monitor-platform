@@ -164,14 +164,37 @@ func TestManagementProjectListRouteRequiresBearerToken(t *testing.T) {
 	if projectListHandler.calls != 1 {
 		t.Fatalf("project list handler calls = %d, want 1", projectListHandler.calls)
 	}
+
+	unauthorizedCreate := httptest.NewRecorder()
+	engine.ServeHTTP(
+		unauthorizedCreate,
+		httptest.NewRequest(http.MethodPost, "/api/v1/projects", nil),
+	)
+	if unauthorizedCreate.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized create status = %d, want %d", unauthorizedCreate.Code, http.StatusUnauthorized)
+	}
+	if projectListHandler.createCalls != 0 {
+		t.Fatalf("project create handler calls = %d, want 0", projectListHandler.createCalls)
+	}
+
+	authorizedCreate := httptest.NewRecorder()
+	createRequest := httptest.NewRequest(http.MethodPost, "/api/v1/projects", nil)
+	createRequest.Header.Set("Authorization", "Bearer "+testManagementToken)
+	engine.ServeHTTP(authorizedCreate, createRequest)
+	if authorizedCreate.Code != http.StatusCreated {
+		t.Fatalf("authorized create status = %d, want %d", authorizedCreate.Code, http.StatusCreated)
+	}
+	if projectListHandler.createCalls != 1 {
+		t.Fatalf("project create handler calls = %d, want 1", projectListHandler.createCalls)
+	}
 }
 
 func newTestRouter(
 	telemetryHandler TelemetryBatchHandler,
-	projectQueryHandler ProjectQueryHandler,
+	projectHandler ProjectHandler,
 	eventQueryHandler EventQueryHandler,
 ) *gin.Engine {
-	return New(telemetryHandler, projectQueryHandler, eventQueryHandler, testManagementToken)
+	return New(telemetryHandler, projectHandler, eventQueryHandler, testManagementToken)
 }
 
 type stubTelemetryHandler struct {
@@ -189,12 +212,18 @@ type stubEventListHandler struct {
 }
 
 type stubProjectListHandler struct {
-	calls int
+	calls       int
+	createCalls int
 }
 
 func (h *stubProjectListHandler) List(c *gin.Context) {
 	h.calls++
 	c.Status(http.StatusOK)
+}
+
+func (h *stubProjectListHandler) Create(c *gin.Context) {
+	h.createCalls++
+	c.Status(http.StatusCreated)
 }
 
 func (h *stubEventListHandler) Detail(c *gin.Context) {

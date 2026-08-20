@@ -1,7 +1,7 @@
 # Management API v1
 
-本文档描述当前已实现的管理端项目发现、事件列表和详情接口。它从 PostgreSQL 读取项目，
-从 ClickHouse 读取事件，尚不包含用户登录和项目增删改。
+本文档描述当前已实现的管理端项目创建/发现、事件列表和详情接口。它在 PostgreSQL 管理项目，
+从 ClickHouse 读取事件，尚不包含用户登录以及项目编辑或删除。
 
 ## 鉴权边界
 
@@ -42,6 +42,42 @@ GET /api/v1/projects
 ```
 
 数据库故障返回不暴露内部错误的 `500 INTERNAL_ERROR`。
+
+## 创建项目
+
+```http
+POST /api/v1/projects
+Content-Type: application/json
+```
+
+```json
+{
+  "id": "monitor-web",
+  "name": "Monitor Web"
+}
+```
+
+`id` 是 SDK 的稳定 `appId`，创建后不可修改。它最长 128 个字符，只能包含小写字母、数字和
+中间连字符，并且必须以字母或数字开头、结尾。`name` 去除首尾空白后必须非空，最长 128 个
+Unicode 字符。请求体最多 4 KiB，且不能包含未知字段或多个 JSON 值。
+
+服务端使用系统安全随机源生成 256 位随机 `publicKey`。创建成功返回 `201 Created`：
+
+```json
+{
+  "data": {
+    "id": "monitor-web",
+    "name": "Monitor Web",
+    "enabled": true,
+    "createdAt": 1787155200000,
+    "publicKey": "pk_generated_value"
+  }
+}
+```
+
+`publicKey` 会暴露在浏览器 SDK 中，不是管理端秘密。项目列表不会重复返回它；管理端应在创建
+成功后让用户立即复制 SDK 配置。ID 或名称非法返回 `422 INVALID_PROJECT`，ID 已存在返回
+`409 PROJECT_ID_CONFLICT`，数据库或随机源故障返回不暴露内部错误的 `500 INTERNAL_ERROR`。
 
 ## 事件列表
 

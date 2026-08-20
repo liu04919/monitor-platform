@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,17 +68,8 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	suffix := fmt.Sprintf("%d", now.UnixNano())
 	projectID := "app-http-project-" + suffix
-	publicKey := "app-http-key-" + suffix
+	projectName := "应用 HTTP 集成测试"
 	managementToken := "app-http-management-token-" + suffix
-	project := postgresstore.Project{
-		ID:        projectID,
-		Name:      "应用 HTTP 集成测试",
-		PublicKey: publicKey,
-		Enabled:   true,
-	}
-	if err := postgresDB.WithContext(ctx).Create(&project).Error; err != nil {
-		t.Fatalf("创建测试项目失败: %v", err)
-	}
 	t.Cleanup(func() {
 		cleanupApplicationData(t, postgresDB, clickHouseConn, projectID)
 	})
@@ -101,6 +93,46 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 
 	assertTelemetryPreflight(t, server.URL)
 
+	status, createdProject := postApplicationProject(
+		t,
+		server.URL,
+		"",
+		projectID,
+		projectName,
+	)
+	if status != http.StatusUnauthorized || createdProject.Error.Code != "UNAUTHORIZED" {
+		t.Fatalf("无管理 Token 创建项目结果 = status %d, code %q", status, createdProject.Error.Code)
+	}
+
+	status, createdProject = postApplicationProject(
+		t,
+		server.URL,
+		managementToken,
+		projectID,
+		projectName,
+	)
+	if status != http.StatusCreated {
+		t.Fatalf("创建项目状态码 = %d, want %d, code = %q", status, http.StatusCreated, createdProject.Error.Code)
+	}
+	if createdProject.Data.ID != projectID || createdProject.Data.Name != projectName || !createdProject.Data.Enabled {
+		t.Fatalf("创建项目响应 = %#v", createdProject.Data)
+	}
+	if !strings.HasPrefix(createdProject.Data.PublicKey, "pk_") {
+		t.Fatalf("创建项目 publicKey = %q", createdProject.Data.PublicKey)
+	}
+	publicKey := createdProject.Data.PublicKey
+
+	status, duplicateProject := postApplicationProject(
+		t,
+		server.URL,
+		managementToken,
+		projectID,
+		projectName,
+	)
+	if status != http.StatusConflict || duplicateProject.Error.Code != "PROJECT_ID_CONFLICT" {
+		t.Fatalf("重复项目 ID 结果 = status %d, code %q", status, duplicateProject.Error.Code)
+	}
+
 	status, projectList := getApplicationProjects(t, server.URL, "")
 	if status != http.StatusUnauthorized || projectList.Error.Code != "UNAUTHORIZED" {
 		t.Fatalf("无管理 Token 查询项目结果 = status %d, code %q", status, projectList.Error.Code)
@@ -114,7 +146,7 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	for _, listedProject := range projectList.Data.Projects {
 		if listedProject.ID == projectID {
 			projectFound = true
-			if listedProject.Name != project.Name || !listedProject.Enabled {
+			if listedProject.Name != projectName || !listedProject.Enabled {
 				t.Fatalf("项目列表记录 = %#v", listedProject)
 			}
 			if listedProject.PublicKey != nil {
@@ -350,6 +382,19 @@ type applicationProjectListResponse struct {
 	} `json:"error"`
 }
 
+type applicationProjectCreateResponse struct {
+	Data struct {
+		ID        string `json:"id"`
+		Name      string `json:"name"`
+		Enabled   bool   `json:"enabled"`
+		CreatedAt int64  `json:"createdAt"`
+		PublicKey string `json:"publicKey"`
+	} `json:"data"`
+	Error struct {
+		Code string `json:"code"`
+	} `json:"error"`
+}
+
 type applicationEventListResponse struct {
 	Data struct {
 		Events []struct {
@@ -401,6 +446,49 @@ func getApplicationProjects(
 	var decoded applicationProjectListResponse
 	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
 		t.Fatalf("解码项目列表响应失败: %v", err)
+	}
+
+	return response.StatusCode, decoded
+}
+
+func postApplicationProject(
+	t *testing.T,
+	serverURL string,
+	managementToken string,
+	projectID string,
+	projectName string,
+) (int, applicationProjectCreateResponse) {
+	t.Helper()
+
+	body, err := json.Marshal(map[string]string{
+		"id":   projectID,
+		"name": projectName,
+	})
+	if err != nil {
+		t.Fatalf("编码创建项目请求失败: %v", err)
+	}
+	request, err := http.NewRequest(
+		http.MethodPost,
+		serverURL+"/api/v1/projects",
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		t.Fatalf("创建项目请求失败: %v", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	if managementToken != "" {
+		request.Header.Set("Authorization", "Bearer "+managementToken)
+	}
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("发送创建项目请求失败: %v", err)
+	}
+	defer response.Body.Close()
+
+	var decoded applicationProjectCreateResponse
+	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+		t.Fatalf("解码创建项目响应失败: %v", err)
 	}
 
 	return response.StatusCode, decoded

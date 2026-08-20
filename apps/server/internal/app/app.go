@@ -16,7 +16,7 @@ import (
 	"github.com/liu04919/monitor-platform/apps/server/internal/eventquery"
 	"github.com/liu04919/monitor-platform/apps/server/internal/handler"
 	"github.com/liu04919/monitor-platform/apps/server/internal/ingestion"
-	"github.com/liu04919/monitor-platform/apps/server/internal/projectquery"
+	"github.com/liu04919/monitor-platform/apps/server/internal/project"
 	"github.com/liu04919/monitor-platform/apps/server/internal/router"
 	clickhousestore "github.com/liu04919/monitor-platform/apps/server/internal/storage/clickhouse"
 	postgresstore "github.com/liu04919/monitor-platform/apps/server/internal/storage/postgres"
@@ -62,19 +62,19 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	batchReceipts := postgresstore.NewBatchReceiptStore(postgresDB)
 	eventWriter := clickhousestore.NewEventWriter(clickHouseConn)
 	eventReader := clickhousestore.NewEventReader(clickHouseConn)
-	projectReader := postgresstore.NewProjectReader(postgresDB)
+	projectStore := postgresstore.NewProjectStore(postgresDB)
 	batchStore := ingestion.NewBatchStore(batchReceipts, eventWriter)
 	ingestor := ingestion.NewService(keyVerifier, batchStore)
 	telemetryHandler := handler.NewTelemetryHandler(ingestor)
 	eventListService := eventquery.NewService(eventReader)
 	eventListHandler := handler.NewEventListHandler(eventListService)
-	projectListService := projectquery.NewService(projectReader)
-	projectListHandler := handler.NewProjectListHandler(projectListService)
+	projectService := project.NewService(projectStore)
+	projectHandler := handler.NewProjectHandler(projectService)
 
 	return &App{
 		Handler: router.New(
 			telemetryHandler,
-			projectListHandler,
+			projectHandler,
 			eventListHandler,
 			cfg.ManagementAPIToken,
 		),

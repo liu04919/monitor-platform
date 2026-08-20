@@ -1,0 +1,181 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(10 16 24 / 58%);
+  backdrop-filter: blur(4px);
+}
+
+.dialog {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 48px);
+  padding: 26px;
+  overflow: auto;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 28px 80px rgb(9 22 42 / 28%);
+}
+
+.heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.heading p {
+  margin: 0 0 5px;
+  color: var(--blue);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+}
+
+.heading h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 24px;
+}
+
+.closeButton {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  color: var(--muted);
+  background: #f5f7fa;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.description {
+  margin: 12px 0 22px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.dialog form {
+  display: grid;
+  gap: 17px;
+}
+
+.field {
+  display: grid;
+  gap: 7px;
+}
+
+.field label,
+.configHeader strong {
+  color: #374258;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.dialog input {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  color: var(--ink);
+  background: #ffffff;
+  border: 1px solid #d8dee7;
+  border-radius: 9px;
+}
+
+.field small,
+.boundary,
+.copyStatus {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.actions,
+.configHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.actions {
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.actions button,
+.primaryButton,
+.configHeader button {
+  min-height: 38px;
+  padding: 0 15px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  color: #46536a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.primaryButton {
+  color: #ffffff !important;
+  background: var(--blue) !important;
+  border-color: var(--blue) !important;
+}
+
+.error {
+  margin: 0;
+  padding: 10px 12px;
+  color: #a72b36;
+  background: #fff2f3;
+  border: 1px solid #ffd7da;
+  border-radius: 8px;
+  font-size: 11px;
+}
+
+.configHeader {
+  margin-bottom: 8px;
+}
+
+.configHeader button {
+  min-height: 30px;
+}
+
+.config {
+  margin: 0;
+  padding: 16px;
+  overflow: auto;
+  color: #c8e1b8;
+  background: #101820;
+  border-radius: 10px;
+  font: 11px/1.65 "Cascadia Code", Consolas, monospace;
+}
+
+.copyStatus {
+  min-height: 15px;
+  margin: 6px 0 0;
+}
+
+.boundary {
+  margin: 12px 0 20px;
+  padding: 10px 12px;
+  background: #f7f9fc;
+  border-radius: 8px;
+}
+
+@media (max-width: 520px) {
+  .backdrop {
+    padding: 12px;
+  }
+
+  .dialog {
+    max-height: calc(100vh - 24px);
+    padding: 20px;
+  }
+}

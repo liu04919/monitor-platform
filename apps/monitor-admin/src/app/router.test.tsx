@@ -19,10 +19,18 @@ const eventSummary = {
   receivedAt: 1_787_068_800_100,
 } as const
 
-function successfulFetch(input: RequestInfo | URL) {
+function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
   const url = String(input)
   const projectId = url.includes('/projects/project-two/') ? 'project-two' : 'monitor-local'
-  const data = url.endsWith('/projects')
+  const data = init?.method === 'POST' && url.endsWith('/projects')
+    ? {
+        id: 'created-project',
+        name: 'Created Project',
+        enabled: true,
+        createdAt: 1_787_068_900_000,
+        publicKey: 'pk_created',
+      }
+    : url.endsWith('/projects')
     ? {
         projects: [
           { id: 'monitor-local', name: 'Monitor Local', enabled: true, createdAt: 1_787_068_700_000 },
@@ -93,6 +101,31 @@ describe('admin event routes', () => {
       expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/projects/project-two/events?'))).toBe(true)
     })
     expect(useAdminStore.getState().projectId).toBe('project-two')
+  })
+
+  it('创建项目后更新项目缓存、自动切换并展示 SDK 配置', async () => {
+    const fetchMock = vi.fn(successfulFetch)
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/events')
+
+    await screen.findByRole('option', { name: 'Project Two' })
+    fireEvent.click(screen.getByRole('button', { name: '新建项目' }))
+    fireEvent.change(screen.getByLabelText('项目名称'), { target: { value: 'Created Project' } })
+    fireEvent.change(screen.getByLabelText('项目 ID'), { target: { value: 'created-project' } })
+    fireEvent.click(screen.getByRole('button', { name: '创建项目' }))
+
+    expect(await screen.findByRole('heading', { name: '项目已创建' })).toBeInTheDocument()
+    expect(screen.getByText(/publicKey: 'pk_created'/)).toBeInTheDocument()
+    expect(useAdminStore.getState().projectId).toBe('created-project')
+
+    const createCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
+    expect(JSON.parse(String(createCall?.[1]?.body))).toEqual({
+      id: 'created-project',
+      name: 'Created Project',
+    })
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/projects/created-project/events?'))).toBe(true)
+    })
   })
 
   it('在鉴权失败时显示可重试错误状态', async () => {

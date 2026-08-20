@@ -8,3 +8,12 @@ export interface ProjectSummary {
 export interface ProjectListData {
   projects: ProjectSummary[]
 }
+
+export interface CreateProjectInput {
+  id: string
+  name: string
+}
+
+export interface CreatedProject extends ProjectSummary {
+  publicKey: string
+}

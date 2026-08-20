@@ -50,3 +50,22 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.switcher button {
+  width: 100%;
+  margin-top: 11px;
+  padding: 7px 9px;
+  color: #b8c4d2;
+  background: transparent;
+  border: 1px dashed #405061;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.switcher button:hover:not(:disabled) {
+  color: #ffffff;
+  background: rgb(255 255 255 / 5%);
+  border-color: #6682a0;
+}

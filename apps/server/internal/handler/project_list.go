@@ -6,22 +6,23 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/liu04919/monitor-platform/apps/server/internal/projectquery"
+	"github.com/liu04919/monitor-platform/apps/server/internal/project"
 )
 
-type ProjectQueryService interface {
-	List(ctx context.Context) ([]projectquery.ProjectSummary, error)
+type ProjectService interface {
+	List(ctx context.Context) ([]project.ProjectSummary, error)
+	Create(ctx context.Context, request project.CreateRequest) (project.Project, error)
 }
 
-type ProjectListHandler struct {
-	service ProjectQueryService
+type ProjectHandler struct {
+	service ProjectService
 }
 
-func NewProjectListHandler(service ProjectQueryService) *ProjectListHandler {
-	return &ProjectListHandler{service: service}
+func NewProjectHandler(service ProjectService) *ProjectHandler {
+	return &ProjectHandler{service: service}
 }
 
-func (h *ProjectListHandler) List(c *gin.Context) {
+func (h *ProjectHandler) List(c *gin.Context) {
 	projects, err := h.service.List(c.Request.Context())
 	if err != nil {
 		writeAPIError(
