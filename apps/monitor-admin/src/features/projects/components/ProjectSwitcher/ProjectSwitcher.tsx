@@ -1,3 +1,4 @@
+import { Button, Select, Text } from '@mantine/core'
 import type { ProjectSummary } from '@/features/projects/model/projectTypes'
 import styles from './ProjectSwitcher.module.css'
 
@@ -10,27 +11,53 @@ interface ProjectSwitcherProps {
   onCreate: () => void
 }
 
-export function ProjectSwitcher({ projects, projectId, isLoading, isError, onChange, onCreate }: ProjectSwitcherProps) {
+export function ProjectSwitcher({
+  projects,
+  projectId,
+  isLoading,
+  isError,
+  onChange,
+  onCreate,
+}: ProjectSwitcherProps) {
   const selectedProject = projects.find((project) => project.id === projectId)
+  const projectOptions = projects.map((project) => ({
+    value: project.id,
+    label: `${project.name}${project.enabled ? '' : '（已停用）'}`,
+  }))
+
+  if (!selectedProject && projectId) {
+    projectOptions.unshift({ value: projectId, label: projectId })
+  }
 
   return (
     <div className={styles.switcher}>
-      <label htmlFor="project-switcher">当前项目</label>
-      <select
-        id="project-switcher"
-        value={projectId}
+      <Select
+        label="当前项目"
+        aria-label="当前项目"
+        value={projectId || null}
+        data={projectOptions}
         disabled={isLoading || projects.length === 0}
-        onChange={(event) => onChange(event.target.value)}
+        allowDeselect={false}
+        searchable={projects.length > 8}
+        nothingFoundMessage="没有匹配的项目"
+        onChange={(nextProjectId) => {
+          if (nextProjectId) onChange(nextProjectId)
+        }}
+        classNames={{ label: styles.label, input: styles.input }}
+      />
+      <Text className={styles.projectId} size="xs">
+        {isLoading ? '正在读取项目…' : isError ? '项目列表暂不可用' : selectedProject?.id || projectId}
+      </Text>
+      <Button
+        className={styles.createButton}
+        variant="subtle"
+        color="gray"
+        fullWidth
+        onClick={onCreate}
+        disabled={isLoading}
       >
-        {!selectedProject && projectId ? <option value={projectId}>{projectId}</option> : null}
-        {projects.map((project) => (
-          <option key={project.id} value={project.id}>
-            {project.name}{project.enabled ? '' : '（已停用）'}
-          </option>
-        ))}
-      </select>
-      <small>{isLoading ? '正在读取项目…' : isError ? '项目列表暂不可用' : selectedProject?.id || projectId}</small>
-      <button type="button" onClick={onCreate} disabled={isLoading}>新建项目</button>
+        新建项目
+      </Button>
     </div>
   )
 }

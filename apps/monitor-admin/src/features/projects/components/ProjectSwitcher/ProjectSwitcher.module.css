@@ -1,13 +1,12 @@
 .switcher {
   margin: 38px 0 24px;
   padding: 13px 14px 14px;
+  background: rgb(255 255 255 / 2.5%);
   border: 1px solid var(--sidebar-line);
   border-radius: 10px;
-  background: rgb(255 255 255 / 2.5%);
 }
 
-.switcher label {
-  display: block;
+.label {
   margin-bottom: 8px;
   color: #7f8b98;
   font-size: 9px;
@@ -16,56 +15,34 @@
   text-transform: uppercase;
 }
 
-.switcher select {
-  width: 100%;
-  min-width: 0;
-  padding: 7px 28px 7px 8px;
-  overflow: hidden;
+.input {
   color: #eef3f8;
   background: #161e27;
-  border: 1px solid #34404c;
-  border-radius: 7px;
-  font: inherit;
+  border-color: #34404c;
   font-size: 12px;
   font-weight: 650;
-  text-overflow: ellipsis;
 }
 
-.switcher select:focus-visible {
-  outline: 2px solid #5792f3;
-  outline-offset: 2px;
+.input:focus {
+  border-color: #5792f3;
 }
 
-.switcher select:disabled {
-  cursor: wait;
-  opacity: 0.68;
-}
-
-.switcher small {
-  display: block;
+.projectId {
   margin-top: 6px;
   overflow: hidden;
   color: #788490;
-  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.switcher button {
-  width: 100%;
+.createButton {
   margin-top: 11px;
-  padding: 7px 9px;
   color: #b8c4d2;
-  background: transparent;
   border: 1px dashed #405061;
-  border-radius: 7px;
-  cursor: pointer;
-  font-size: 10px;
-  font-weight: 700;
 }
 
-.switcher button:hover:not(:disabled) {
-  color: #ffffff;
+.createButton:hover:not(:disabled) {
+  color: white;
   background: rgb(255 255 255 / 5%);
   border-color: #6682a0;
 }

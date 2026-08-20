@@ -1,8 +1,6 @@
 .card { margin-top: 15px; background: white; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 5px 21px rgb(28 41 60 / 2.8%); }
 .card > header { min-height: 52px; display: flex; align-items: center; padding: 0 17px; border-bottom: 1px solid #e9edf2; }
-.card header > div { display: flex; align-items: baseline; gap: 8px; }
 .card h2 { margin: 0; color: #263247; font-size: 11px; font-weight: 730; }
-.card header span { color: #909aaa; font-size: 8px; }
 .list { padding: 5px 0 8px; }
 .list article { position: relative; min-height: 51px; display: grid; grid-template-columns: 76px 82px minmax(0, 1fr); align-items: start; gap: 10px; margin-left: 24px; padding: 14px 16px 12px 24px; border-left: 1px solid #dfe4e9; }
 .dot { position: absolute; top: 18px; left: -5px; width: 9px; height: 9px; border: 2px solid white; border-radius: 50%; background: #5f8fe4; box-shadow: 0 0 0 1px #c8d1dd; }
@@ -11,7 +9,7 @@
 .http { background: #d68131; }
 .console { background: #9a62d8; }
 .list time { color: #7b8798; font: 8px "Cascadia Code", Consolas, monospace; }
-.category { color: #617087; font-size: 8px; text-transform: uppercase; }
+.category { width: fit-content; font-size: 8px; }
 .list article > div { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .list strong { color: #344055; font-size: 9px; font-weight: 620; }
 .list code { overflow: hidden; color: #8893a3; text-overflow: ellipsis; white-space: nowrap; font-size: 8px; }

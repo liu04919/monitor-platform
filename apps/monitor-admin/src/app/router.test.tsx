@@ -1,8 +1,11 @@
+import { MantineProvider } from '@mantine/core'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { appRoutes } from '@/app/router'
+import { monitorTheme } from '@/app/theme'
 import { useAdminStore } from '@/store/adminStore'
 
 const eventSummary = {
@@ -56,7 +59,13 @@ function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
 function renderRoute(path: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const router = createMemoryRouter(appRoutes, { initialEntries: [path] })
-  return render(<QueryClientProvider client={queryClient}><RouterProvider router={router} /></QueryClientProvider>)
+  return render(
+    <MantineProvider theme={monitorTheme} defaultColorScheme="light" env="test">
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </MantineProvider>,
+  )
 }
 
 describe('admin event routes', () => {
@@ -77,25 +86,34 @@ describe('admin event routes', () => {
   })
 
   it('把筛选条件交给 URL 和 TanStack Query', async () => {
-    const fetchMock = vi.fn(successfulFetch)
-    vi.stubGlobal('fetch', fetchMock)
-    renderRoute('/events?category=error&eventType=js_error')
-
-    await screen.findByRole('link', { name: 'Cannot read profile' })
-
-    const eventRequest = fetchMock.mock.calls.find(([input]) => String(input).includes('/events?'))
-    expect(String(eventRequest?.[0])).toContain('category=error')
-    expect(String(eventRequest?.[0])).toContain('eventType=js_error')
-  })
-
-  it('切换项目后使用新的项目上下文重新查询事件', async () => {
+    const user = userEvent.setup()
     const fetchMock = vi.fn(successfulFetch)
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/events')
 
-    await screen.findByRole('option', { name: 'Project Two' })
-    const projectSwitcher = screen.getByRole('combobox', { name: '当前项目' })
-    fireEvent.change(projectSwitcher, { target: { value: 'project-two' } })
+    await screen.findByRole('link', { name: 'Cannot read profile' })
+    await user.click(screen.getByRole('combobox', { name: '事件分类' }))
+    await user.click(await screen.findByRole('option', { name: '错误' }))
+    await user.type(screen.getByRole('textbox', { name: '事件类型' }), 'js_error')
+    await user.click(screen.getByRole('button', { name: '应用筛选' }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([input]) => {
+        const url = String(input)
+        return url.includes('category=error') && url.includes('eventType=js_error')
+      })).toBe(true)
+    })
+  })
+
+  it('切换项目后使用新的项目上下文重新查询事件', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn(successfulFetch)
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/events')
+
+    const projectSwitcher = await screen.findByRole('combobox', { name: '当前项目' })
+    await user.click(projectSwitcher)
+    await user.click(await screen.findByRole('option', { name: 'Project Two' }))
 
     await waitFor(() => {
       expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/projects/project-two/events?'))).toBe(true)
@@ -104,15 +122,15 @@ describe('admin event routes', () => {
   })
 
   it('创建项目后更新项目缓存、自动切换并展示 SDK 配置', async () => {
+    const user = userEvent.setup()
     const fetchMock = vi.fn(successfulFetch)
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/events')
 
-    await screen.findByRole('option', { name: 'Project Two' })
-    fireEvent.click(screen.getByRole('button', { name: '新建项目' }))
-    fireEvent.change(screen.getByLabelText('项目名称'), { target: { value: 'Created Project' } })
-    fireEvent.change(screen.getByLabelText('项目 ID'), { target: { value: 'created-project' } })
-    fireEvent.click(screen.getByRole('button', { name: '创建项目' }))
+    await user.click(await screen.findByRole('button', { name: '新建项目' }))
+    await user.type(await screen.findByLabelText('项目名称'), 'Created Project')
+    await user.type(await screen.findByLabelText('项目 ID'), 'created-project')
+    await user.click(screen.getByRole('button', { name: '创建项目' }))
 
     expect(await screen.findByRole('heading', { name: '项目已创建' })).toBeInTheDocument()
     expect(screen.getByText(/publicKey: 'pk_created'/)).toBeInTheDocument()
@@ -126,6 +144,21 @@ describe('admin event routes', () => {
     await waitFor(() => {
       expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/projects/created-project/events?'))).toBe(true)
     })
+  })
+
+  it('创建项目时由 Zod 在请求前校验字段', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn(successfulFetch)
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/events')
+
+    await user.click(await screen.findByRole('button', { name: '新建项目' }))
+    await user.type(await screen.findByLabelText('项目名称'), 'Monitor')
+    await user.type(await screen.findByLabelText('项目 ID'), 'Monitor_Web')
+    await user.click(screen.getByRole('button', { name: '创建项目' }))
+
+    expect(await screen.findByText('只能使用小写字母、数字和中间连字符')).toBeInTheDocument()
+    expect(fetchMock.mock.calls.every(([, init]) => init?.method !== 'POST')).toBe(true)
   })
 
   it('在鉴权失败时显示可重试错误状态', async () => {

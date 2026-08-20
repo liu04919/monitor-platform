@@ -1,3 +1,4 @@
+import { ActionIcon, Badge, Button } from '@mantine/core'
 import { Link } from 'react-router-dom'
 import type { EventSummary } from '@/features/events/model/eventTypes'
 import { displayEventName } from '@/features/events/model/eventFormatters'
@@ -27,12 +28,36 @@ export function EventTable({ events, hasNextPage, isFetchingNextPage, onLoadMore
           <code className={styles.eventType}>{event.eventType}</code>
           <span className={styles.mutedCell}>{event.userId || '匿名'}</span>
           <time dateTime={new Date(event.timestamp).toISOString()}>{formatTime(event.timestamp)}</time>
-          <div className={styles.transportCell}><span className={`${styles.transport} ${styles[event.sendType]}`}>{event.sendType}</span><Link to={`/events/${encodeURIComponent(event.eventId)}`} aria-label={`查看 ${displayEventName(event)} 详情`}><ChevronIcon /></Link></div>
+          <div className={styles.transportCell}>
+            <Badge color={event.sendType === 'beacon' ? 'violet' : 'gray'} variant="light" size="xs">
+              {event.sendType}
+            </Badge>
+            <ActionIcon
+              component={Link}
+              to={`/events/${encodeURIComponent(event.eventId)}`}
+              variant="subtle"
+              color="gray"
+              aria-label={`查看 ${displayEventName(event)} 详情`}
+            >
+              <ChevronIcon />
+            </ActionIcon>
+          </div>
         </article>
       ))}
       <footer className={styles.footer}>
         <span>已加载 <strong>{events.length}</strong> 条事件</span>
-        {hasNextPage ? <button type="button" onClick={onLoadMore} disabled={isFetchingNextPage}>{isFetchingNextPage ? '加载中…' : '加载更多'}<ChevronIcon /></button> : <span>已经到底了</span>}
+        {hasNextPage ? (
+          <Button
+            variant="default"
+            size="compact-sm"
+            type="button"
+            onClick={onLoadMore}
+            loading={isFetchingNextPage}
+            rightSection={<ChevronIcon />}
+          >
+            加载更多
+          </Button>
+        ) : <span>已经到底了</span>}
       </footer>
     </>
   )

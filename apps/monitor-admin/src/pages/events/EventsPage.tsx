@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { ActionIcon } from "@mantine/core";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { EventFilters } from "@/features/events/components/EventFilters/EventFilters";
@@ -58,15 +59,16 @@ export function EventsPage() {
           <h1>事件流</h1>
           <p>浏览由浏览器 SDK 上报并写入 ClickHouse 的原始事件。</p>
         </div>
-        <button
+        <ActionIcon
           className={styles.refreshButton}
-          type="button"
+          variant="default"
+          size={38}
           onClick={() => void query.refetch()}
-          disabled={query.isFetching}
+          loading={query.isFetching}
           aria-label="刷新事件"
         >
           <RefreshIcon />
-        </button>
+        </ActionIcon>
       </div>
 
       <EventFilters

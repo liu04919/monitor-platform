@@ -1,7 +1,13 @@
-.badge { width: fit-content; display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 6px; font-size: 9px; font-weight: 690; }
-.badge i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
-.error { color: #cf3145; background: #fff0f2; }
-.performance { color: #d56f08; background: #fff2e4; }
-.behavior { color: #2767d7; background: #edf4ff; }
-.stability { color: #7440c9; background: #f4eeff; }
-.ai { color: #087b69; background: #e9f8f3; }
+.badge {
+  font-size: 9px;
+  font-weight: 690;
+  text-transform: none;
+}
+
+.dot {
+  display: block;
+  width: 5px;
+  height: 5px;
+  background: currentColor;
+  border-radius: 50%;
+}

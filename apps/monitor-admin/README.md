@@ -32,7 +32,8 @@ pnpm dev
 
 ## 前端架构
 
-管理端按职责分层，而不是把页面逻辑集中在入口组件：
+管理端按职责分层，而不是把页面逻辑集中在入口组件。通用交互组件使用 Mantine，
+业务布局和产品专属视觉继续使用 CSS Modules：
 
 ```text
 src/
@@ -47,7 +48,10 @@ src/
 - React Router 管理 `/events` 与 `/events/:eventId`。
 - TanStack Query 管理项目、事件列表、详情、游标分页、缓存、重试和取消信号。
 - Zustand 只保存当前项目上下文；切换项目后，包含 `projectId` 的事件 query key 会自然隔离缓存并重新查询，事件数据不进入 Store。
-- 页面与组件使用 CSS Modules，全局样式只包含设计变量、reset 和无障碍基础规则。
+- Mantine 提供 Modal、Select、TextInput、Button、Badge、Alert、Skeleton 等通用 UI 与交互基础。
+- React Hook Form 管理表单状态，Zod Schema 负责创建项目和事件筛选的前端校验；Go 后端仍是业务校验的最终边界。
+- CSS Modules 负责页面网格、侧栏和监控产品专属样式，全局样式只包含设计变量、reset 和无障碍基础规则。
+- Vite 将 React、数据层和 UI 表单依赖拆成稳定 vendor chunk，避免所有依赖进入单个主包。
 
 ## 质量检查
 
@@ -58,5 +62,5 @@ pnpm test
 pnpm build
 ```
 
-Vitest 与 Testing Library 覆盖项目创建/切换、SDK 配置展示、列表到详情的路由、URL 筛选条件
-和管理端鉴权错误状态。
+Vitest、Testing Library 与 user-event 覆盖项目创建/切换、Zod 请求前校验、SDK 配置展示、
+列表到详情的路由、URL 筛选条件和管理端鉴权错误状态。

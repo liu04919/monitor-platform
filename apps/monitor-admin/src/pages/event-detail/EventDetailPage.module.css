@@ -1,23 +1,14 @@
 .page { width: min(1320px, calc(100% - clamp(36px, 6vw, 88px))); margin: 0 auto; padding: 38px 0 64px; }
-.backLink { display: inline-flex; align-items: center; gap: 7px; margin-bottom: 25px; color: #718095; text-decoration: none; font-size: 10px; font-weight: 650; }
-.backLink:hover { color: var(--blue); }
+.backLink { margin-bottom: 25px; margin-left: -10px; color: #718095; font-size: 10px; font-weight: 650; }
 .backLink svg { width: 14px; height: 14px; }
 .heading { display: flex; align-items: flex-start; gap: 15px; margin-bottom: 30px; }
-.detailIcon { width: 44px; height: 44px; display: grid; place-items: center; flex: 0 0 auto; margin-top: 2px; border-radius: 50%; }
+.detailIcon { width: 44px; height: 44px; flex: 0 0 auto; margin-top: 2px; }
 .detailIcon svg { width: 22px; height: 22px; }
-.error { color: #e3384d; background: #fff0f2; }
-.performance { color: #ef8519; background: #fff3e5; }
-.behavior { color: #2e72e6; background: #edf4ff; }
-.stability { color: #8a55db; background: #f5efff; }
-.ai { color: #138c79; background: #eaf9f4; }
 .heading > div { min-width: 0; }
 .badges { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
-.typeBadge, .levelBadge { display: inline-flex; padding: 5px 8px; color: #526177; background: #f0f3f6; border-radius: 6px; font: 690 8px "Cascadia Code", Consolas, monospace; }
-.levelBadge { color: #bd3547; background: #fff0f2; text-transform: uppercase; }
 .heading h1 { max-width: 980px; margin: 0; overflow-wrap: anywhere; color: #101725; font-size: clamp(24px, 3vw, 36px); font-weight: 740; letter-spacing: -.035em; line-height: 1.2; }
-.heading > div > a { max-width: 800px; display: inline-flex; align-items: center; gap: 6px; margin-top: 9px; overflow: hidden; color: #718095; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
-.heading > div > a:hover { color: var(--blue); }
-.heading > div > a svg { width: 12px; height: 12px; flex: 0 0 auto; }
+.pageUrl { max-width: 800px; display: inline-flex; align-items: center; gap: 6px; margin-top: 9px; overflow: hidden; color: #718095; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.pageUrl svg { width: 12px; height: 12px; flex: 0 0 auto; }
 .missingUrl { display: block; margin-top: 9px; color: #9aa4b1; font-size: 10px; }
 .columns { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .7fr); gap: 15px; }
 @media (max-width: 1080px) { .columns { grid-template-columns: 1fr; } }

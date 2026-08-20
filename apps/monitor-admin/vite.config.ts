@@ -15,6 +15,23 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: { '@': resolve(import.meta.dirname, 'src') },
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+            'data-vendor': ['@tanstack/react-query', 'zustand'],
+            'ui-vendor': [
+              '@hookform/resolvers/zod',
+              '@mantine/core',
+              '@mantine/hooks',
+              'react-hook-form',
+              'zod',
+            ],
+          },
+        },
+      },
+    },
     server: {
       port: 5174,
       strictPort: true,

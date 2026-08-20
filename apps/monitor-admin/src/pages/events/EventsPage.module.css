@@ -3,7 +3,7 @@
 .eyebrow { margin: 0 0 8px !important; color: var(--blue) !important; font-size: 9px !important; font-weight: 850 !important; letter-spacing: .14em; }
 .heading h1 { margin: 0; color: #101725; font-size: 30px; font-weight: 740; letter-spacing: -.035em; }
 .heading > div > p:last-child { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
-.refreshButton { width: 38px; height: 38px; display: grid; place-items: center; color: #526073; background: white; border: 1px solid #dce2e9; border-radius: 9px; cursor: pointer; box-shadow: 0 1px 2px rgb(19 32 52 / 3%); }
+.refreshButton { color: #526073; box-shadow: 0 1px 2px rgb(19 32 52 / 3%); }
 .refreshButton:hover { color: var(--blue); border-color: #c3d2ee; }
 .refreshButton svg { width: 17px; height: 17px; }
 .panel { overflow: hidden; background: white; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 6px 24px rgb(28 41 60 / 3%); }
