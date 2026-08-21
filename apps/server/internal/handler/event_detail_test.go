@@ -11,8 +11,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/liu04919/monitor-platform/apps/server/internal/auth"
 	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
 	"github.com/liu04919/monitor-platform/apps/server/internal/eventquery"
+	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
 )
 
 func TestEventDetailHandlerReturnsStructuredJSON(t *testing.T) {
@@ -74,6 +76,7 @@ func TestEventDetailHandlerMapsErrors(t *testing.T) {
 	}{
 		{name: "invalid event ID", err: eventquery.ErrInvalidEventID, wantStatus: http.StatusBadRequest, wantCode: "INVALID_PATH", wantField: "eventId"},
 		{name: "not found", err: eventquery.ErrEventNotFound, wantStatus: http.StatusNotFound, wantCode: "EVENT_NOT_FOUND"},
+		{name: "project not found", err: eventquery.ErrProjectNotFound, wantStatus: http.StatusNotFound, wantCode: "PROJECT_NOT_FOUND"},
 		{name: "storage failure", err: internalError, wantStatus: http.StatusInternalServerError, wantCode: "INTERNAL_ERROR", forbiddenText: "password"},
 	}
 
@@ -108,10 +111,12 @@ func TestEventDetailHandlerMapsErrors(t *testing.T) {
 func performEventDetailRequest(handler *EventListHandler, url string) *httptest.ResponseRecorder {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
+	engine.Use(middleware.SessionAuth(stubHandlerAuthenticator{}))
 	engine.GET("/api/v1/projects/:projectId/events/:eventId", handler.Detail)
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, url, nil)
+	request.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: "session-token"})
 	engine.ServeHTTP(recorder, request)
 	return recorder
 }

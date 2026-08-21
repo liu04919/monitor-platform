@@ -18,6 +18,7 @@ var (
 )
 
 type DetailRequest struct {
+	UserID    string
 	ProjectID string
 	EventID   string
 }
@@ -48,6 +49,9 @@ func (s *Service) Detail(ctx context.Context, request DetailRequest) (EventDetai
 	projectID := strings.TrimSpace(request.ProjectID)
 	if projectID == "" {
 		return EventDetail{}, ErrProjectIDRequired
+	}
+	if err := s.authorizeProject(ctx, request.UserID, projectID); err != nil {
+		return EventDetail{}, err
 	}
 
 	eventID := strings.TrimSpace(request.EventID)

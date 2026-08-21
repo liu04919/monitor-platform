@@ -12,7 +12,6 @@ func TestLoad(t *testing.T) {
 	t.Setenv("DATABASE_URL", " postgres://monitor:password@localhost:5432/monitor_platform ")
 	t.Setenv("CLICKHOUSE_DSN", " clickhouse://monitor:password@localhost:9000/monitor_platform ")
 	t.Setenv("REDIS_URL", " redis://localhost:6379/0 ")
-	t.Setenv("MANAGEMENT_API_TOKEN", " management-token-with-at-least-32-bytes ")
 	t.Setenv("SESSION_TTL", "24h")
 
 	cfg, err := Load()
@@ -41,9 +40,6 @@ func TestLoad(t *testing.T) {
 	if !cfg.SessionCookieSecure {
 		t.Fatal("production SessionCookieSecure = false, want true")
 	}
-	if cfg.ManagementAPIToken != "management-token-with-at-least-32-bytes" {
-		t.Fatalf("ManagementAPIToken 未去除首尾空白: %q", cfg.ManagementAPIToken)
-	}
 }
 
 func TestLoadUsesHTTPDefaults(t *testing.T) {
@@ -52,7 +48,6 @@ func TestLoadUsesHTTPDefaults(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://monitor:password@localhost:5432/monitor_platform")
 	t.Setenv("CLICKHOUSE_DSN", "clickhouse://monitor:password@localhost:9000/monitor_platform")
 	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
-	t.Setenv("MANAGEMENT_API_TOKEN", "management-token-with-at-least-32-bytes")
 	t.Setenv("SESSION_TTL", "")
 
 	cfg, err := Load()
@@ -76,74 +71,51 @@ func TestLoadUsesHTTPDefaults(t *testing.T) {
 
 func TestLoadRejectsInvalidOrMissingValues(t *testing.T) {
 	tests := []struct {
-		name            string
-		httpAddress     string
-		databaseURL     string
-		clickHouseDSN   string
-		redisURL        string
-		managementToken string
-		sessionTTL      string
-		wantErrorPart   string
+		name          string
+		httpAddress   string
+		databaseURL   string
+		clickHouseDSN string
+		redisURL      string
+		sessionTTL    string
+		wantErrorPart string
 	}{
 		{
-			name:            "invalid HTTP address",
-			httpAddress:     "8080",
-			databaseURL:     "postgres://database",
-			clickHouseDSN:   "clickhouse://database",
-			redisURL:        "redis://localhost:6379/0",
-			managementToken: "management-token-with-at-least-32-bytes",
-			wantErrorPart:   "HTTP_ADDR",
+			name:          "invalid HTTP address",
+			httpAddress:   "8080",
+			databaseURL:   "postgres://database",
+			clickHouseDSN: "clickhouse://database",
+			redisURL:      "redis://localhost:6379/0",
+			wantErrorPart: "HTTP_ADDR",
 		},
 		{
-			name:            "missing PostgreSQL DSN",
-			httpAddress:     ":8080",
-			clickHouseDSN:   "clickhouse://database",
-			redisURL:        "redis://localhost:6379/0",
-			managementToken: "management-token-with-at-least-32-bytes",
-			wantErrorPart:   "DATABASE_URL",
+			name:          "missing PostgreSQL DSN",
+			httpAddress:   ":8080",
+			clickHouseDSN: "clickhouse://database",
+			redisURL:      "redis://localhost:6379/0",
+			wantErrorPart: "DATABASE_URL",
 		},
 		{
-			name:            "missing ClickHouse DSN",
-			httpAddress:     ":8080",
-			databaseURL:     "postgres://database",
-			managementToken: "management-token-with-at-least-32-bytes",
-			redisURL:        "redis://localhost:6379/0",
-			wantErrorPart:   "CLICKHOUSE_DSN",
+			name:          "missing ClickHouse DSN",
+			httpAddress:   ":8080",
+			databaseURL:   "postgres://database",
+			redisURL:      "redis://localhost:6379/0",
+			wantErrorPart: "CLICKHOUSE_DSN",
 		},
 		{
-			name:            "missing Redis URL",
-			httpAddress:     ":8080",
-			databaseURL:     "postgres://database",
-			clickHouseDSN:   "clickhouse://database",
-			managementToken: "management-token-with-at-least-32-bytes",
-			wantErrorPart:   "REDIS_URL",
+			name:          "missing Redis URL",
+			httpAddress:   ":8080",
+			databaseURL:   "postgres://database",
+			clickHouseDSN: "clickhouse://database",
+			wantErrorPart: "REDIS_URL",
 		},
 		{
-			name:          "missing management API token",
+			name:          "invalid session TTL",
 			httpAddress:   ":8080",
 			databaseURL:   "postgres://database",
 			clickHouseDSN: "clickhouse://database",
 			redisURL:      "redis://localhost:6379/0",
-			wantErrorPart: "MANAGEMENT_API_TOKEN",
-		},
-		{
-			name:            "management API token too short",
-			httpAddress:     ":8080",
-			databaseURL:     "postgres://database",
-			clickHouseDSN:   "clickhouse://database",
-			redisURL:        "redis://localhost:6379/0",
-			managementToken: "too-short",
-			wantErrorPart:   "MANAGEMENT_API_TOKEN",
-		},
-		{
-			name:            "invalid session TTL",
-			httpAddress:     ":8080",
-			databaseURL:     "postgres://database",
-			clickHouseDSN:   "clickhouse://database",
-			redisURL:        "redis://localhost:6379/0",
-			managementToken: "management-token-with-at-least-32-bytes",
-			sessionTTL:      "0s",
-			wantErrorPart:   "SESSION_TTL",
+			sessionTTL:    "0s",
+			wantErrorPart: "SESSION_TTL",
 		},
 	}
 
@@ -153,7 +125,6 @@ func TestLoadRejectsInvalidOrMissingValues(t *testing.T) {
 			t.Setenv("DATABASE_URL", test.databaseURL)
 			t.Setenv("CLICKHOUSE_DSN", test.clickHouseDSN)
 			t.Setenv("REDIS_URL", test.redisURL)
-			t.Setenv("MANAGEMENT_API_TOKEN", test.managementToken)
 			t.Setenv("SESSION_TTL", test.sessionTTL)
 
 			_, err := Load()

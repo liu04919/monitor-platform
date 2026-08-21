@@ -1,20 +1,26 @@
 # Management API v1
 
-本文档描述当前已实现的管理端项目创建/发现、事件列表和详情接口。它在 PostgreSQL 管理项目，
-从 ClickHouse 读取事件，尚不包含用户登录以及项目编辑或删除。
+本文档描述当前已实现的管理端项目创建/发现、事件列表和详情接口。它在 PostgreSQL 管理用户和
+归属项目，从 ClickHouse 读取事件，Redis 保存登录 Session。尚不包含项目编辑或删除。
 
 ## 鉴权边界
 
-```http
-Authorization: Bearer <MANAGEMENT_API_TOKEN>
+注册接口只创建 PostgreSQL 用户；登录成功后返回 `HttpOnly`、`SameSite=Lax` 的
+`monitor_session` Cookie。项目与事件接口只接受该 Session，不支持 Bearer Token：
+
+```text
+POST   /api/v1/auth/register
+POST   /api/v1/auth/login
+GET    /api/v1/auth/me
+DELETE /api/v1/auth/logout
 ```
 
-`MANAGEMENT_API_TOKEN` 是服务端秘密，至少 32 字节。浏览器 SDK 的 `publicKey` 只能用于
-事件上报，不能读取事件，也不能替代管理 Token。缺少或错误的管理 Token 返回
-`401 UNAUTHORIZED`。
+缺少、过期或错误的 Session 返回 `401 UNAUTHENTICATED`；Redis 暂时不可用返回
+`503 SESSION_UNAVAILABLE`。浏览器 SDK 的 `publicKey` 只能用于事件上报，不能读取管理数据。
 
-当前管理接口不会复用 ingestion 的通配 CORS。后续浏览器管理页面应配合登录会话和明确的
-来源白名单，而不是把该 Token 打包进前端资源。
+每个项目都有非空 `owner_user_id`。列表只返回当前用户的项目；创建项目自动绑定当前用户；事件
+列表和详情会先验证项目归属。访问不存在或不属于自己的项目统一返回 `404 PROJECT_NOT_FOUND`，
+不泄露其他用户的项目是否存在。
 
 ## 项目列表
 
@@ -31,8 +37,8 @@ GET /api/v1/projects
   "data": {
     "projects": [
       {
-        "id": "monitor-local",
-        "name": "monitor",
+        "id": "monitor-web",
+        "name": "Monitor Web",
         "enabled": true,
         "createdAt": 1787068800000
       }
@@ -141,8 +147,8 @@ GET /api/v1/projects/{projectId}/events/{eventId}
 {
   "data": {
     "schemaVersion": 2,
-    "projectId": "monitor-local",
-    "appName": "monitor",
+    "projectId": "monitor-web",
+    "appName": "Monitor Web",
     "batchId": "batch-1",
     "sendType": "fetch",
     "sentAt": 1787068800000,
@@ -163,5 +169,6 @@ GET /api/v1/projects/{projectId}/events/{eventId}
 }
 ```
 
-事件不存在或不属于指定项目时返回 `404 EVENT_NOT_FOUND`；路径参数非法返回
+当前用户拥有项目但事件不存在时返回 `404 EVENT_NOT_FOUND`；项目不存在或不属于当前用户时返回
+`404 PROJECT_NOT_FOUND`；路径参数非法返回
 `400 INVALID_PATH`；数据库或存储 JSON 异常返回不暴露内部细节的 `500 INTERNAL_ERROR`。

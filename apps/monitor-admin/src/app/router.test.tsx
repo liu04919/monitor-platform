@@ -25,7 +25,13 @@ const eventSummary = {
 function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
   const url = String(input)
   const projectId = url.includes('/projects/project-two/') ? 'project-two' : 'monitor-local'
-  const data = init?.method === 'POST' && url.endsWith('/projects')
+  if (init?.method === 'DELETE' && url.endsWith('/auth/logout')) {
+    return Promise.resolve({ ok: true, status: 204 } as Response)
+  }
+
+  const data = url.endsWith('/auth/me') || url.endsWith('/auth/login') || url.endsWith('/auth/register')
+    ? { id: 'user-1', email: 'user@example.com', createdAt: 1_787_068_600_000 }
+    : init?.method === 'POST' && url.endsWith('/projects')
     ? {
         id: 'created-project',
         name: 'Created Project',
@@ -82,7 +88,7 @@ describe('admin event routes', () => {
 
     expect(await screen.findByRole('heading', { name: 'Cannot read profile' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Payload' })).toBeInTheDocument()
-    expect(fetch).toHaveBeenCalledTimes(3)
+    expect(fetch).toHaveBeenCalledTimes(4)
   })
 
   it('把筛选条件交给 URL 和 TanStack Query', async () => {
@@ -161,7 +167,7 @@ describe('admin event routes', () => {
     expect(fetchMock.mock.calls.every(([, init]) => init?.method !== 'POST')).toBe(true)
   })
 
-  it('在鉴权失败时显示可重试错误状态', async () => {
+  it('在登录状态失效时跳转到登录页', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
       ok: false,
       status: 401,
@@ -169,7 +175,82 @@ describe('admin event routes', () => {
     } as Response)))
     renderRoute('/events')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('unauthorized')
-    expect(screen.getByRole('button', { name: '重新加载' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '登录管理端' })).toBeInTheDocument()
+  })
+
+  it('登录成功后回到受保护的事件页', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn(successfulFetch)
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/login')
+
+    await user.type(screen.getByLabelText('邮箱'), 'user@example.com')
+    await user.type(screen.getByLabelText('密码'), 'password123')
+    await user.click(screen.getByRole('button', { name: '登录' }))
+
+    expect(await screen.findByRole('heading', { name: '事件流' })).toBeInTheDocument()
+    const loginCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/auth/login'))
+    expect(loginCall?.[1]).toMatchObject({ method: 'POST', credentials: 'same-origin' })
+  })
+
+  it('注册成功后串行登录并进入第一个项目引导', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/projects') && init?.method !== 'POST') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ data: { projects: [] } }) } as Response)
+      }
+      return successfulFetch(input, init)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/register')
+
+    await user.type(screen.getByLabelText('邮箱'), 'new@example.com')
+    await user.type(screen.getByLabelText('密码'), 'password123')
+    await user.type(screen.getByLabelText('确认密码'), 'password123')
+    await user.click(screen.getByRole('button', { name: '注册并登录' }))
+
+    expect(await screen.findByRole('heading', { name: '创建你的第一个项目' })).toBeInTheDocument()
+    const authCalls = fetchMock.mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.endsWith('/auth/register') || url.endsWith('/auth/login'))
+    expect(authCalls.map((url) => url.split('/').at(-1))).toEqual(['register', 'login'])
+  })
+
+  it('注册成功但 Redis 不可用时明确提示账号已经创建', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/auth/login')) {
+        return Promise.resolve({
+          ok: false,
+          status: 503,
+          json: () => Promise.resolve({ error: { code: 'SESSION_UNAVAILABLE' } }),
+        } as Response)
+      }
+      return successfulFetch(input, init)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/register')
+
+    await user.type(screen.getByLabelText('邮箱'), 'new@example.com')
+    await user.type(screen.getByLabelText('密码'), 'password123')
+    await user.type(screen.getByLabelText('确认密码'), 'password123')
+    await user.click(screen.getByRole('button', { name: '注册并登录' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('账号已经创建')
+    expect(screen.getByRole('link', { name: '返回登录' })).toBeInTheDocument()
+  })
+
+  it('退出时销毁服务端 Session 并返回登录页', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn(successfulFetch)
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/events')
+
+    await user.click(await screen.findByRole('button', { name: '退出登录' }))
+
+    expect(await screen.findByRole('heading', { name: '登录管理端' })).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([input, init]) =>
+      String(input).endsWith('/auth/logout') && init?.method === 'DELETE',
+    )).toBe(true)
   })
 })

@@ -17,12 +17,15 @@ func TestServiceListReturnsProjects(t *testing.T) {
 		},
 	}
 
-	projects, err := NewService(store).List(context.Background())
+	projects, err := NewService(store).List(context.Background(), "user-1")
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
 	if store.calls != 1 {
 		t.Fatalf("store calls = %d, want 1", store.calls)
+	}
+	if store.ownerUserID != "user-1" {
+		t.Fatalf("owner user ID = %q", store.ownerUserID)
 	}
 	if len(projects) != 1 || projects[0].ID != "project-1" {
 		t.Fatalf("projects = %#v", projects)
@@ -33,7 +36,7 @@ func TestServiceListWrapsStoreError(t *testing.T) {
 	storeError := errors.New("postgres unavailable")
 	store := &stubStore{err: storeError}
 
-	_, err := NewService(store).List(context.Background())
+	_, err := NewService(store).List(context.Background(), "user-1")
 	if !errors.Is(err, storeError) {
 		t.Fatalf("List() error = %v, want wrapped %v", err, storeError)
 	}
@@ -48,7 +51,7 @@ func TestServiceCreateValidatesAndBuildsProject(t *testing.T) {
 		now:               func() time.Time { return createdAt },
 	}
 
-	project, err := service.Create(context.Background(), CreateRequest{
+	project, err := service.Create(context.Background(), "user-1", CreateRequest{
 		ID:   " monitor-web ",
 		Name: " Monitor Web ",
 	})
@@ -63,6 +66,9 @@ func TestServiceCreateValidatesAndBuildsProject(t *testing.T) {
 	}
 	if project.PublicKey != "pk_generated" || !project.CreatedAt.Equal(createdAt) {
 		t.Fatalf("generated project = %#v", project)
+	}
+	if project.OwnerUserID != "user-1" {
+		t.Fatalf("owner user ID = %q", project.OwnerUserID)
 	}
 	if store.createdProject != project {
 		t.Fatalf("stored project = %#v, want %#v", store.createdProject, project)
@@ -97,7 +103,7 @@ func TestServiceCreateValidatesRequestBeforeGeneratingKey(t *testing.T) {
 				now: time.Now,
 			}
 
-			_, err := service.Create(context.Background(), test.request)
+			_, err := service.Create(context.Background(), "user-1", test.request)
 			if !errors.Is(err, test.wantErr) {
 				t.Fatalf("Create() error = %v, want %v", err, test.wantErr)
 			}
@@ -115,7 +121,7 @@ func TestServiceCreateWrapsGeneratorAndStoreErrors(t *testing.T) {
 		generatePublicKey: func() (string, error) { return "", generatorError },
 		now:               time.Now,
 	}
-	_, err := service.Create(context.Background(), CreateRequest{ID: "monitor", Name: "Monitor"})
+	_, err := service.Create(context.Background(), "user-1", CreateRequest{ID: "monitor", Name: "Monitor"})
 	if !errors.Is(err, generatorError) {
 		t.Fatalf("generator error = %v, want wrapped %v", err, generatorError)
 	}
@@ -126,9 +132,25 @@ func TestServiceCreateWrapsGeneratorAndStoreErrors(t *testing.T) {
 		generatePublicKey: func() (string, error) { return "pk_generated", nil },
 		now:               time.Now,
 	}
-	_, err = service.Create(context.Background(), CreateRequest{ID: "monitor", Name: "Monitor"})
+	_, err = service.Create(context.Background(), "user-1", CreateRequest{ID: "monitor", Name: "Monitor"})
 	if !errors.Is(err, storeError) {
 		t.Fatalf("store error = %v, want wrapped %v", err, storeError)
+	}
+}
+
+func TestServiceCanAccessUsesProjectOwnership(t *testing.T) {
+	store := &stubStore{owns: true}
+	allowed, err := NewService(store).CanAccess(context.Background(), " user-1 ", " project-1 ")
+	if err != nil {
+		t.Fatalf("CanAccess() error = %v", err)
+	}
+	if !allowed || store.ownerUserID != "user-1" {
+		t.Fatalf("allowed = %v, owner = %q", allowed, store.ownerUserID)
+	}
+
+	store.ownsErr = errors.New("postgres unavailable")
+	if _, err := NewService(store).CanAccess(context.Background(), "user-1", "project-1"); !errors.Is(err, store.ownsErr) {
+		t.Fatalf("CanAccess() error = %v, want wrapped %v", err, store.ownsErr)
 	}
 }
 
@@ -153,11 +175,20 @@ type stubStore struct {
 	createdProject Project
 	createErr      error
 	createCalls    int
+	ownerUserID    string
+	owns           bool
+	ownsErr        error
 }
 
-func (s *stubStore) List(_ context.Context) ([]ProjectSummary, error) {
+func (s *stubStore) List(_ context.Context, ownerUserID string) ([]ProjectSummary, error) {
 	s.calls++
+	s.ownerUserID = ownerUserID
 	return s.projects, s.err
+}
+
+func (s *stubStore) Owns(_ context.Context, ownerUserID, _ string) (bool, error) {
+	s.ownerUserID = ownerUserID
+	return s.owns, s.ownsErr
 }
 
 func (s *stubStore) Create(_ context.Context, project Project) error {

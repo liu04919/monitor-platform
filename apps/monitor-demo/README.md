@@ -11,8 +11,15 @@ React/Vite → minitor-sdk → Go ingestion → PostgreSQL → ClickHouse
 
 ## 启动
 
-先按照仓库根 README 启动数据库、执行迁移和 `devseed`，然后启动 Go 服务。SDK
-需要先构建，再启动 Demo：
+先按照仓库根 README 启动后端，在管理端注册、登录并创建项目。把创建结果中的 SDK 配置写入
+Demo 的本地环境文件：
+
+```powershell
+Copy-Item apps/monitor-demo/.env.example apps/monitor-demo/.env.local
+```
+
+必须填写 `VITE_MONITOR_PROJECT_ID`、`VITE_MONITOR_PROJECT_NAME` 和
+`VITE_MONITOR_PUBLIC_KEY`；Demo 不再携带固定测试项目。然后构建 SDK 并启动 Demo：
 
 ```powershell
 pnpm --dir packages/monitor-sdk install

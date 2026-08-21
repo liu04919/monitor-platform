@@ -12,6 +12,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/liu04919/monitor-platform/apps/server/internal/auth"
+	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
 	"github.com/liu04919/monitor-platform/apps/server/internal/project"
 )
 
@@ -65,10 +67,12 @@ func TestProjectListHandlerHidesServiceFailure(t *testing.T) {
 func performProjectListRequest(handler *ProjectHandler) *httptest.ResponseRecorder {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
+	engine.Use(middleware.SessionAuth(stubHandlerAuthenticator{}))
 	engine.GET("/api/v1/projects", handler.List)
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/projects", nil)
+	request.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: "session-token"})
 	engine.ServeHTTP(recorder, request)
 	return recorder
 }
@@ -81,18 +85,28 @@ type stubProjectService struct {
 	createErr     error
 	createCalls   int
 	createRequest project.CreateRequest
+	ownerUserID   string
 }
 
-func (s *stubProjectService) List(_ context.Context) ([]project.ProjectSummary, error) {
+func (s *stubProjectService) List(_ context.Context, ownerUserID string) ([]project.ProjectSummary, error) {
 	s.calls++
+	s.ownerUserID = ownerUserID
 	return s.projects, s.err
 }
 
 func (s *stubProjectService) Create(
 	_ context.Context,
+	ownerUserID string,
 	request project.CreateRequest,
 ) (project.Project, error) {
 	s.createCalls++
+	s.ownerUserID = ownerUserID
 	s.createRequest = request
 	return s.created, s.createErr
+}
+
+type stubHandlerAuthenticator struct{}
+
+func (stubHandlerAuthenticator) Authenticate(_ context.Context, _ string) (auth.User, error) {
+	return auth.User{ID: "user-1", Email: "user@example.com"}, nil
 }

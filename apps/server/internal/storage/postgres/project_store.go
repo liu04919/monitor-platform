@@ -24,10 +24,11 @@ func NewProjectStore(db *gorm.DB) *ProjectStore {
 	return &ProjectStore{db: db}
 }
 
-func (s *ProjectStore) List(ctx context.Context) ([]projectdomain.ProjectSummary, error) {
+func (s *ProjectStore) List(ctx context.Context, ownerUserID string) ([]projectdomain.ProjectSummary, error) {
 	var records []Project
 	if err := s.db.WithContext(ctx).
 		Select("id", "name", "enabled", "created_at").
+		Where("owner_user_id = ?", ownerUserID).
 		Order("created_at ASC").
 		Order("id ASC").
 		Find(&records).
@@ -50,12 +51,13 @@ func (s *ProjectStore) List(ctx context.Context) ([]projectdomain.ProjectSummary
 
 func (s *ProjectStore) Create(ctx context.Context, project projectdomain.Project) error {
 	record := Project{
-		ID:        project.ID,
-		Name:      project.Name,
-		PublicKey: project.PublicKey,
-		Enabled:   project.Enabled,
-		CreatedAt: project.CreatedAt,
-		UpdatedAt: project.CreatedAt,
+		ID:          project.ID,
+		OwnerUserID: project.OwnerUserID,
+		Name:        project.Name,
+		PublicKey:   project.PublicKey,
+		Enabled:     project.Enabled,
+		CreatedAt:   project.CreatedAt,
+		UpdatedAt:   project.CreatedAt,
 	}
 	if err := s.db.WithContext(ctx).Create(&record).Error; err != nil {
 		var postgresError *pgconn.PgError
@@ -69,4 +71,17 @@ func (s *ProjectStore) Create(ctx context.Context, project projectdomain.Project
 	}
 
 	return nil
+}
+
+func (s *ProjectStore) Owns(ctx context.Context, ownerUserID, projectID string) (bool, error) {
+	var count int64
+	if err := s.db.WithContext(ctx).
+		Model(&Project{}).
+		Where("id = ? AND owner_user_id = ?", projectID, ownerUserID).
+		Count(&count).
+		Error; err != nil {
+		return false, fmt.Errorf("query project ownership: %w", err)
+	}
+
+	return count > 0, nil
 }

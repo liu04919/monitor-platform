@@ -20,7 +20,8 @@ func TestServiceListCreatesStableNextCursor(t *testing.T) {
 		},
 	}
 
-	page, err := NewService(store).List(context.Background(), ListRequest{
+	page, err := NewService(store, allowProject()).List(context.Background(), ListRequest{
+		UserID:    "user-1",
 		ProjectID: " project-1 ",
 		Category:  dto.EventCategoryError,
 		EventType: " exception ",
@@ -56,7 +57,8 @@ func TestServiceListContinuesFromCursor(t *testing.T) {
 	cursor := encodeCursor(CursorKey{Timestamp: timestamp, EventID: "event-9"})
 	store := &stubStore{}
 
-	page, err := NewService(store).List(context.Background(), ListRequest{
+	page, err := NewService(store, allowProject()).List(context.Background(), ListRequest{
+		UserID:    "user-1",
 		ProjectID: "project-1",
 		Cursor:    cursor,
 	})
@@ -93,7 +95,7 @@ func TestServiceListValidatesRequest(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			store := &stubStore{}
-			_, err := NewService(store).List(context.Background(), test.request)
+			_, err := NewService(store, allowProject()).List(context.Background(), test.request)
 			if !errors.Is(err, test.wantErr) {
 				t.Fatalf("List() error = %v, want %v", err, test.wantErr)
 			}
@@ -108,10 +110,37 @@ func TestServiceListWrapsStoreError(t *testing.T) {
 	storeError := errors.New("clickhouse unavailable")
 	store := &stubStore{err: storeError}
 
-	_, err := NewService(store).List(context.Background(), ListRequest{ProjectID: "project-1"})
+	_, err := NewService(store, allowProject()).List(context.Background(), ListRequest{UserID: "user-1", ProjectID: "project-1"})
 	if !errors.Is(err, storeError) {
 		t.Fatalf("List() error = %v, want wrapped %v", err, storeError)
 	}
+}
+
+func TestServiceListRejectsProjectNotOwnedByUser(t *testing.T) {
+	store := &stubStore{}
+	_, err := NewService(store, &stubProjectAuthorizer{}).List(context.Background(), ListRequest{
+		UserID:    "user-2",
+		ProjectID: "project-1",
+	})
+	if !errors.Is(err, ErrProjectNotFound) {
+		t.Fatalf("List() error = %v, want %v", err, ErrProjectNotFound)
+	}
+	if store.calls != 0 {
+		t.Fatalf("ClickHouse calls = %d, want 0", store.calls)
+	}
+}
+
+type stubProjectAuthorizer struct {
+	allowed bool
+	err     error
+}
+
+func allowProject() *stubProjectAuthorizer {
+	return &stubProjectAuthorizer{allowed: true}
+}
+
+func (a *stubProjectAuthorizer) CanAccess(_ context.Context, _, _ string) (bool, error) {
+	return a.allowed, a.err
 }
 
 type stubStore struct {

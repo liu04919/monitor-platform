@@ -2,7 +2,7 @@
 
 PostgreSQL 只保存用户、项目、公开上报 Key 等控制面数据。SDK 上报的遥测事件仍计划写入 ClickHouse。
 
-根目录的 `compose.yaml` 会在 PostgreSQL 数据卷第一次初始化时执行向上迁移 SQL。Docker 官方镜像只会对空数据目录执行初始化脚本，因此已经存在的数据卷必须使用迁移命令升级。
+根目录的 `compose.yaml` 会在 PostgreSQL 数据卷第一次初始化时执行向上迁移 SQL。当前 `000001` 到 `000003` 是项目尚未上线阶段重建后的新基线，只适用于空数据库；本轮本地旧数据需要明确删除后重建。基线确定后，后续结构变化必须追加新版本迁移，不能再改写已发布版本。
 
 `go run ./cmd/migrate` 会把 SQL 编译进命令，按文件名版本执行尚未应用的 PostgreSQL 和 ClickHouse 迁移，并分别写入 `schema_migrations`。迁移文件需要保持可重复执行，不能靠删除数据卷升级数据库。
 

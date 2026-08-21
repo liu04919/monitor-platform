@@ -37,7 +37,7 @@ func New(
 	projectHandler ProjectHandler,
 	eventQueryHandler EventQueryHandler,
 	authHandler AuthHandler,
-	managementToken string,
+	sessionAuthenticator middleware.SessionAuthenticator,
 ) *gin.Engine {
 	engine := gin.New()
 	engine.Use(gin.Logger(), gin.Recovery())
@@ -57,12 +57,12 @@ func New(
 	auth.GET("/me", authHandler.Me)
 	auth.DELETE("/logout", authHandler.Logout)
 
-	management := engine.Group("/api/v1/projects")
-	management.Use(middleware.ManagementAuth(managementToken))
-	management.GET("", projectHandler.List)
-	management.POST("", projectHandler.Create)
-	management.GET("/:projectId/events", eventQueryHandler.List)
-	management.GET("/:projectId/events/:eventId", eventQueryHandler.Detail)
+	projects := engine.Group("/api/v1/projects")
+	projects.Use(middleware.SessionAuth(sessionAuthenticator))
+	projects.GET("", projectHandler.List)
+	projects.POST("", projectHandler.Create)
+	projects.GET("/:projectId/events", eventQueryHandler.List)
+	projects.GET("/:projectId/events/:eventId", eventQueryHandler.Detail)
 
 	return engine
 }

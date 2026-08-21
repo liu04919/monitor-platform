@@ -10,6 +10,7 @@ import (
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
 	"github.com/liu04919/monitor-platform/apps/server/internal/eventquery"
+	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
 )
 
 type EventQueryService interface {
@@ -26,6 +27,12 @@ func NewEventListHandler(service EventQueryService) *EventListHandler {
 }
 
 func (h *EventListHandler) List(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		writeAPIError(c, http.StatusInternalServerError, "AUTH_CONTEXT_MISSING", "authenticated user context is missing", nil)
+		return
+	}
+
 	limit, err := parseOptionalLimit(c.Query("limit"))
 	if err != nil {
 		writeEventListQueryError(c, eventquery.ErrInvalidLimit)
@@ -33,6 +40,7 @@ func (h *EventListHandler) List(c *gin.Context) {
 	}
 
 	page, err := h.service.List(c.Request.Context(), eventquery.ListRequest{
+		UserID:    user.ID,
 		ProjectID: c.Param("projectId"),
 		Category:  dto.EventCategory(c.Query("category")),
 		EventType: c.Query("eventType"),
@@ -92,6 +100,8 @@ func writeEventListError(c *gin.Context, err error) {
 		writeEventListQueryError(c, eventquery.ErrInvalidLimit)
 	case errors.Is(err, eventquery.ErrInvalidCursor):
 		writeEventListQueryError(c, eventquery.ErrInvalidCursor)
+	case errors.Is(err, eventquery.ErrProjectNotFound):
+		writeAPIError(c, http.StatusNotFound, "PROJECT_NOT_FOUND", "project was not found", nil)
 	default:
 		writeAPIError(
 			c,

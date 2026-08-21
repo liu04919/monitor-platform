@@ -1,16 +1,32 @@
 import { Navigate, createBrowserRouter, type RouteObject } from 'react-router-dom'
+import { AuthGuard } from '@/features/auth/components/AuthGuard/AuthGuard'
 import { EventDetailPage } from '@/pages/event-detail/EventDetailPage'
 import { EventsPage } from '@/pages/events/EventsPage'
+import { LoginPage } from '@/pages/login/LoginPage'
+import { RegisterPage } from '@/pages/register/RegisterPage'
 import { AppShell } from '@/widgets/app-shell/AppShell'
 
 export const appRoutes: RouteObject[] = [
   {
-    element: <AppShell />,
+    path: 'login',
+    element: <LoginPage />,
+  },
+  {
+    path: 'register',
+    element: <RegisterPage />,
+  },
+  {
+    element: <AuthGuard />,
     children: [
-      { index: true, element: <Navigate to="/events" replace /> },
-      { path: 'events', element: <EventsPage /> },
-      { path: 'events/:eventId', element: <EventDetailPage /> },
-      { path: '*', element: <Navigate to="/events" replace /> },
+      {
+        element: <AppShell />,
+        children: [
+          { index: true, element: <Navigate to="/events" replace /> },
+          { path: 'events', element: <EventsPage /> },
+          { path: 'events/:eventId', element: <EventDetailPage /> },
+          { path: '*', element: <Navigate to="/events" replace /> },
+        ],
+      },
     ],
   },
 ]

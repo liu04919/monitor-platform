@@ -12,6 +12,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/liu04919/monitor-platform/apps/server/internal/auth"
+	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
 	"github.com/liu04919/monitor-platform/apps/server/internal/project"
 )
 
@@ -131,6 +133,7 @@ func TestProjectHandlerMapsCreateErrors(t *testing.T) {
 func performProjectCreateRequest(handler *ProjectHandler, body, contentType string) *httptest.ResponseRecorder {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
+	engine.Use(middleware.SessionAuth(stubHandlerAuthenticator{}))
 	engine.POST("/api/v1/projects", handler.Create)
 
 	recorder := httptest.NewRecorder()
@@ -138,6 +141,7 @@ func performProjectCreateRequest(handler *ProjectHandler, body, contentType stri
 	if contentType != "" {
 		request.Header.Set("Content-Type", contentType)
 	}
+	request.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: "session-token"})
 	engine.ServeHTTP(recorder, request)
 	return recorder
 }

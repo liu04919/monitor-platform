@@ -59,8 +59,8 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 		t.Fatalf("写入其他项目测试事件失败: %v", err)
 	}
 
-	service := eventquery.NewService(clickhousestore.NewEventReader(conn))
-	firstPage, err := service.List(ctx, eventquery.ListRequest{ProjectID: projectID, Limit: 2})
+	service := eventquery.NewService(clickhousestore.NewEventReader(conn), allowAllProjects{})
+	firstPage, err := service.List(ctx, eventquery.ListRequest{UserID: "user-1", ProjectID: projectID, Limit: 2})
 	if err != nil {
 		t.Fatalf("查询第一页失败: %v", err)
 	}
@@ -73,6 +73,7 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 	}
 
 	secondPage, err := service.List(ctx, eventquery.ListRequest{
+		UserID:    "user-1",
 		ProjectID: projectID,
 		Limit:     2,
 		Cursor:    firstPage.NextCursor,
@@ -86,6 +87,7 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 	}
 
 	errorPage, err := service.List(ctx, eventquery.ListRequest{
+		UserID:    "user-1",
 		ProjectID: projectID,
 		Category:  dto.EventCategoryError,
 		EventType: "js_error",
@@ -102,6 +104,7 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 	}
 
 	detail, err := service.Detail(ctx, eventquery.DetailRequest{
+		UserID:    "user-1",
 		ProjectID: projectID,
 		EventID:   "event-a-" + suffix,
 	})
@@ -135,12 +138,19 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 	}
 
 	_, err = service.Detail(ctx, eventquery.DetailRequest{
+		UserID:    "user-1",
 		ProjectID: otherProjectID,
 		EventID:   "event-a-" + suffix,
 	})
 	if !errors.Is(err, eventquery.ErrEventNotFound) {
 		t.Fatalf("跨项目详情查询错误 = %v, want %v", err, eventquery.ErrEventNotFound)
 	}
+}
+
+type allowAllProjects struct{}
+
+func (allowAllProjects) CanAccess(_ context.Context, _, _ string) (bool, error) {
+	return true, nil
 }
 
 func queryBatch(projectID, batchID string, timestamp time.Time) dto.TelemetryBatch {

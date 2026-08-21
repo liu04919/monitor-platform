@@ -7,7 +7,9 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/liu04919/monitor-platform/apps/server/internal/database"
 	"github.com/liu04919/monitor-platform/apps/server/internal/ingestion"
 	projectstore "github.com/liu04919/monitor-platform/apps/server/internal/storage/postgres"
@@ -42,10 +44,22 @@ func TestProjectKeyVerifierWithPostgreSQL(t *testing.T) {
 	})
 
 	project := projectstore.Project{
-		ID:        "integration-project",
-		Name:      "集成测试项目",
-		PublicKey: "integration-public-key",
-		Enabled:   true,
+		ID:          "integration-project",
+		OwnerUserID: uuid.NewString(),
+		Name:        "集成测试项目",
+		PublicKey:   "integration-public-key",
+		Enabled:     true,
+	}
+	now := time.Now().UTC()
+	owner := projectstore.User{
+		ID:           project.OwnerUserID,
+		Email:        "project-key-" + project.OwnerUserID + "@example.com",
+		PasswordHash: "integration-test-only",
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := tx.Create(&owner).Error; err != nil {
+		t.Fatalf("创建测试用户失败: %v", err)
 	}
 	if err := tx.Create(&project).Error; err != nil {
 		t.Fatalf("创建测试项目失败: %v", err)

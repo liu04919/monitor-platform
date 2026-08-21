@@ -1,15 +1,18 @@
 package router
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/liu04919/monitor-platform/apps/server/internal/auth"
 )
 
-const testManagementToken = "management-token-with-at-least-32-bytes"
+const testSessionToken = "session-token"
 
 func TestHealth(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -95,7 +98,7 @@ func TestAuthRoutes(t *testing.T) {
 		&stubProjectListHandler{},
 		&stubEventListHandler{},
 		authHandler,
-		testManagementToken,
+		stubSessionAuthenticator{},
 	)
 
 	tests := []struct {
@@ -122,7 +125,7 @@ func TestAuthRoutes(t *testing.T) {
 	}
 }
 
-func TestManagementEventListRouteRequiresBearerToken(t *testing.T) {
+func TestEventRoutesRequireSessionCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	eventListHandler := &stubEventListHandler{}
@@ -142,7 +145,7 @@ func TestManagementEventListRouteRequiresBearerToken(t *testing.T) {
 
 	authorized := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/projects/project-1/events", nil)
-	request.Header.Set("Authorization", "Bearer "+testManagementToken)
+	request.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: testSessionToken})
 	engine.ServeHTTP(authorized, request)
 
 	if authorized.Code != http.StatusOK {
@@ -158,7 +161,7 @@ func TestManagementEventListRouteRequiresBearerToken(t *testing.T) {
 		"/api/v1/projects/project-1/events/event-1",
 		nil,
 	)
-	detailRequest.Header.Set("Authorization", "Bearer "+testManagementToken)
+	detailRequest.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: testSessionToken})
 	engine.ServeHTTP(detailRecorder, detailRequest)
 
 	if detailRecorder.Code != http.StatusOK {
@@ -169,7 +172,7 @@ func TestManagementEventListRouteRequiresBearerToken(t *testing.T) {
 	}
 }
 
-func TestManagementProjectListRouteRequiresBearerToken(t *testing.T) {
+func TestProjectRoutesRequireSessionCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	projectListHandler := &stubProjectListHandler{}
@@ -189,7 +192,7 @@ func TestManagementProjectListRouteRequiresBearerToken(t *testing.T) {
 
 	authorized := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/projects", nil)
-	request.Header.Set("Authorization", "Bearer "+testManagementToken)
+	request.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: testSessionToken})
 	engine.ServeHTTP(authorized, request)
 
 	if authorized.Code != http.StatusOK {
@@ -213,7 +216,7 @@ func TestManagementProjectListRouteRequiresBearerToken(t *testing.T) {
 
 	authorizedCreate := httptest.NewRecorder()
 	createRequest := httptest.NewRequest(http.MethodPost, "/api/v1/projects", nil)
-	createRequest.Header.Set("Authorization", "Bearer "+testManagementToken)
+	createRequest.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: testSessionToken})
 	engine.ServeHTTP(authorizedCreate, createRequest)
 	if authorizedCreate.Code != http.StatusCreated {
 		t.Fatalf("authorized create status = %d, want %d", authorizedCreate.Code, http.StatusCreated)
@@ -233,8 +236,17 @@ func newTestRouter(
 		projectHandler,
 		eventQueryHandler,
 		&stubAuthHandler{},
-		testManagementToken,
+		stubSessionAuthenticator{},
 	)
+}
+
+type stubSessionAuthenticator struct{}
+
+func (stubSessionAuthenticator) Authenticate(_ context.Context, token string) (auth.User, error) {
+	if token != testSessionToken {
+		return auth.User{}, auth.ErrUnauthenticated
+	}
+	return auth.User{ID: "user-1", Email: "user@example.com"}, nil
 }
 
 type stubTelemetryHandler struct {

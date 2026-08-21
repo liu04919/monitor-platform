@@ -219,7 +219,7 @@ func performAuthRequest(
 		request.Header.Set("Content-Type", contentType)
 	}
 	if token != "" {
-		request.AddCookie(&http.Cookie{Name: sessionCookieName, Value: token})
+		request.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: token})
 	}
 	engine.ServeHTTP(recorder, request)
 	return recorder

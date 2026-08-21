@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/database"
@@ -57,11 +58,22 @@ func TestBatchStoreWithPostgreSQLAndClickHouse(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	suffix := fmt.Sprintf("%d", now.UnixNano())
 	projectID := "batch-store-project-" + suffix
+	owner := postgresstore.User{
+		ID:           uuid.NewString(),
+		Email:        "batch-store-" + suffix + "@example.com",
+		PasswordHash: "integration-test-only",
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if err := postgresDB.WithContext(ctx).Create(&owner).Error; err != nil {
+		t.Fatalf("创建测试用户失败: %v", err)
+	}
 	project := postgresstore.Project{
-		ID:        projectID,
-		Name:      "BatchStore 集成测试",
-		PublicKey: "batch-store-key-" + suffix,
-		Enabled:   true,
+		ID:          projectID,
+		OwnerUserID: owner.ID,
+		Name:        "BatchStore 集成测试",
+		PublicKey:   "batch-store-key-" + suffix,
+		Enabled:     true,
 	}
 	if err := postgresDB.WithContext(ctx).Create(&project).Error; err != nil {
 		t.Fatalf("创建测试项目失败: %v", err)
@@ -89,6 +101,12 @@ func TestBatchStoreWithPostgreSQLAndClickHouse(t *testing.T) {
 			Delete(&postgresstore.Project{}).
 			Error; err != nil {
 			t.Errorf("清理 PostgreSQL 测试项目失败: %v", err)
+		}
+		if err := postgresDB.WithContext(cleanupCtx).
+			Where("id = ?", owner.ID).
+			Delete(&postgresstore.User{}).
+			Error; err != nil {
+			t.Errorf("清理 PostgreSQL 测试用户失败: %v", err)
 		}
 	})
 

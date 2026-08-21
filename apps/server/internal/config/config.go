@@ -9,10 +9,9 @@ import (
 )
 
 const (
-	defaultEnvironment       = "development"
-	defaultHTTPAddress       = ":8080"
-	defaultSessionTTL        = 7 * 24 * time.Hour
-	minManagementTokenLength = 32
+	defaultEnvironment = "development"
+	defaultHTTPAddress = ":8080"
+	defaultSessionTTL  = 7 * 24 * time.Hour
 )
 
 type Config struct {
@@ -21,7 +20,6 @@ type Config struct {
 	DatabaseURL         string
 	ClickHouseDSN       string
 	RedisURL            string
-	ManagementAPIToken  string
 	SessionTTL          time.Duration
 	SessionCookieSecure bool
 }
@@ -34,7 +32,6 @@ func Load() (Config, error) {
 		DatabaseURL:         strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		ClickHouseDSN:       strings.TrimSpace(os.Getenv("CLICKHOUSE_DSN")),
 		RedisURL:            strings.TrimSpace(os.Getenv("REDIS_URL")),
-		ManagementAPIToken:  strings.TrimSpace(os.Getenv("MANAGEMENT_API_TOKEN")),
 		SessionTTL:          defaultSessionTTL,
 		SessionCookieSecure: environment == "production",
 	}
@@ -59,13 +56,6 @@ func Load() (Config, error) {
 	if cfg.RedisURL == "" {
 		return Config{}, fmt.Errorf("REDIS_URL is required")
 	}
-	if len(cfg.ManagementAPIToken) < minManagementTokenLength {
-		return Config{}, fmt.Errorf(
-			"MANAGEMENT_API_TOKEN must contain at least %d bytes",
-			minManagementTokenLength,
-		)
-	}
-
 	return cfg, nil
 }
 

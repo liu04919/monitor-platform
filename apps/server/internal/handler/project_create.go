@@ -9,12 +9,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
 	"github.com/liu04919/monitor-platform/apps/server/internal/project"
 )
 
 const maxProjectBodyBytes int64 = 4 << 10
 
 func (h *ProjectHandler) Create(c *gin.Context) {
+	user, ok := middleware.CurrentUser(c)
+	if !ok {
+		writeAPIError(c, http.StatusInternalServerError, "AUTH_CONTEXT_MISSING", "authenticated user context is missing", nil)
+		return
+	}
+
 	if !isJSONContentType(c.GetHeader("Content-Type")) {
 		writeAPIError(
 			c,
@@ -50,7 +57,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 		return
 	}
 
-	createdProject, err := h.service.Create(c.Request.Context(), project.CreateRequest{
+	createdProject, err := h.service.Create(c.Request.Context(), user.ID, project.CreateRequest{
 		ID:   request.ID,
 		Name: request.Name,
 	})

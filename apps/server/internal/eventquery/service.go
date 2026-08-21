@@ -27,6 +27,7 @@ var (
 	ErrInvalidCategory   = errors.New("invalid event category")
 	ErrInvalidLimit      = errors.New("invalid event list limit")
 	ErrInvalidCursor     = errors.New("invalid event list cursor")
+	ErrProjectNotFound   = errors.New("project not found")
 )
 
 // EventSummary 是事件列表需要的轻量字段；完整 payload 留给后续详情查询。
@@ -65,7 +66,12 @@ type Store interface {
 	Get(ctx context.Context, projectID, eventID string) (EventDetail, bool, error)
 }
 
+type ProjectAuthorizer interface {
+	CanAccess(ctx context.Context, userID, projectID string) (bool, error)
+}
+
 type ListRequest struct {
+	UserID    string
 	ProjectID string
 	Category  dto.EventCategory
 	EventType string
@@ -79,17 +85,21 @@ type ListPage struct {
 }
 
 type Service struct {
-	store Store
+	store    Store
+	projects ProjectAuthorizer
 }
 
-func NewService(store Store) *Service {
-	return &Service{store: store}
+func NewService(store Store, projects ProjectAuthorizer) *Service {
+	return &Service{store: store, projects: projects}
 }
 
 func (s *Service) List(ctx context.Context, request ListRequest) (ListPage, error) {
 	projectID := strings.TrimSpace(request.ProjectID)
 	if projectID == "" {
 		return ListPage{}, ErrProjectIDRequired
+	}
+	if err := s.authorizeProject(ctx, request.UserID, projectID); err != nil {
+		return ListPage{}, err
 	}
 	if request.Category != "" && !isSupportedCategory(request.Category) {
 		return ListPage{}, ErrInvalidCategory
@@ -137,6 +147,17 @@ func (s *Service) List(ctx context.Context, request ListRequest) (ListPage, erro
 	})
 
 	return page, nil
+}
+
+func (s *Service) authorizeProject(ctx context.Context, userID, projectID string) error {
+	owned, err := s.projects.CanAccess(ctx, strings.TrimSpace(userID), projectID)
+	if err != nil {
+		return fmt.Errorf("校验事件项目访问权限: %w", err)
+	}
+	if !owned {
+		return ErrProjectNotFound
+	}
+	return nil
 }
 
 type cursorPayload struct {

@@ -6,7 +6,6 @@ const repositoryRoot = resolve(import.meta.dirname, '../..')
 
 export default defineConfig(({ mode }) => {
   const environment = loadEnv(mode, repositoryRoot, '')
-  const managementToken = environment.MANAGEMENT_API_TOKEN
   const apiOrigin = environment.MONITOR_API_ORIGIN || 'http://127.0.0.1:8080'
 
   return {
@@ -36,17 +35,9 @@ export default defineConfig(({ mode }) => {
       port: 5174,
       strictPort: true,
       proxy: {
-        '/management-api': {
+        '/api': {
           target: apiOrigin,
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/management-api/, ''),
-          configure(proxy) {
-            proxy.on('proxyReq', (proxyRequest) => {
-              if (managementToken) {
-                proxyRequest.setHeader('Authorization', `Bearer ${managementToken}`)
-              }
-            })
-          },
         },
       },
     },

@@ -12,7 +12,8 @@ func TestServiceDetailReturnsEvent(t *testing.T) {
 		found:  true,
 	}
 
-	detail, err := NewService(store).Detail(context.Background(), DetailRequest{
+	detail, err := NewService(store, allowProject()).Detail(context.Background(), DetailRequest{
+		UserID:    "user-1",
 		ProjectID: " project-1 ",
 		EventID:   " event-1 ",
 	})
@@ -41,7 +42,7 @@ func TestServiceDetailValidatesIdentity(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			store := &stubStore{}
-			_, err := NewService(store).Detail(context.Background(), test.request)
+			_, err := NewService(store, allowProject()).Detail(context.Background(), test.request)
 			if !errors.Is(err, test.wantErr) {
 				t.Fatalf("Detail() error = %v, want %v", err, test.wantErr)
 			}
@@ -55,7 +56,8 @@ func TestServiceDetailValidatesIdentity(t *testing.T) {
 func TestServiceDetailMapsNotFoundAndWrapsStoreError(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		store := &stubStore{}
-		_, err := NewService(store).Detail(context.Background(), DetailRequest{
+		_, err := NewService(store, allowProject()).Detail(context.Background(), DetailRequest{
+			UserID:    "user-1",
 			ProjectID: "project-1",
 			EventID:   "event-1",
 		})
@@ -67,7 +69,8 @@ func TestServiceDetailMapsNotFoundAndWrapsStoreError(t *testing.T) {
 	t.Run("store error", func(t *testing.T) {
 		storeError := errors.New("clickhouse unavailable")
 		store := &stubStore{getErr: storeError}
-		_, err := NewService(store).Detail(context.Background(), DetailRequest{
+		_, err := NewService(store, allowProject()).Detail(context.Background(), DetailRequest{
+			UserID:    "user-1",
 			ProjectID: "project-1",
 			EventID:   "event-1",
 		})

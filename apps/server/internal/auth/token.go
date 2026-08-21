@@ -7,6 +7,8 @@ import (
 
 const sessionTokenBytes = 32
 
+const SessionCookieName = "monitor_session"
+
 type SecureTokenGenerator struct{}
 
 func (SecureTokenGenerator) Generate() (string, error) {

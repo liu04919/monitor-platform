@@ -71,11 +71,11 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	projectID := "app-http-project-" + suffix
 	projectName := "应用 HTTP 集成测试"
 	userEmail := "app-http-" + suffix + "@example.com"
-	managementToken := "app-http-management-token-" + suffix
+	otherUserEmail := "app-http-other-" + suffix + "@example.com"
 	t.Cleanup(func() {
 		cleanupApplicationData(t, postgresDB, clickHouseConn, projectID)
 		if err := postgresDB.WithContext(context.Background()).
-			Where("email = ?", userEmail).
+			Where("email IN ?", []string{userEmail, otherUserEmail}).
 			Delete(&postgresstore.User{}).
 			Error; err != nil {
 			t.Errorf("清理 PostgreSQL 测试用户失败: %v", err)
@@ -83,11 +83,10 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	})
 
 	application, err := app.New(ctx, config.Config{
-		DatabaseURL:        postgresDSN,
-		ClickHouseDSN:      clickHouseDSN,
-		RedisURL:           redisURL,
-		ManagementAPIToken: managementToken,
-		SessionTTL:         time.Hour,
+		DatabaseURL:   postgresDSN,
+		ClickHouseDSN: clickHouseDSN,
+		RedisURL:      redisURL,
+		SessionTTL:    time.Hour,
 	})
 	if err != nil {
 		t.Fatalf("创建应用失败: %v", err)
@@ -101,25 +100,25 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	server := httptest.NewServer(application.Handler)
 	t.Cleanup(server.Close)
 
-	assertApplicationAuthentication(t, server.URL, userEmail)
+	sessionCookie := assertApplicationAuthentication(t, server.URL, userEmail)
 
 	assertTelemetryPreflight(t, server.URL)
 
 	status, createdProject := postApplicationProject(
 		t,
 		server.URL,
-		"",
+		nil,
 		projectID,
 		projectName,
 	)
-	if status != http.StatusUnauthorized || createdProject.Error.Code != "UNAUTHORIZED" {
-		t.Fatalf("无管理 Token 创建项目结果 = status %d, code %q", status, createdProject.Error.Code)
+	if status != http.StatusUnauthorized || createdProject.Error.Code != "UNAUTHENTICATED" {
+		t.Fatalf("无 Session 创建项目结果 = status %d, code %q", status, createdProject.Error.Code)
 	}
 
 	status, createdProject = postApplicationProject(
 		t,
 		server.URL,
-		managementToken,
+		sessionCookie,
 		projectID,
 		projectName,
 	)
@@ -137,7 +136,7 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	status, duplicateProject := postApplicationProject(
 		t,
 		server.URL,
-		managementToken,
+		sessionCookie,
 		projectID,
 		projectName,
 	)
@@ -145,12 +144,12 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 		t.Fatalf("重复项目 ID 结果 = status %d, code %q", status, duplicateProject.Error.Code)
 	}
 
-	status, projectList := getApplicationProjects(t, server.URL, "")
-	if status != http.StatusUnauthorized || projectList.Error.Code != "UNAUTHORIZED" {
-		t.Fatalf("无管理 Token 查询项目结果 = status %d, code %q", status, projectList.Error.Code)
+	status, projectList := getApplicationProjects(t, server.URL, nil)
+	if status != http.StatusUnauthorized || projectList.Error.Code != "UNAUTHENTICATED" {
+		t.Fatalf("无 Session 查询项目结果 = status %d, code %q", status, projectList.Error.Code)
 	}
 
-	status, projectList = getApplicationProjects(t, server.URL, managementToken)
+	status, projectList = getApplicationProjects(t, server.URL, sessionCookie)
 	if status != http.StatusOK {
 		t.Fatalf("查询项目列表状态码 = %d, want %d, code = %q", status, http.StatusOK, projectList.Error.Code)
 	}
@@ -168,6 +167,16 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	}
 	if !projectFound {
 		t.Fatalf("项目列表未返回测试项目 %q", projectID)
+	}
+
+	otherSessionCookie := assertApplicationAuthentication(t, server.URL, otherUserEmail)
+	status, otherProjects := getApplicationProjects(t, server.URL, otherSessionCookie)
+	if status != http.StatusOK || len(otherProjects.Data.Projects) != 0 {
+		t.Fatalf("其他用户项目列表 = status %d, projects %#v", status, otherProjects.Data.Projects)
+	}
+	status, otherUserEvents := getApplicationEvents(t, server.URL, projectID, otherSessionCookie, nil)
+	if status != http.StatusNotFound || otherUserEvents.Error.Code != "PROJECT_NOT_FOUND" {
+		t.Fatalf("其他用户跨项目读取 = status %d, code %q", status, otherUserEvents.Error.Code)
 	}
 
 	batch := applicationBatch(projectID, publicKey, "normal-"+suffix, now)
@@ -214,21 +223,22 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 		uint64(len(batch.Events)),
 	)
 
-	status, eventList := getApplicationEvents(t, server.URL, projectID, "", nil)
-	if status != http.StatusUnauthorized || eventList.Error.Code != "UNAUTHORIZED" {
-		t.Fatalf("无管理 Token 查询结果 = status %d, code %q", status, eventList.Error.Code)
+	status, eventList := getApplicationEvents(t, server.URL, projectID, nil, nil)
+	if status != http.StatusUnauthorized || eventList.Error.Code != "UNAUTHENTICATED" {
+		t.Fatalf("无 Session 查询结果 = status %d, code %q", status, eventList.Error.Code)
 	}
 
-	status, eventList = getApplicationEvents(t, server.URL, projectID, publicKey, nil)
-	if status != http.StatusUnauthorized || eventList.Error.Code != "UNAUTHORIZED" {
-		t.Fatalf("publicKey 冒充管理 Token 结果 = status %d, code %q", status, eventList.Error.Code)
+	invalidCookie := &http.Cookie{Name: "monitor_session", Value: publicKey, Path: "/api/v1"}
+	status, eventList = getApplicationEvents(t, server.URL, projectID, invalidCookie, nil)
+	if status != http.StatusUnauthorized || eventList.Error.Code != "UNAUTHENTICATED" {
+		t.Fatalf("publicKey 冒充 Session 结果 = status %d, code %q", status, eventList.Error.Code)
 	}
 
 	status, eventList = getApplicationEvents(
 		t,
 		server.URL,
 		projectID,
-		managementToken,
+		sessionCookie,
 		url.Values{"limit": {"1"}},
 	)
 	if status != http.StatusOK {
@@ -245,7 +255,7 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 		t,
 		server.URL,
 		projectID,
-		managementToken,
+		sessionCookie,
 		url.Values{
 			"limit":  {"1"},
 			"cursor": {eventList.Data.NextCursor},
@@ -266,7 +276,7 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 		server.URL,
 		projectID,
 		batch.Events[0].EventID,
-		managementToken,
+		sessionCookie,
 	)
 	if status != http.StatusOK {
 		t.Fatalf("查询事件详情状态码 = %d, want %d, code = %q", status, http.StatusOK, eventDetail.Error.Code)
@@ -288,10 +298,21 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 		server.URL,
 		projectID,
 		"missing-event-"+suffix,
-		managementToken,
+		sessionCookie,
 	)
 	if status != http.StatusNotFound || missingDetail.Error.Code != "EVENT_NOT_FOUND" {
 		t.Fatalf("不存在事件详情结果 = status %d, code %q", status, missingDetail.Error.Code)
+	}
+
+	if status := deleteApplicationSession(t, server.URL, sessionCookie); status != http.StatusNoContent {
+		t.Fatalf("退出状态码 = %d", status)
+	}
+	status, loggedOutUser := getApplicationCurrentUser(t, server.URL, sessionCookie)
+	if status != http.StatusUnauthorized || loggedOutUser.Error.Code != "UNAUTHENTICATED" {
+		t.Fatalf("退出后当前用户结果 = status %d, code %q", status, loggedOutUser.Error.Code)
+	}
+	if status := deleteApplicationSession(t, server.URL, otherSessionCookie); status != http.StatusNoContent {
+		t.Fatalf("其他用户退出状态码 = %d", status)
 	}
 }
 
@@ -389,7 +410,7 @@ type applicationAuthResponse struct {
 	} `json:"error"`
 }
 
-func assertApplicationAuthentication(t *testing.T, serverURL, email string) {
+func assertApplicationAuthentication(t *testing.T, serverURL, email string) *http.Cookie {
 	t.Helper()
 	const password = "password123"
 
@@ -449,13 +470,7 @@ func assertApplicationAuthentication(t *testing.T, serverURL, email string) {
 		t.Fatalf("登录后当前用户结果 = status %d, response %#v", status, currentUser)
 	}
 
-	if status := deleteApplicationSession(t, serverURL, loginCookie); status != http.StatusNoContent {
-		t.Fatalf("退出状态码 = %d", status)
-	}
-	status, loggedOutUser := getApplicationCurrentUser(t, serverURL, loginCookie)
-	if status != http.StatusUnauthorized || loggedOutUser.Error.Code != "UNAUTHENTICATED" {
-		t.Fatalf("退出后当前用户结果 = status %d, code %q", status, loggedOutUser.Error.Code)
-	}
+	return loginCookie
 }
 
 func postApplicationCredentials(
@@ -600,7 +615,7 @@ type applicationEventDetailResponse struct {
 func getApplicationProjects(
 	t *testing.T,
 	serverURL string,
-	managementToken string,
+	sessionCookie *http.Cookie,
 ) (int, applicationProjectListResponse) {
 	t.Helper()
 
@@ -608,8 +623,8 @@ func getApplicationProjects(
 	if err != nil {
 		t.Fatalf("创建项目列表请求失败: %v", err)
 	}
-	if managementToken != "" {
-		request.Header.Set("Authorization", "Bearer "+managementToken)
+	if sessionCookie != nil {
+		request.AddCookie(sessionCookie)
 	}
 
 	response, err := http.DefaultClient.Do(request)
@@ -629,7 +644,7 @@ func getApplicationProjects(
 func postApplicationProject(
 	t *testing.T,
 	serverURL string,
-	managementToken string,
+	sessionCookie *http.Cookie,
 	projectID string,
 	projectName string,
 ) (int, applicationProjectCreateResponse) {
@@ -651,8 +666,8 @@ func postApplicationProject(
 		t.Fatalf("创建项目请求失败: %v", err)
 	}
 	request.Header.Set("Content-Type", "application/json")
-	if managementToken != "" {
-		request.Header.Set("Authorization", "Bearer "+managementToken)
+	if sessionCookie != nil {
+		request.AddCookie(sessionCookie)
 	}
 
 	response, err := http.DefaultClient.Do(request)
@@ -673,7 +688,7 @@ func getApplicationEvents(
 	t *testing.T,
 	serverURL string,
 	projectID string,
-	managementToken string,
+	sessionCookie *http.Cookie,
 	query url.Values,
 ) (int, applicationEventListResponse) {
 	t.Helper()
@@ -686,8 +701,8 @@ func getApplicationEvents(
 	if err != nil {
 		t.Fatalf("创建事件列表请求失败: %v", err)
 	}
-	if managementToken != "" {
-		request.Header.Set("Authorization", "Bearer "+managementToken)
+	if sessionCookie != nil {
+		request.AddCookie(sessionCookie)
 	}
 
 	response, err := http.DefaultClient.Do(request)
@@ -709,7 +724,7 @@ func getApplicationEventDetail(
 	serverURL string,
 	projectID string,
 	eventID string,
-	managementToken string,
+	sessionCookie *http.Cookie,
 ) (int, applicationEventDetailResponse) {
 	t.Helper()
 
@@ -719,7 +734,9 @@ func getApplicationEventDetail(
 	if err != nil {
 		t.Fatalf("创建事件详情请求失败: %v", err)
 	}
-	request.Header.Set("Authorization", "Bearer "+managementToken)
+	if sessionCookie != nil {
+		request.AddCookie(sessionCookie)
+	}
 
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {

@@ -14,8 +14,7 @@ import (
 )
 
 const (
-	maxAuthBodyBytes  int64 = 4 << 10
-	sessionCookieName       = "monitor_session"
+	maxAuthBodyBytes int64 = 4 << 10
 )
 
 type AuthService interface {
@@ -72,7 +71,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 func (h *AuthHandler) Me(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
-	token, _ := c.Cookie(sessionCookieName)
+	token, _ := c.Cookie(auth.SessionCookieName)
 	user, err := h.service.Authenticate(c.Request.Context(), token)
 	if err != nil {
 		writeAuthenticationError(c, err)
@@ -84,7 +83,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 
 func (h *AuthHandler) Logout(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
-	token, _ := c.Cookie(sessionCookieName)
+	token, _ := c.Cookie(auth.SessionCookieName)
 	if err := h.service.Logout(c.Request.Context(), token); err != nil {
 		writeAuthenticationError(c, err)
 		return
@@ -130,7 +129,7 @@ func (h *AuthHandler) decodeCredentials(c *gin.Context) (authCredentialsRequest,
 
 func (h *AuthHandler) setSessionCookie(c *gin.Context, token string) {
 	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     sessionCookieName,
+		Name:     auth.SessionCookieName,
 		Value:    token,
 		Path:     "/api/v1",
 		MaxAge:   int(h.sessionTTL.Seconds()),
@@ -143,7 +142,7 @@ func (h *AuthHandler) setSessionCookie(c *gin.Context, token string) {
 
 func (h *AuthHandler) clearSessionCookie(c *gin.Context) {
 	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     sessionCookieName,
+		Name:     auth.SessionCookieName,
 		Path:     "/api/v1",
 		MaxAge:   -1,
 		Expires:  time.Unix(1, 0),

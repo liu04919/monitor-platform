@@ -12,8 +12,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/liu04919/monitor-platform/apps/server/internal/auth"
 	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
 	"github.com/liu04919/monitor-platform/apps/server/internal/eventquery"
+	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
 )
 
 func TestEventListHandlerReturnsPage(t *testing.T) {
@@ -90,6 +92,7 @@ func TestEventListHandlerMapsErrors(t *testing.T) {
 		{name: "limit syntax", url: "/api/v1/projects/project-1/events?limit=abc", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "limit"},
 		{name: "invalid category", url: "/api/v1/projects/project-1/events", serviceError: eventquery.ErrInvalidCategory, wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "category", wantCalls: 1},
 		{name: "invalid cursor", url: "/api/v1/projects/project-1/events", serviceError: eventquery.ErrInvalidCursor, wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "cursor", wantCalls: 1},
+		{name: "project not found", url: "/api/v1/projects/project-1/events", serviceError: eventquery.ErrProjectNotFound, wantStatus: http.StatusNotFound, wantCode: "PROJECT_NOT_FOUND", wantCalls: 1},
 		{name: "storage failure", url: "/api/v1/projects/project-1/events", serviceError: internalError, wantStatus: http.StatusInternalServerError, wantCode: "INTERNAL_ERROR", wantCalls: 1, forbiddenText: "password"},
 	}
 
@@ -125,10 +128,12 @@ func TestEventListHandlerMapsErrors(t *testing.T) {
 func performEventListRequest(handler *EventListHandler, url string) *httptest.ResponseRecorder {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
+	engine.Use(middleware.SessionAuth(stubHandlerAuthenticator{}))
 	engine.GET("/api/v1/projects/:projectId/events", handler.List)
 
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, url, nil)
+	request.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: "session-token"})
 	engine.ServeHTTP(recorder, request)
 	return recorder
 }

@@ -14,20 +14,20 @@ import (
 )
 
 const (
-	listProjectsSQL  = `SELECT "id","name","enabled","created_at" FROM "projects" ORDER BY created_at ASC,id ASC`
-	insertProjectSQL = `INSERT INTO "projects" ("id","name","public_key","enabled","created_at","updated_at") VALUES ($1,$2,$3,$4,$5,$6)`
+	listProjectsSQL  = `SELECT "id","name","enabled","created_at" FROM "projects" WHERE owner_user_id = $1 ORDER BY created_at ASC,id ASC`
+	insertProjectSQL = `INSERT INTO "projects" ("id","owner_user_id","name","public_key","enabled","created_at","updated_at") VALUES ($1,$2,$3,$4,$5,$6,$7)`
 )
 
 func TestProjectStoreListsProjectsInStableOrder(t *testing.T) {
 	database, mock := newMockDatabase(t)
 	createdAt := time.Date(2026, 8, 19, 12, 0, 0, 0, time.UTC)
-	mock.ExpectQuery(regexp.QuoteMeta(listProjectsSQL)).WillReturnRows(
+	mock.ExpectQuery(regexp.QuoteMeta(listProjectsSQL)).WithArgs("user-1").WillReturnRows(
 		sqlmock.NewRows([]string{"id", "name", "enabled", "created_at"}).
 			AddRow("project-1", "项目一", true, createdAt).
 			AddRow("project-2", "项目二", false, createdAt.Add(time.Second)),
 	)
 
-	projects, err := NewProjectStore(database).List(context.Background())
+	projects, err := NewProjectStore(database).List(context.Background(), "user-1")
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
@@ -42,9 +42,9 @@ func TestProjectStoreListsProjectsInStableOrder(t *testing.T) {
 func TestProjectStoreListPreservesDatabaseFailure(t *testing.T) {
 	database, mock := newMockDatabase(t)
 	databaseError := errors.New("database unavailable")
-	mock.ExpectQuery(regexp.QuoteMeta(listProjectsSQL)).WillReturnError(databaseError)
+	mock.ExpectQuery(regexp.QuoteMeta(listProjectsSQL)).WithArgs("user-1").WillReturnError(databaseError)
 
-	_, err := NewProjectStore(database).List(context.Background())
+	_, err := NewProjectStore(database).List(context.Background(), "user-1")
 	if !errors.Is(err, databaseError) {
 		t.Fatalf("List() error = %v, want wrapped %v", err, databaseError)
 	}
@@ -60,11 +60,12 @@ func TestProjectStoreCreatesProject(t *testing.T) {
 			Enabled:   true,
 			CreatedAt: createdAt,
 		},
-		PublicKey: "pk_generated",
+		OwnerUserID: "user-1",
+		PublicKey:   "pk_generated",
 	}
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(insertProjectSQL)).
-		WithArgs(project.ID, project.Name, project.PublicKey, true, createdAt, createdAt).
+		WithArgs(project.ID, project.OwnerUserID, project.Name, project.PublicKey, true, createdAt, createdAt).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
@@ -83,11 +84,12 @@ func TestProjectStoreMapsDuplicateID(t *testing.T) {
 			Enabled:   true,
 			CreatedAt: createdAt,
 		},
-		PublicKey: "pk_generated",
+		OwnerUserID: "user-1",
+		PublicKey:   "pk_generated",
 	}
 	mock.ExpectBegin()
 	mock.ExpectExec(regexp.QuoteMeta(insertProjectSQL)).
-		WithArgs(project.ID, project.Name, project.PublicKey, true, createdAt, createdAt).
+		WithArgs(project.ID, project.OwnerUserID, project.Name, project.PublicKey, true, createdAt, createdAt).
 		WillReturnError(&pgconn.PgError{Code: "23505", ConstraintName: projectPrimaryKeyConstraint})
 	mock.ExpectRollback()
 

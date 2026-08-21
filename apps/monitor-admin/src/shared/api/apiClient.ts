@@ -43,8 +43,19 @@ export async function postJSON<T>(path: string, body: unknown, signal?: AbortSig
   })
 }
 
+export async function deleteRequest(path: string, signal?: AbortSignal): Promise<void> {
+  await requestJSON<void>(path, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
+    signal,
+  })
+}
+
 async function requestJSON<T>(path: string, init: RequestInit): Promise<T> {
-  const response = await fetch(`/management-api/api/v1${path}`, init)
+  const response = await fetch(`/api/v1${path}`, {
+    credentials: 'same-origin',
+    ...init,
+  })
 
   if (!response.ok) {
     let body: APIErrorEnvelope | undefined
@@ -55,7 +66,7 @@ async function requestJSON<T>(path: string, init: RequestInit): Promise<T> {
     }
 
     const fallback = response.status === 401
-      ? '管理端鉴权失败，请确认 Go 服务和 Vite 使用了相同的 MANAGEMENT_API_TOKEN。'
+      ? '登录状态已失效，请重新登录。'
       : `请求失败（HTTP ${response.status}）`
     throw new APIError(
       body?.error?.message || fallback,
@@ -64,6 +75,8 @@ async function requestJSON<T>(path: string, init: RequestInit): Promise<T> {
       body?.error?.details?.field,
     )
   }
+
+  if (response.status === 204) return undefined as T
 
   return ((await response.json()) as APIEnvelope<T>).data
 }
