@@ -402,13 +402,13 @@ func assertApplicationAuthentication(t *testing.T, serverURL, email string) {
 	if status != http.StatusCreated || registered.Data.ID == "" || registered.Data.Email != email {
 		t.Fatalf("注册结果 = status %d, response %#v", status, registered)
 	}
-	if cookie == nil || !cookie.HttpOnly || cookie.SameSite != http.SameSiteLaxMode {
-		t.Fatalf("注册 Session Cookie = %#v", cookie)
+	if cookie != nil {
+		t.Fatalf("注册不应创建 Session Cookie: %#v", cookie)
 	}
 
 	status, currentUser := getApplicationCurrentUser(t, serverURL, cookie)
-	if status != http.StatusOK || currentUser.Data.ID != registered.Data.ID {
-		t.Fatalf("当前用户结果 = status %d, response %#v", status, currentUser)
+	if status != http.StatusUnauthorized || currentUser.Error.Code != "UNAUTHENTICATED" {
+		t.Fatalf("注册后未登录结果 = status %d, response %#v", status, currentUser)
 	}
 
 	status, duplicate, _ := postApplicationCredentials(
@@ -431,14 +431,6 @@ func assertApplicationAuthentication(t *testing.T, serverURL, email string) {
 		t.Fatalf("错误密码登录结果 = status %d, code %q", status, invalidLogin.Error.Code)
 	}
 
-	if status := deleteApplicationSession(t, serverURL, cookie); status != http.StatusNoContent {
-		t.Fatalf("退出状态码 = %d", status)
-	}
-	status, loggedOutUser := getApplicationCurrentUser(t, serverURL, cookie)
-	if status != http.StatusUnauthorized || loggedOutUser.Error.Code != "UNAUTHENTICATED" {
-		t.Fatalf("退出后当前用户结果 = status %d, code %q", status, loggedOutUser.Error.Code)
-	}
-
 	status, loggedIn, loginCookie := postApplicationCredentials(
 		t,
 		serverURL+"/api/v1/auth/login",
@@ -448,8 +440,21 @@ func assertApplicationAuthentication(t *testing.T, serverURL, email string) {
 	if status != http.StatusOK || loggedIn.Data.ID != registered.Data.ID || loginCookie == nil {
 		t.Fatalf("登录结果 = status %d, response %#v, cookie %#v", status, loggedIn, loginCookie)
 	}
+	if !loginCookie.HttpOnly || loginCookie.SameSite != http.SameSiteLaxMode {
+		t.Fatalf("登录 Session Cookie = %#v", loginCookie)
+	}
+
+	status, currentUser = getApplicationCurrentUser(t, serverURL, loginCookie)
+	if status != http.StatusOK || currentUser.Data.ID != registered.Data.ID {
+		t.Fatalf("登录后当前用户结果 = status %d, response %#v", status, currentUser)
+	}
+
 	if status := deleteApplicationSession(t, serverURL, loginCookie); status != http.StatusNoContent {
-		t.Fatalf("清理登录 Session 状态码 = %d", status)
+		t.Fatalf("退出状态码 = %d", status)
+	}
+	status, loggedOutUser := getApplicationCurrentUser(t, serverURL, loginCookie)
+	if status != http.StatusUnauthorized || loggedOutUser.Error.Code != "UNAUTHENTICATED" {
+		t.Fatalf("退出后当前用户结果 = status %d, code %q", status, loggedOutUser.Error.Code)
 	}
 }
 

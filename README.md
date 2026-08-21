@@ -55,7 +55,7 @@ GET    /api/v1/auth/me
 DELETE /api/v1/auth/logout
 ```
 
-注册与登录成功后，服务端写入 `HttpOnly`、`SameSite=Lax` 的 `monitor_session` Cookie。浏览器只能携带它，不能从 JavaScript 读取 Session Token。
+注册只创建 PostgreSQL 用户；登录成功后，服务端才写入 `HttpOnly`、`SameSite=Lax` 的 `monitor_session` Cookie。浏览器只能携带它，不能从 JavaScript 读取 Session Token。
 
 管理端事件列表使用独立的服务端 Token，不能使用 SDK 的 `publicKey`：
 

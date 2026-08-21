@@ -7,14 +7,14 @@ import (
 	"time"
 )
 
-func TestRegisterCreatesNormalizedUserAndSession(t *testing.T) {
+func TestRegisterCreatesNormalizedUserWithoutAccessingSessionStore(t *testing.T) {
 	users := newFakeUserStore()
-	sessions := &fakeSessionStore{}
+	sessions := &fakeSessionStore{createErr: errors.New("Redis must not be called")}
 	service := NewService(
 		users,
 		sessions,
 		fakePasswordHasher{},
-		fakeTokenGenerator{token: "session-token"},
+		fakeTokenGenerator{err: errors.New("token generator must not be called")},
 		24*time.Hour,
 	)
 	service.now = func() time.Time {
@@ -25,22 +25,17 @@ func TestRegisterCreatesNormalizedUserAndSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Register() error = %v", err)
 	}
-	if created.User.ID == "" || created.User.Email != "user@example.com" {
-		t.Fatalf("Register() user = %#v", created.User)
+	if created.ID == "" || created.Email != "user@example.com" {
+		t.Fatalf("Register() user = %#v", created)
 	}
-	if created.User.PasswordHash != "hashed:password123" {
-		t.Fatalf("password hash = %q", created.User.PasswordHash)
+	if created.PasswordHash != "hashed:password123" {
+		t.Fatalf("password hash = %q", created.PasswordHash)
 	}
-	if created.Token != "session-token" {
-		t.Fatalf("session token = %q", created.Token)
+	if sessions.createdToken != "" || sessions.createdUserID != "" || sessions.createdTTL != 0 {
+		t.Fatalf("registration unexpectedly accessed session store: %#v", sessions)
 	}
-	if sessions.createdToken != "session-token" ||
-		sessions.createdUserID != created.User.ID ||
-		sessions.createdTTL != 24*time.Hour {
-		t.Fatalf("created session = %#v", sessions)
-	}
-	if created.User.CreatedAt.Location() != time.UTC {
-		t.Fatalf("CreatedAt location = %v", created.User.CreatedAt.Location())
+	if created.CreatedAt.Location() != time.UTC {
+		t.Fatalf("CreatedAt location = %v", created.CreatedAt.Location())
 	}
 }
 
@@ -178,6 +173,21 @@ func TestSessionFailuresAreDistinguishedFromMissingSessions(t *testing.T) {
 	_, err = service.Authenticate(context.Background(), "token")
 	if !errors.Is(err, ErrUnauthenticated) || errors.Is(err, ErrSessionUnavailable) {
 		t.Fatalf("missing session error = %v", err)
+	}
+}
+
+func TestLogoutReportsSessionStoreFailure(t *testing.T) {
+	service := NewService(
+		newFakeUserStore(),
+		&fakeSessionStore{deleteErr: errors.New("redis unavailable")},
+		fakePasswordHasher{},
+		fakeTokenGenerator{},
+		time.Hour,
+	)
+
+	err := service.Logout(context.Background(), "session-token")
+	if !errors.Is(err, ErrSessionUnavailable) {
+		t.Fatalf("Logout() error = %v, want ErrSessionUnavailable", err)
 	}
 }
 

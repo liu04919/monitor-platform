@@ -19,7 +19,7 @@ const (
 )
 
 type AuthService interface {
-	Register(ctx context.Context, email, password string) (auth.Session, error)
+	Register(ctx context.Context, email, password string) (auth.User, error)
 	Login(ctx context.Context, email, password string) (auth.Session, error)
 	Authenticate(ctx context.Context, token string) (auth.User, error)
 	Logout(ctx context.Context, token string) error
@@ -45,14 +45,13 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	session, err := h.service.Register(c.Request.Context(), request.Email, request.Password)
+	user, err := h.service.Register(c.Request.Context(), request.Email, request.Password)
 	if err != nil {
 		writeRegisterError(c, err)
 		return
 	}
 
-	h.setSessionCookie(c, session.Token)
-	writeAuthUser(c, http.StatusCreated, session.User)
+	writeAuthUser(c, http.StatusCreated, user)
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
@@ -86,12 +85,12 @@ func (h *AuthHandler) Me(c *gin.Context) {
 func (h *AuthHandler) Logout(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 	token, _ := c.Cookie(sessionCookieName)
-	h.clearSessionCookie(c)
 	if err := h.service.Logout(c.Request.Context(), token); err != nil {
 		writeAuthenticationError(c, err)
 		return
 	}
 
+	h.clearSessionCookie(c)
 	c.Status(http.StatusNoContent)
 }
 
@@ -162,8 +161,6 @@ func writeRegisterError(c *gin.Context, err error) {
 		writeAPIError(c, http.StatusUnprocessableEntity, "INVALID_PASSWORD", "password must contain between 8 and 128 characters", &errorDetails{Field: "password"})
 	case errors.Is(err, auth.ErrEmailConflict):
 		writeAPIError(c, http.StatusConflict, "EMAIL_CONFLICT", "email is already registered", &errorDetails{Field: "email"})
-	case errors.Is(err, auth.ErrSessionUnavailable):
-		writeAPIError(c, http.StatusServiceUnavailable, "SESSION_UNAVAILABLE", "session service is temporarily unavailable", nil)
 	default:
 		writeAPIError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "server could not register user", nil)
 	}

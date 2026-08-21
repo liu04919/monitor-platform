@@ -88,18 +88,18 @@ func NewService(
 	}
 }
 
-func (s *Service) Register(ctx context.Context, email, password string) (Session, error) {
+func (s *Service) Register(ctx context.Context, email, password string) (User, error) {
 	normalizedEmail, err := normalizeEmail(email)
 	if err != nil {
-		return Session{}, err
+		return User{}, err
 	}
 	if err := validatePassword(password); err != nil {
-		return Session{}, err
+		return User{}, err
 	}
 
 	passwordHash, err := s.passwords.Hash(password)
 	if err != nil {
-		return Session{}, fmt.Errorf("hash password: %w", err)
+		return User{}, fmt.Errorf("hash password: %w", err)
 	}
 
 	user := User{
@@ -109,10 +109,10 @@ func (s *Service) Register(ctx context.Context, email, password string) (Session
 		CreatedAt:    s.now().UTC(),
 	}
 	if err := s.users.Create(ctx, user); err != nil {
-		return Session{}, err
+		return User{}, err
 	}
 
-	return s.createSession(ctx, user)
+	return user, nil
 }
 
 func (s *Service) Login(ctx context.Context, email, password string) (Session, error) {

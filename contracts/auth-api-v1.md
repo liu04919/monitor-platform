@@ -4,7 +4,7 @@
 
 ## Cookie
 
-注册或登录成功后返回 `monitor_session` Cookie：
+登录成功后返回 `monitor_session` Cookie：
 
 - `HttpOnly`：浏览器 JavaScript 无法读取 Token。
 - `SameSite=Lax`：默认阻止跨站请求携带登录态。
@@ -25,7 +25,7 @@ Cookie 中的原始 Token 不写入日志或数据库；Redis Key 使用 Token �
 }
 ```
 
-成功返回 `201`，并直接建立登录 Session：
+成功返回 `201`，只表示 PostgreSQL 用户已经创建，不建立登录 Session：
 
 ```json
 {
@@ -38,6 +38,8 @@ Cookie 中的原始 Token 不写入日志或数据库；Redis Key 使用 Token �
 ```
 
 邮箱会去除首尾空白并转成小写。密码必须包含 8 到 128 个 Unicode 字符，并使用 Argon2id 保存。
+
+前端收到 `201` 后再调用登录接口。这样 PostgreSQL 创建成功而 Redis 暂时不可用时，注册结果仍然准确；前端应提示“账号已创建，但登录服务暂不可用”，而不是让用户重复注册。
 
 ## 登录
 
@@ -55,7 +57,7 @@ Cookie 中的原始 Token 不写入日志或数据库；Redis Key 使用 Token �
 
 `DELETE /api/v1/auth/logout`
 
-删除 Redis Session、清除 Cookie，并返回 `204`。未携带 Cookie 时同样返回 `204`。
+先删除 Redis Session，成功后清除 Cookie 并返回 `204`。未携带 Cookie 时同样返回 `204`。如果 Redis 暂时不可用，则返回 `503` 且保留浏览器 Cookie，让客户端能够重试撤销 Session。
 
 ## 错误边界
 
@@ -63,6 +65,6 @@ Cookie 中的原始 Token 不写入日志或数据库；Redis Key 使用 Token �
 - `409 EMAIL_CONFLICT`：邮箱已经注册。
 - `415 UNSUPPORTED_MEDIA_TYPE`：注册或登录请求不是 `application/json`。
 - `422 INVALID_EMAIL` / `INVALID_PASSWORD`：注册字段不满足约束。
-- `503 SESSION_UNAVAILABLE`：Redis 不可用。不能把基础设施故障伪装成未登录。
+- `503 SESSION_UNAVAILABLE`：登录、当前用户或退出过程中 Redis 不可用。注册不依赖 Redis。
 
 所有认证响应都带有 `Cache-Control: no-store`。

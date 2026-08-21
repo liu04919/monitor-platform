@@ -14,15 +14,12 @@ import (
 	"github.com/liu04919/monitor-platform/apps/server/internal/auth"
 )
 
-func TestAuthHandlerRegistersAndSetsSecureSessionCookie(t *testing.T) {
+func TestAuthHandlerRegistersWithoutCreatingSessionCookie(t *testing.T) {
 	createdAt := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	service := &stubAuthService{registerSession: auth.Session{
-		Token: "opaque-session-token",
-		User: auth.User{
-			ID:        "user-1",
-			Email:     "user@example.com",
-			CreatedAt: createdAt,
-		},
+	service := &stubAuthService{registerUser: auth.User{
+		ID:        "user-1",
+		Email:     "user@example.com",
+		CreatedAt: createdAt,
 	}}
 	handler := NewAuthHandler(service, 24*time.Hour, true)
 	recorder := performAuthRequest(
@@ -42,14 +39,8 @@ func TestAuthHandlerRegistersAndSetsSecureSessionCookie(t *testing.T) {
 	}
 
 	cookies := recorder.Result().Cookies()
-	if len(cookies) != 1 {
-		t.Fatalf("cookies = %#v", cookies)
-	}
-	cookie := cookies[0]
-	if cookie.Name != sessionCookieName || cookie.Value != "opaque-session-token" ||
-		!cookie.HttpOnly || !cookie.Secure || cookie.SameSite != http.SameSiteLaxMode ||
-		cookie.Path != "/api/v1" || cookie.MaxAge != int((24*time.Hour).Seconds()) {
-		t.Fatalf("session cookie = %#v", cookie)
+	if len(cookies) != 0 {
+		t.Fatalf("registration unexpectedly set cookies: %#v", cookies)
 	}
 
 	var response authUserEnvelope
@@ -117,7 +108,6 @@ func TestAuthHandlerMapsDomainErrors(t *testing.T) {
 		{name: "invalid email", err: auth.ErrInvalidEmail, wantStatus: http.StatusUnprocessableEntity, wantCode: "INVALID_EMAIL"},
 		{name: "invalid password", err: auth.ErrInvalidPassword, wantStatus: http.StatusUnprocessableEntity, wantCode: "INVALID_PASSWORD"},
 		{name: "email conflict", err: auth.ErrEmailConflict, wantStatus: http.StatusConflict, wantCode: "EMAIL_CONFLICT"},
-		{name: "Redis unavailable", err: auth.ErrSessionUnavailable, wantStatus: http.StatusServiceUnavailable, wantCode: "SESSION_UNAVAILABLE"},
 	}
 
 	for _, test := range tests {
@@ -190,6 +180,27 @@ func TestAuthHandlerMeDistinguishesMissingAndUnavailableSession(t *testing.T) {
 	}
 }
 
+func TestAuthHandlerLogoutDoesNotClearCookieWhenSessionRevocationFails(t *testing.T) {
+	service := &stubAuthService{logoutErr: auth.ErrSessionUnavailable}
+	handler := NewAuthHandler(service, time.Hour, false)
+	recorder := performAuthRequest(
+		http.MethodDelete,
+		"/api/v1/auth/logout",
+		"",
+		"",
+		handler.Logout,
+		"session-token",
+	)
+
+	assertAPIError(t, recorder, http.StatusServiceUnavailable, "SESSION_UNAVAILABLE")
+	if service.logoutToken != "session-token" {
+		t.Fatalf("logout token = %q", service.logoutToken)
+	}
+	if cookies := recorder.Result().Cookies(); len(cookies) != 0 {
+		t.Fatalf("failed logout unexpectedly cleared cookie: %#v", cookies)
+	}
+}
+
 func performAuthRequest(
 	method string,
 	path string,
@@ -229,7 +240,7 @@ func assertAPIError(t *testing.T, recorder *httptest.ResponseRecorder, status in
 }
 
 type stubAuthService struct {
-	registerSession   auth.Session
+	registerUser      auth.User
 	registerErr       error
 	registerCalls     int
 	registerEmail     string
@@ -243,11 +254,11 @@ type stubAuthService struct {
 	logoutToken       string
 }
 
-func (s *stubAuthService) Register(_ context.Context, email, password string) (auth.Session, error) {
+func (s *stubAuthService) Register(_ context.Context, email, password string) (auth.User, error) {
 	s.registerCalls++
 	s.registerEmail = email
 	s.registerPassword = password
-	return s.registerSession, s.registerErr
+	return s.registerUser, s.registerErr
 }
 
 func (s *stubAuthService) Login(_ context.Context, _, _ string) (auth.Session, error) {
