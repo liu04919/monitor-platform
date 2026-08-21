@@ -1,22 +1,27 @@
 # monitor-platform
 
-本地开发链路为：浏览器 SDK → Go ingestion API → PostgreSQL 批次账本 → ClickHouse 遥测事件。
+本地开发链路为：浏览器 SDK → Go ingestion API → PostgreSQL 控制面与批次账本 → ClickHouse 遥测事件。Redis 保存可过期的管理端登录 Session。
 
 ## 启动本地服务
 
-先在仓库根目录启动数据库：
+首次运行时先在仓库根目录创建本地环境文件；`.env` 已被 Git 忽略，不会提交：
 
 ```powershell
-docker compose up -d postgres clickhouse
+Copy-Item .env.example .env
+```
+
+确认本地密码和 `MANAGEMENT_API_TOKEN` 已替换后，启动依赖：
+
+```powershell
+docker compose up -d postgres clickhouse redis
 docker compose ps
 ```
 
-进入 `apps/server`，为当前 PowerShell 会话设置连接字符串：
+Go 不会隐式读取 `.env`。在仓库根目录点调用导入脚本，把配置安全地加载到当前 PowerShell 进程；脚本不会输出配置值：
 
 ```powershell
-$env:DATABASE_URL = "postgres://monitor:monitor_dev_password@localhost:5432/monitor_platform?sslmode=disable"
-$env:CLICKHOUSE_DSN = "clickhouse://monitor:monitor_dev_password@localhost:9000/monitor_platform?dial_timeout=5s&compress=lz4"
-$env:MANAGEMENT_API_TOKEN = "monitor_local_management_token_change_me"
+. .\scripts\import-env.ps1
+Set-Location apps/server
 ```
 
 依次执行迁移、创建本地接入项目并启动服务：
@@ -40,6 +45,17 @@ publicKey: pk_local_development
 
 服务启动后可访问 `http://127.0.0.1:8080/healthz` 检查进程是否存活。SDK 默认上报地址为
 `http://127.0.0.1:8080/api/v1/events/batch`。
+
+认证接口使用 PostgreSQL 用户和 Redis Session：
+
+```text
+POST   /api/v1/auth/register
+POST   /api/v1/auth/login
+GET    /api/v1/auth/me
+DELETE /api/v1/auth/logout
+```
+
+注册与登录成功后，服务端写入 `HttpOnly`、`SameSite=Lax` 的 `monitor_session` Cookie。浏览器只能携带它，不能从 JavaScript 读取 Session Token。
 
 管理端事件列表使用独立的服务端 Token，不能使用 SDK 的 `publicKey`：
 
@@ -86,7 +102,7 @@ pnpm --dir apps/monitor-admin dev
 停止容器不会删除数据卷：
 
 ```powershell
-docker compose stop postgres clickhouse
+docker compose stop postgres clickhouse redis
 ```
 
 除非明确要重建本地数据，否则不要执行 `docker compose down -v`。

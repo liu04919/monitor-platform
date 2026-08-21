@@ -24,11 +24,19 @@ type ProjectHandler interface {
 	Create(c *gin.Context)
 }
 
+type AuthHandler interface {
+	Register(c *gin.Context)
+	Login(c *gin.Context)
+	Me(c *gin.Context)
+	Logout(c *gin.Context)
+}
+
 // New 创建正式 HTTP Router，并分别注入上报、项目管理与事件读取能力。
 func New(
 	telemetryHandler TelemetryBatchHandler,
 	projectHandler ProjectHandler,
 	eventQueryHandler EventQueryHandler,
+	authHandler AuthHandler,
 	managementToken string,
 ) *gin.Engine {
 	engine := gin.New()
@@ -42,6 +50,12 @@ func New(
 		c.Status(http.StatusNoContent)
 	})
 	telemetry.POST("/batch", telemetryHandler.Batch)
+
+	auth := engine.Group("/api/v1/auth")
+	auth.POST("/register", authHandler.Register)
+	auth.POST("/login", authHandler.Login)
+	auth.GET("/me", authHandler.Me)
+	auth.DELETE("/logout", authHandler.Logout)
 
 	management := engine.Group("/api/v1/projects")
 	management.Use(middleware.ManagementAuth(managementToken))

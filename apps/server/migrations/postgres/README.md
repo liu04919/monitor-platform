@@ -30,4 +30,13 @@ $env:TEST_DATABASE_URL = "postgres://monitor:monitor_dev_password@localhost:5432
 go test -tags=integration ./internal/storage/postgres
 ```
 
+运行包含 PostgreSQL、ClickHouse 和 Redis Session 的完整 HTTP 集成测试：
+
+```powershell
+$env:TEST_DATABASE_URL = $env:DATABASE_URL
+$env:TEST_CLICKHOUSE_DSN = $env:CLICKHOUSE_DSN
+$env:TEST_REDIS_URL = $env:REDIS_URL
+go test -count=1 -tags=integration ./...
+```
+
 `docker compose stop postgres` 只停止容器，不会删除数据库卷。`docker compose down -v` 会删除本项目数据库数据，除非明确要重建数据库，否则不要执行。

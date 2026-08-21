@@ -88,6 +88,40 @@ func TestTelemetryPreflight(t *testing.T) {
 	}
 }
 
+func TestAuthRoutes(t *testing.T) {
+	authHandler := &stubAuthHandler{}
+	engine := New(
+		&stubTelemetryHandler{},
+		&stubProjectListHandler{},
+		&stubEventListHandler{},
+		authHandler,
+		testManagementToken,
+	)
+
+	tests := []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodPost, path: "/api/v1/auth/register"},
+		{method: http.MethodPost, path: "/api/v1/auth/login"},
+		{method: http.MethodGet, path: "/api/v1/auth/me"},
+		{method: http.MethodDelete, path: "/api/v1/auth/logout"},
+	}
+
+	for _, test := range tests {
+		recorder := httptest.NewRecorder()
+		engine.ServeHTTP(recorder, httptest.NewRequest(test.method, test.path, nil))
+		if recorder.Code != http.StatusNoContent {
+			t.Fatalf("%s %s status = %d", test.method, test.path, recorder.Code)
+		}
+	}
+
+	if authHandler.registerCalls != 1 || authHandler.loginCalls != 1 ||
+		authHandler.meCalls != 1 || authHandler.logoutCalls != 1 {
+		t.Fatalf("auth calls = %#v", authHandler)
+	}
+}
+
 func TestManagementEventListRouteRequiresBearerToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -194,7 +228,13 @@ func newTestRouter(
 	projectHandler ProjectHandler,
 	eventQueryHandler EventQueryHandler,
 ) *gin.Engine {
-	return New(telemetryHandler, projectHandler, eventQueryHandler, testManagementToken)
+	return New(
+		telemetryHandler,
+		projectHandler,
+		eventQueryHandler,
+		&stubAuthHandler{},
+		testManagementToken,
+	)
 }
 
 type stubTelemetryHandler struct {
@@ -214,6 +254,33 @@ type stubEventListHandler struct {
 type stubProjectListHandler struct {
 	calls       int
 	createCalls int
+}
+
+type stubAuthHandler struct {
+	registerCalls int
+	loginCalls    int
+	meCalls       int
+	logoutCalls   int
+}
+
+func (h *stubAuthHandler) Register(c *gin.Context) {
+	h.registerCalls++
+	c.Status(http.StatusNoContent)
+}
+
+func (h *stubAuthHandler) Login(c *gin.Context) {
+	h.loginCalls++
+	c.Status(http.StatusNoContent)
+}
+
+func (h *stubAuthHandler) Me(c *gin.Context) {
+	h.meCalls++
+	c.Status(http.StatusNoContent)
+}
+
+func (h *stubAuthHandler) Logout(c *gin.Context) {
+	h.logoutCalls++
+	c.Status(http.StatusNoContent)
 }
 
 func (h *stubProjectListHandler) List(c *gin.Context) {

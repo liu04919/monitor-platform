@@ -30,8 +30,9 @@ import (
 func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	postgresDSN := os.Getenv("TEST_DATABASE_URL")
 	clickHouseDSN := os.Getenv("TEST_CLICKHOUSE_DSN")
-	if postgresDSN == "" || clickHouseDSN == "" {
-		t.Skip("未设置 TEST_DATABASE_URL 或 TEST_CLICKHOUSE_DSN，跳过完整 HTTP 集成测试")
+	redisURL := os.Getenv("TEST_REDIS_URL")
+	if postgresDSN == "" || clickHouseDSN == "" || redisURL == "" {
+		t.Skip("未设置 TEST_DATABASE_URL、TEST_CLICKHOUSE_DSN 或 TEST_REDIS_URL，跳过完整 HTTP 集成测试")
 	}
 
 	ctx := context.Background()
@@ -69,15 +70,24 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	suffix := fmt.Sprintf("%d", now.UnixNano())
 	projectID := "app-http-project-" + suffix
 	projectName := "应用 HTTP 集成测试"
+	userEmail := "app-http-" + suffix + "@example.com"
 	managementToken := "app-http-management-token-" + suffix
 	t.Cleanup(func() {
 		cleanupApplicationData(t, postgresDB, clickHouseConn, projectID)
+		if err := postgresDB.WithContext(context.Background()).
+			Where("email = ?", userEmail).
+			Delete(&postgresstore.User{}).
+			Error; err != nil {
+			t.Errorf("清理 PostgreSQL 测试用户失败: %v", err)
+		}
 	})
 
 	application, err := app.New(ctx, config.Config{
 		DatabaseURL:        postgresDSN,
 		ClickHouseDSN:      clickHouseDSN,
+		RedisURL:           redisURL,
 		ManagementAPIToken: managementToken,
+		SessionTTL:         time.Hour,
 	})
 	if err != nil {
 		t.Fatalf("创建应用失败: %v", err)
@@ -90,6 +100,8 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 
 	server := httptest.NewServer(application.Handler)
 	t.Cleanup(server.Close)
+
+	assertApplicationAuthentication(t, server.URL, userEmail)
 
 	assertTelemetryPreflight(t, server.URL)
 
@@ -365,6 +377,164 @@ type applicationHTTPResponse struct {
 	Error struct {
 		Code string `json:"code"`
 	} `json:"error"`
+}
+
+type applicationAuthResponse struct {
+	Data struct {
+		ID    string `json:"id"`
+		Email string `json:"email"`
+	} `json:"data"`
+	Error struct {
+		Code string `json:"code"`
+	} `json:"error"`
+}
+
+func assertApplicationAuthentication(t *testing.T, serverURL, email string) {
+	t.Helper()
+	const password = "password123"
+
+	status, registered, cookie := postApplicationCredentials(
+		t,
+		serverURL+"/api/v1/auth/register",
+		email,
+		password,
+	)
+	if status != http.StatusCreated || registered.Data.ID == "" || registered.Data.Email != email {
+		t.Fatalf("注册结果 = status %d, response %#v", status, registered)
+	}
+	if cookie == nil || !cookie.HttpOnly || cookie.SameSite != http.SameSiteLaxMode {
+		t.Fatalf("注册 Session Cookie = %#v", cookie)
+	}
+
+	status, currentUser := getApplicationCurrentUser(t, serverURL, cookie)
+	if status != http.StatusOK || currentUser.Data.ID != registered.Data.ID {
+		t.Fatalf("当前用户结果 = status %d, response %#v", status, currentUser)
+	}
+
+	status, duplicate, _ := postApplicationCredentials(
+		t,
+		serverURL+"/api/v1/auth/register",
+		email,
+		password,
+	)
+	if status != http.StatusConflict || duplicate.Error.Code != "EMAIL_CONFLICT" {
+		t.Fatalf("重复注册结果 = status %d, code %q", status, duplicate.Error.Code)
+	}
+
+	status, invalidLogin, _ := postApplicationCredentials(
+		t,
+		serverURL+"/api/v1/auth/login",
+		email,
+		"wrong-password",
+	)
+	if status != http.StatusUnauthorized || invalidLogin.Error.Code != "INVALID_CREDENTIALS" {
+		t.Fatalf("错误密码登录结果 = status %d, code %q", status, invalidLogin.Error.Code)
+	}
+
+	if status := deleteApplicationSession(t, serverURL, cookie); status != http.StatusNoContent {
+		t.Fatalf("退出状态码 = %d", status)
+	}
+	status, loggedOutUser := getApplicationCurrentUser(t, serverURL, cookie)
+	if status != http.StatusUnauthorized || loggedOutUser.Error.Code != "UNAUTHENTICATED" {
+		t.Fatalf("退出后当前用户结果 = status %d, code %q", status, loggedOutUser.Error.Code)
+	}
+
+	status, loggedIn, loginCookie := postApplicationCredentials(
+		t,
+		serverURL+"/api/v1/auth/login",
+		email,
+		password,
+	)
+	if status != http.StatusOK || loggedIn.Data.ID != registered.Data.ID || loginCookie == nil {
+		t.Fatalf("登录结果 = status %d, response %#v, cookie %#v", status, loggedIn, loginCookie)
+	}
+	if status := deleteApplicationSession(t, serverURL, loginCookie); status != http.StatusNoContent {
+		t.Fatalf("清理登录 Session 状态码 = %d", status)
+	}
+}
+
+func postApplicationCredentials(
+	t *testing.T,
+	endpoint string,
+	email string,
+	password string,
+) (int, applicationAuthResponse, *http.Cookie) {
+	t.Helper()
+
+	body, err := json.Marshal(map[string]string{"email": email, "password": password})
+	if err != nil {
+		t.Fatalf("编码认证请求失败: %v", err)
+	}
+	request, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("创建认证请求失败: %v", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("发送认证请求失败: %v", err)
+	}
+	defer response.Body.Close()
+
+	var decoded applicationAuthResponse
+	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+		t.Fatalf("解码认证响应失败: %v", err)
+	}
+	var sessionCookie *http.Cookie
+	for _, cookie := range response.Cookies() {
+		if cookie.Name == "monitor_session" {
+			sessionCookie = cookie
+			break
+		}
+	}
+
+	return response.StatusCode, decoded, sessionCookie
+}
+
+func getApplicationCurrentUser(
+	t *testing.T,
+	serverURL string,
+	cookie *http.Cookie,
+) (int, applicationAuthResponse) {
+	t.Helper()
+
+	request, err := http.NewRequest(http.MethodGet, serverURL+"/api/v1/auth/me", nil)
+	if err != nil {
+		t.Fatalf("创建当前用户请求失败: %v", err)
+	}
+	if cookie != nil {
+		request.AddCookie(cookie)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("发送当前用户请求失败: %v", err)
+	}
+	defer response.Body.Close()
+
+	var decoded applicationAuthResponse
+	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+		t.Fatalf("解码当前用户响应失败: %v", err)
+	}
+	return response.StatusCode, decoded
+}
+
+func deleteApplicationSession(t *testing.T, serverURL string, cookie *http.Cookie) int {
+	t.Helper()
+
+	request, err := http.NewRequest(http.MethodDelete, serverURL+"/api/v1/auth/logout", nil)
+	if err != nil {
+		t.Fatalf("创建退出请求失败: %v", err)
+	}
+	if cookie != nil {
+		request.AddCookie(cookie)
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("发送退出请求失败: %v", err)
+	}
+	defer response.Body.Close()
+	return response.StatusCode
 }
 
 type applicationProjectListResponse struct {
