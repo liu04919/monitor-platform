@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@mantine/core'
+import { useMediaQuery } from '@mantine/hooks'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { NavLink, Outlet, useMatch, useNavigate } from 'react-router-dom'
 import { logout } from '@/features/auth/api/authApi'
@@ -15,6 +16,7 @@ import { useAdminStore } from '@/store/adminStore'
 import styles from './AppShell.module.css'
 
 export function AppShell() {
+  const isMobile = useMediaQuery('(max-width: 760px)')
   const projectId = useAdminStore((state) => state.projectId)
   const setProjectId = useAdminStore((state) => state.setProjectId)
   const clearProjectId = useAdminStore((state) => state.clearProjectId)
@@ -78,9 +80,11 @@ export function AppShell() {
   }
 
   const hasNoProjects = projectsQuery.isSuccess && projects.length === 0
+  const submitLogout = () => logoutMutation.mutate()
 
   return (
     <div className={styles.shell}>
+      <a className={styles.skipLink} href="#main-content">跳到主要内容</a>
       <aside className={styles.sidebar}>
         <div className={styles.brandLockup}>
           <span className={styles.brandMark}><PulseIcon /></span>
@@ -113,7 +117,7 @@ export function AppShell() {
           <span className={styles.connectionDot} />
           <span className={styles.account}>
             <strong title={currentUserQuery.data?.email}>{currentUserQuery.data?.email}</strong>
-            <Button variant="subtle" color="gray" size="compact-xs" loading={logoutMutation.isPending} onClick={() => logoutMutation.mutate()}>
+            <Button variant="subtle" color="gray" size="compact-xs" loading={logoutMutation.isPending} onClick={submitLogout}>
               退出登录
             </Button>
             {logoutMutation.isError ? <small role="alert">{authErrorMessage(logoutMutation.error)}</small> : null}
@@ -132,12 +136,58 @@ export function AppShell() {
             {detailMatch ? <><ChevronIcon /><span>事件详情</span></> : null}
             {settingsMatch ? <><ChevronIcon /><span>项目设置</span></> : null}
           </nav>
-          <div className={styles.projectChip} title={projectId}>
-            <span />
-            {selectedProject?.name || '未选择项目'}
-          </div>
+          {isMobile ? (
+            <div className={styles.mobileProjectActions}>
+              <select
+                className={styles.mobileProjectSelect}
+                aria-label="当前项目"
+                value={projectId}
+                disabled={projectsQuery.isPending || projects.length === 0}
+                onChange={(event) => switchProject(event.currentTarget.value)}
+              >
+                {projects.length === 0 ? <option value="">暂无项目</option> : null}
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>{project.name}</option>
+                ))}
+              </select>
+              <button
+                className={styles.mobileCreateButton}
+                type="button"
+                aria-label="新建项目"
+                onClick={openCreateDialog}
+                disabled={projectsQuery.isPending}
+              >
+                ＋
+              </button>
+            </div>
+          ) : (
+            <div className={styles.projectChip} title={projectId}>
+              <span />
+              {selectedProject?.name || '未选择项目'}
+            </div>
+          )}
         </header>
-        <main>
+        {isMobile ? (
+          <nav className={styles.mobileNav} aria-label="移动端管理导航">
+            <NavLink to="/events" className={({ isActive }) => (isActive ? styles.mobileActive : undefined)} end>
+              <EventsIcon />
+              <span>事件流</span>
+            </NavLink>
+            {projectId ? (
+              <NavLink
+                to={`/projects/${projectId}/settings`}
+                className={({ isActive }) => (isActive ? styles.mobileActive : undefined)}
+              >
+                <SettingsIcon />
+                <span>项目设置</span>
+              </NavLink>
+            ) : null}
+            <button type="button" onClick={submitLogout} disabled={logoutMutation.isPending}>
+              {logoutMutation.isPending ? '退出中…' : '退出'}
+            </button>
+          </nav>
+        ) : null}
+        <main id="main-content" tabIndex={-1}>
           {hasNoProjects ? (
             <section className={styles.firstProject}>
               <p>GET STARTED</p>

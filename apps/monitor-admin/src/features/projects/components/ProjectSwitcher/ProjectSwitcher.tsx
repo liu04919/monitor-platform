@@ -1,4 +1,4 @@
-import { Button, Select, Text } from '@mantine/core'
+import { Select } from '@mantine/core'
 import type { ProjectSummary } from '@/features/projects/model/projectTypes'
 import styles from './ProjectSwitcher.module.css'
 
@@ -45,19 +45,17 @@ export function ProjectSwitcher({
         }}
         classNames={{ label: styles.label, input: styles.input }}
       />
-      <Text className={styles.projectId} size="xs">
+      <p className={styles.projectId} title={selectedProject?.id || projectId} translate="no">
         {isLoading ? '正在读取项目…' : isError ? '项目列表暂不可用' : selectedProject?.id || projectId}
-      </Text>
-      <Button
+      </p>
+      <button
+        type="button"
         className={styles.createButton}
-        variant="subtle"
-        color="gray"
-        fullWidth
         onClick={onCreate}
         disabled={isLoading}
       >
         新建项目
-      </Button>
+      </button>
     </div>
   )
 }

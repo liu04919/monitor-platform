@@ -1,14 +1,14 @@
 .card, .contextCard { margin-top: 15px; background: white; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 5px 21px rgb(28 41 60 / 2.8%); }
 .card { padding-bottom: 5px; }
 .card > header, .contextCard > header { min-height: 52px; display: flex; align-items: center; justify-content: space-between; padding: 0 17px; border-bottom: 1px solid #e9edf2; }
-.card header h2, .contextCard header h2 { margin: 0; color: #263247; font-size: 11px; font-weight: 730; }
+.card header h2, .contextCard header h2 { margin: 0; color: #263247; font-size: 13px; font-weight: 730; }
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 0; }
 .item { min-width: 0; display: grid; grid-template-columns: 88px minmax(0, 1fr); align-items: start; gap: 8px; padding: 17px; }
 .grid .item { border-right: 1px solid #edf0f3; border-bottom: 1px solid #edf0f3; }
 .grid .item:nth-child(3n) { border-right: 0; }
-.item dt { color: #8b96a6; font-size: 8px; }
-.item dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: #3d495c; font-size: 9px; line-height: 1.55; }
-.item dd.mono { font-family: "Cascadia Code", Consolas, monospace; font-size: 8px; }
+.item dt { color: #7f8b9c; font-size: 11px; }
+.item dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: #354156; font-size: 12px; line-height: 1.55; }
+.item dd.mono { font-family: "Cascadia Code", Consolas, monospace; font-size: 11px; }
 .contextCard dl { margin: 0; }
 .contextCard .item { grid-template-columns: 74px minmax(0, 1fr); padding: 14px 17px; border-bottom: 1px solid #edf0f3; }
 .contextCard .item:last-child { border-bottom: 0; }
