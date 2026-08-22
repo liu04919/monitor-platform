@@ -1,29 +1,29 @@
-package handler
+package project
 
 import (
 	"encoding/json"
 	"errors"
 	"io"
-	"mime"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/liu04919/monitor-platform/apps/server/internal/httpapi"
 	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
-	"github.com/liu04919/monitor-platform/apps/server/internal/project"
+	projectdomain "github.com/liu04919/monitor-platform/apps/server/internal/project"
 )
 
 const maxProjectBodyBytes int64 = 4 << 10
 
-func (h *ProjectHandler) Create(c *gin.Context) {
+func (h *Handler) Create(c *gin.Context) {
 	user, ok := middleware.CurrentUser(c)
 	if !ok {
-		writeAPIError(c, http.StatusInternalServerError, "AUTH_CONTEXT_MISSING", "authenticated user context is missing", nil)
+		httpapi.WriteError(c, http.StatusInternalServerError, "AUTH_CONTEXT_MISSING", "authenticated user context is missing", nil)
 		return
 	}
 
-	if !isJSONContentType(c.GetHeader("Content-Type")) {
-		writeAPIError(
+	if !httpapi.IsJSONContentType(c.GetHeader("Content-Type")) {
+		httpapi.WriteError(
 			c,
 			http.StatusUnsupportedMediaType,
 			"UNSUPPORTED_MEDIA_TYPE",
@@ -37,7 +37,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 	if err := decodeCreateProjectRequest(c, &request); err != nil {
 		var maxBytesError *http.MaxBytesError
 		if errors.As(err, &maxBytesError) {
-			writeAPIError(
+			httpapi.WriteError(
 				c,
 				http.StatusRequestEntityTooLarge,
 				"PAYLOAD_TOO_LARGE",
@@ -47,7 +47,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 			return
 		}
 
-		writeAPIError(
+		httpapi.WriteError(
 			c,
 			http.StatusBadRequest,
 			"MALFORMED_JSON",
@@ -57,7 +57,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 		return
 	}
 
-	createdProject, err := h.service.Create(c.Request.Context(), user.ID, project.CreateRequest{
+	createdProject, err := h.service.Create(c.Request.Context(), user.ID, projectdomain.CreateRequest{
 		Name: request.Name,
 	})
 	if err != nil {
@@ -78,16 +78,16 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 
 func writeProjectCreateError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, project.ErrInvalidProjectName):
-		writeAPIError(
+	case errors.Is(err, projectdomain.ErrInvalidProjectName):
+		httpapi.WriteError(
 			c,
 			http.StatusUnprocessableEntity,
 			"INVALID_PROJECT",
 			"name is required and must not exceed 128 characters",
-			&errorDetails{Field: "name"},
+			&httpapi.ErrorDetails{Field: "name"},
 		)
 	default:
-		writeAPIError(
+		httpapi.WriteError(
 			c,
 			http.StatusInternalServerError,
 			"INTERNAL_ERROR",
@@ -95,11 +95,6 @@ func writeProjectCreateError(c *gin.Context, err error) {
 			nil,
 		)
 	}
-}
-
-func isJSONContentType(value string) bool {
-	mediaType, _, err := mime.ParseMediaType(value)
-	return err == nil && mediaType == "application/json"
 }
 
 func decodeCreateProjectRequest(c *gin.Context, request *createProjectRequest) error {

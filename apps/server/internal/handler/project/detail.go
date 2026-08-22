@@ -1,4 +1,4 @@
-package handler
+package project
 
 import (
 	"errors"
@@ -6,25 +6,26 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/liu04919/monitor-platform/apps/server/internal/httpapi"
 	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
-	"github.com/liu04919/monitor-platform/apps/server/internal/project"
+	projectdomain "github.com/liu04919/monitor-platform/apps/server/internal/project"
 )
 
-func (h *ProjectHandler) Detail(c *gin.Context) {
+func (h *Handler) Detail(c *gin.Context) {
 	user, ok := middleware.CurrentUser(c)
 	if !ok {
-		writeAPIError(c, http.StatusInternalServerError, "AUTH_CONTEXT_MISSING", "authenticated user context is missing", nil)
+		httpapi.WriteError(c, http.StatusInternalServerError, "AUTH_CONTEXT_MISSING", "authenticated user context is missing", nil)
 		return
 	}
 
 	foundProject, err := h.service.Get(c.Request.Context(), user.ID, c.Param("projectId"))
 	if err != nil {
-		if errors.Is(err, project.ErrProjectNotFound) {
-			writeAPIError(c, http.StatusNotFound, "PROJECT_NOT_FOUND", "project was not found", nil)
+		if errors.Is(err, projectdomain.ErrProjectNotFound) {
+			httpapi.WriteError(c, http.StatusNotFound, "PROJECT_NOT_FOUND", "project was not found", nil)
 			return
 		}
 
-		writeAPIError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "server could not query project", nil)
+		httpapi.WriteError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "server could not query project", nil)
 		return
 	}
 

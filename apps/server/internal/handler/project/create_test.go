@@ -1,4 +1,4 @@
-package handler
+package project
 
 import (
 	"bytes"
@@ -13,16 +13,17 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/auth"
+	"github.com/liu04919/monitor-platform/apps/server/internal/httpapi"
 	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
-	"github.com/liu04919/monitor-platform/apps/server/internal/project"
+	projectdomain "github.com/liu04919/monitor-platform/apps/server/internal/project"
 )
 
 func TestProjectHandlerCreatesProject(t *testing.T) {
 	const projectID = "11111111-1111-4111-8111-111111111111"
 	createdAt := time.Date(2026, 8, 20, 1, 2, 3, 0, time.UTC)
-	service := &stubProjectService{
-		created: project.Project{
-			ProjectSummary: project.ProjectSummary{
+	service := &stubService{
+		created: projectdomain.Project{
+			ProjectSummary: projectdomain.ProjectSummary{
 				ID:        projectID,
 				Name:      "Monitor Web",
 				Enabled:   true,
@@ -32,7 +33,7 @@ func TestProjectHandlerCreatesProject(t *testing.T) {
 		},
 	}
 	recorder := performProjectCreateRequest(
-		NewProjectHandler(service),
+		NewHandler(service),
 		`{"name":"Monitor Web"}`,
 		"application/json; charset=utf-8",
 	)
@@ -71,12 +72,12 @@ func TestProjectHandlerRejectsInvalidRequestBody(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			service := &stubProjectService{}
-			recorder := performProjectCreateRequest(NewProjectHandler(service), test.body, test.contentType)
+			service := &stubService{}
+			recorder := performProjectCreateRequest(NewHandler(service), test.body, test.contentType)
 			if recorder.Code != test.wantStatus {
 				t.Fatalf("status = %d, want %d, body = %s", recorder.Code, test.wantStatus, recorder.Body.String())
 			}
-			var response errorEnvelope
+			var response httpapi.ErrorEnvelope
 			if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 				t.Fatalf("decode response: %v", err)
 			}
@@ -98,23 +99,23 @@ func TestProjectHandlerMapsCreateErrors(t *testing.T) {
 		wantCode   string
 		wantField  string
 	}{
-		{name: "invalid name", err: project.ErrInvalidProjectName, wantStatus: http.StatusUnprocessableEntity, wantCode: "INVALID_PROJECT", wantField: "name"},
-		{name: "generated id collision", err: project.ErrProjectIDCollision, wantStatus: http.StatusInternalServerError, wantCode: "INTERNAL_ERROR"},
+		{name: "invalid name", err: projectdomain.ErrInvalidProjectName, wantStatus: http.StatusUnprocessableEntity, wantCode: "INVALID_PROJECT", wantField: "name"},
+		{name: "generated id collision", err: projectdomain.ErrProjectIDCollision, wantStatus: http.StatusInternalServerError, wantCode: "INTERNAL_ERROR"},
 		{name: "internal", err: errors.New("postgres password leaked"), wantStatus: http.StatusInternalServerError, wantCode: "INTERNAL_ERROR"},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			service := &stubProjectService{createErr: test.err}
+			service := &stubService{createErr: test.err}
 			recorder := performProjectCreateRequest(
-				NewProjectHandler(service),
+				NewHandler(service),
 				`{"name":"Monitor Web"}`,
 				"application/json",
 			)
 			if recorder.Code != test.wantStatus {
 				t.Fatalf("status = %d, want %d", recorder.Code, test.wantStatus)
 			}
-			var response errorEnvelope
+			var response httpapi.ErrorEnvelope
 			if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 				t.Fatalf("decode response: %v", err)
 			}
@@ -131,10 +132,10 @@ func TestProjectHandlerMapsCreateErrors(t *testing.T) {
 	}
 }
 
-func performProjectCreateRequest(handler *ProjectHandler, body, contentType string) *httptest.ResponseRecorder {
+func performProjectCreateRequest(handler *Handler, body, contentType string) *httptest.ResponseRecorder {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	engine.Use(middleware.SessionAuth(stubHandlerAuthenticator{}))
+	engine.Use(middleware.SessionAuth(stubAuthenticator{}))
 	engine.POST("/api/v1/projects", handler.Create)
 
 	recorder := httptest.NewRecorder()

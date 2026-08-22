@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/liu04919/monitor-platform/apps/server/internal/handler"
+	healthhandler "github.com/liu04919/monitor-platform/apps/server/internal/handler/health"
 	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
 )
 
@@ -43,7 +43,7 @@ func New(
 	engine := gin.New()
 	engine.Use(gin.Logger(), gin.Recovery())
 
-	engine.GET("/healthz", handler.Health)
+	engine.GET("/healthz", healthhandler.Handle)
 
 	telemetry := engine.Group("/api/v1/events")
 	telemetry.Use(middleware.TelemetryCORS())

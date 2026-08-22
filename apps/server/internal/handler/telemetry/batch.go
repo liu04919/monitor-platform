@@ -1,4 +1,4 @@
-package handler
+package telemetry
 
 import (
 	"encoding/json"
@@ -11,23 +11,16 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
+	"github.com/liu04919/monitor-platform/apps/server/internal/httpapi"
 	"github.com/liu04919/monitor-platform/apps/server/internal/ingestion"
 	"github.com/liu04919/monitor-platform/apps/server/internal/validation"
 )
 
 const maxTelemetryBodyBytes int64 = 1 << 20
 
-type TelemetryHandler struct {
-	ingestor ingestion.Service
-}
-
-func NewTelemetryHandler(ingestor ingestion.Service) *TelemetryHandler {
-	return &TelemetryHandler{ingestor: ingestor}
-}
-
-func (h *TelemetryHandler) Batch(c *gin.Context) {
+func (h *Handler) Batch(c *gin.Context) {
 	if !isTelemetryContentType(c.GetHeader("Content-Type")) {
-		writeAPIError(
+		httpapi.WriteError(
 			c,
 			http.StatusUnsupportedMediaType,
 			"UNSUPPORTED_MEDIA_TYPE",
@@ -41,7 +34,7 @@ func (h *TelemetryHandler) Batch(c *gin.Context) {
 	if err := decodeTelemetryBatch(c, &batch); err != nil {
 		var maxBytesError *http.MaxBytesError
 		if errors.As(err, &maxBytesError) {
-			writeAPIError(
+			httpapi.WriteError(
 				c,
 				http.StatusRequestEntityTooLarge,
 				"PAYLOAD_TOO_LARGE",
@@ -51,7 +44,7 @@ func (h *TelemetryHandler) Batch(c *gin.Context) {
 			return
 		}
 
-		writeAPIError(
+		httpapi.WriteError(
 			c,
 			http.StatusBadRequest,
 			"MALFORMED_JSON",
@@ -64,7 +57,7 @@ func (h *TelemetryHandler) Batch(c *gin.Context) {
 	if err := validation.ValidateTelemetryBatch(batch); err != nil {
 		var fieldError *validation.FieldError
 		if !errors.As(err, &fieldError) {
-			writeAPIError(
+			httpapi.WriteError(
 				c,
 				http.StatusInternalServerError,
 				"INTERNAL_ERROR",
@@ -79,12 +72,12 @@ func (h *TelemetryHandler) Batch(c *gin.Context) {
 			code = "INVALID_EVENT"
 		}
 
-		writeAPIError(
+		httpapi.WriteError(
 			c,
 			http.StatusUnprocessableEntity,
 			code,
 			fieldError.Error(),
-			&errorDetails{Field: fieldError.Field},
+			&httpapi.ErrorDetails{Field: fieldError.Field},
 		)
 		return
 	}
@@ -107,7 +100,7 @@ func (h *TelemetryHandler) Batch(c *gin.Context) {
 func writeIngestionError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, ingestion.ErrInvalidPublicKey):
-		writeAPIError(
+		httpapi.WriteError(
 			c,
 			http.StatusForbidden,
 			"INVALID_PUBLIC_KEY",
@@ -115,7 +108,7 @@ func writeIngestionError(c *gin.Context, err error) {
 			nil,
 		)
 	case errors.Is(err, ingestion.ErrBatchIDConflict):
-		writeAPIError(
+		httpapi.WriteError(
 			c,
 			http.StatusConflict,
 			"BATCH_ID_CONFLICT",
@@ -123,7 +116,7 @@ func writeIngestionError(c *gin.Context, err error) {
 			nil,
 		)
 	default:
-		writeAPIError(
+		httpapi.WriteError(
 			c,
 			http.StatusInternalServerError,
 			"INTERNAL_ERROR",
@@ -165,34 +158,4 @@ type successData struct {
 	BatchID   string `json:"batchId"`
 	Accepted  int    `json:"accepted"`
 	Duplicate bool   `json:"duplicate"`
-}
-
-type errorEnvelope struct {
-	Error apiError `json:"error"`
-}
-
-type apiError struct {
-	Code    string        `json:"code"`
-	Message string        `json:"message"`
-	Details *errorDetails `json:"details,omitempty"`
-}
-
-type errorDetails struct {
-	Field string `json:"field"`
-}
-
-func writeAPIError(
-	c *gin.Context,
-	status int,
-	code string,
-	message string,
-	details *errorDetails,
-) {
-	c.JSON(status, errorEnvelope{
-		Error: apiError{
-			Code:    code,
-			Message: message,
-			Details: details,
-		},
-	})
 }

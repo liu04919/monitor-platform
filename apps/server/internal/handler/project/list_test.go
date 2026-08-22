@@ -1,7 +1,6 @@
-package handler
+package project
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,19 +13,19 @@ import (
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/auth"
 	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
-	"github.com/liu04919/monitor-platform/apps/server/internal/project"
+	projectdomain "github.com/liu04919/monitor-platform/apps/server/internal/project"
 )
 
 func TestProjectListHandlerReturnsProjectsWithoutPublicKey(t *testing.T) {
 	createdAt := time.Date(2026, 8, 19, 1, 2, 3, 456_000_000, time.UTC)
-	service := &stubProjectService{
-		projects: []project.ProjectSummary{
+	service := &stubService{
+		projects: []projectdomain.ProjectSummary{
 			{ID: "project-1", Name: "项目一", Enabled: true, CreatedAt: createdAt},
 			{ID: "project-2", Name: "项目二", Enabled: false, CreatedAt: createdAt.Add(time.Second)},
 		},
 	}
 
-	recorder := performProjectListRequest(NewProjectHandler(service))
+	recorder := performProjectListRequest(NewHandler(service))
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
@@ -53,8 +52,8 @@ func TestProjectListHandlerReturnsProjectsWithoutPublicKey(t *testing.T) {
 }
 
 func TestProjectListHandlerHidesServiceFailure(t *testing.T) {
-	service := &stubProjectService{err: errors.New("postgres password leaked")}
-	recorder := performProjectListRequest(NewProjectHandler(service))
+	service := &stubService{err: errors.New("postgres password leaked")}
+	recorder := performProjectListRequest(NewHandler(service))
 
 	if recorder.Code != http.StatusInternalServerError {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusInternalServerError)
@@ -64,10 +63,10 @@ func TestProjectListHandlerHidesServiceFailure(t *testing.T) {
 	}
 }
 
-func performProjectListRequest(handler *ProjectHandler) *httptest.ResponseRecorder {
+func performProjectListRequest(handler *Handler) *httptest.ResponseRecorder {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	engine.Use(middleware.SessionAuth(stubHandlerAuthenticator{}))
+	engine.Use(middleware.SessionAuth(stubAuthenticator{}))
 	engine.GET("/api/v1/projects", handler.List)
 
 	recorder := httptest.NewRecorder()
@@ -75,53 +74,4 @@ func performProjectListRequest(handler *ProjectHandler) *httptest.ResponseRecord
 	request.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: "session-token"})
 	engine.ServeHTTP(recorder, request)
 	return recorder
-}
-
-type stubProjectService struct {
-	projects      []project.ProjectSummary
-	err           error
-	calls         int
-	created       project.Project
-	createErr     error
-	createCalls   int
-	createRequest project.CreateRequest
-	ownerUserID   string
-	foundProject  project.Project
-	getErr        error
-	getCalls      int
-	projectID     string
-}
-
-func (s *stubProjectService) List(_ context.Context, ownerUserID string) ([]project.ProjectSummary, error) {
-	s.calls++
-	s.ownerUserID = ownerUserID
-	return s.projects, s.err
-}
-
-func (s *stubProjectService) Get(
-	_ context.Context,
-	ownerUserID string,
-	projectID string,
-) (project.Project, error) {
-	s.getCalls++
-	s.ownerUserID = ownerUserID
-	s.projectID = projectID
-	return s.foundProject, s.getErr
-}
-
-func (s *stubProjectService) Create(
-	_ context.Context,
-	ownerUserID string,
-	request project.CreateRequest,
-) (project.Project, error) {
-	s.createCalls++
-	s.ownerUserID = ownerUserID
-	s.createRequest = request
-	return s.created, s.createErr
-}
-
-type stubHandlerAuthenticator struct{}
-
-func (stubHandlerAuthenticator) Authenticate(_ context.Context, _ string) (auth.User, error) {
-	return auth.User{ID: "user-1", Email: "user@example.com"}, nil
 }

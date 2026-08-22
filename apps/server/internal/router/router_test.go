@@ -20,7 +20,7 @@ func TestHealth(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 
-	newTestRouter(&stubTelemetryHandler{}, &stubProjectListHandler{}, &stubEventListHandler{}).ServeHTTP(recorder, request)
+	newTestRouter(&stubTelemetryHandler{}, &stubProjectHandler{}, &stubEventHandler{}).ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, recorder.Code)
@@ -49,7 +49,7 @@ func TestTelemetryRoute(t *testing.T) {
 	request := httptest.NewRequest(http.MethodPost, "/api/v1/events/batch", nil)
 	request.Header.Set("Origin", "http://localhost:5173")
 
-	newTestRouter(telemetryHandler, &stubProjectListHandler{}, &stubEventListHandler{}).ServeHTTP(recorder, request)
+	newTestRouter(telemetryHandler, &stubProjectHandler{}, &stubEventHandler{}).ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusAccepted {
 		t.Fatalf("expected status %d, got %d", http.StatusAccepted, recorder.Code)
@@ -75,7 +75,7 @@ func TestTelemetryPreflight(t *testing.T) {
 	request.Header.Set("Access-Control-Request-Method", http.MethodPost)
 	request.Header.Set("Access-Control-Request-Headers", "content-type")
 
-	newTestRouter(telemetryHandler, &stubProjectListHandler{}, &stubEventListHandler{}).ServeHTTP(recorder, request)
+	newTestRouter(telemetryHandler, &stubProjectHandler{}, &stubEventHandler{}).ServeHTTP(recorder, request)
 
 	if recorder.Code != http.StatusNoContent {
 		t.Fatalf("expected status %d, got %d", http.StatusNoContent, recorder.Code)
@@ -95,8 +95,8 @@ func TestAuthRoutes(t *testing.T) {
 	authHandler := &stubAuthHandler{}
 	engine := New(
 		&stubTelemetryHandler{},
-		&stubProjectListHandler{},
-		&stubEventListHandler{},
+		&stubProjectHandler{},
+		&stubEventHandler{},
 		authHandler,
 		stubSessionAuthenticator{},
 	)
@@ -128,8 +128,8 @@ func TestAuthRoutes(t *testing.T) {
 func TestEventRoutesRequireSessionCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	eventListHandler := &stubEventListHandler{}
-	engine := newTestRouter(&stubTelemetryHandler{}, &stubProjectListHandler{}, eventListHandler)
+	eventHandler := &stubEventHandler{}
+	engine := newTestRouter(&stubTelemetryHandler{}, &stubProjectHandler{}, eventHandler)
 
 	unauthorized := httptest.NewRecorder()
 	engine.ServeHTTP(
@@ -139,8 +139,8 @@ func TestEventRoutesRequireSessionCookie(t *testing.T) {
 	if unauthorized.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthorized status = %d, want %d", unauthorized.Code, http.StatusUnauthorized)
 	}
-	if eventListHandler.calls != 0 {
-		t.Fatalf("event list handler calls = %d, want 0", eventListHandler.calls)
+	if eventHandler.calls != 0 {
+		t.Fatalf("event list handler calls = %d, want 0", eventHandler.calls)
 	}
 
 	authorized := httptest.NewRecorder()
@@ -151,8 +151,8 @@ func TestEventRoutesRequireSessionCookie(t *testing.T) {
 	if authorized.Code != http.StatusOK {
 		t.Fatalf("authorized status = %d, want %d", authorized.Code, http.StatusOK)
 	}
-	if eventListHandler.calls != 1 {
-		t.Fatalf("event list handler calls = %d, want 1", eventListHandler.calls)
+	if eventHandler.calls != 1 {
+		t.Fatalf("event list handler calls = %d, want 1", eventHandler.calls)
 	}
 
 	detailRecorder := httptest.NewRecorder()
@@ -167,16 +167,16 @@ func TestEventRoutesRequireSessionCookie(t *testing.T) {
 	if detailRecorder.Code != http.StatusOK {
 		t.Fatalf("detail status = %d, want %d", detailRecorder.Code, http.StatusOK)
 	}
-	if eventListHandler.detailCalls != 1 {
-		t.Fatalf("event detail handler calls = %d, want 1", eventListHandler.detailCalls)
+	if eventHandler.detailCalls != 1 {
+		t.Fatalf("event detail handler calls = %d, want 1", eventHandler.detailCalls)
 	}
 }
 
 func TestProjectRoutesRequireSessionCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	projectListHandler := &stubProjectListHandler{}
-	engine := newTestRouter(&stubTelemetryHandler{}, projectListHandler, &stubEventListHandler{})
+	projectHandler := &stubProjectHandler{}
+	engine := newTestRouter(&stubTelemetryHandler{}, projectHandler, &stubEventHandler{})
 
 	unauthorized := httptest.NewRecorder()
 	engine.ServeHTTP(
@@ -186,8 +186,8 @@ func TestProjectRoutesRequireSessionCookie(t *testing.T) {
 	if unauthorized.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthorized status = %d, want %d", unauthorized.Code, http.StatusUnauthorized)
 	}
-	if projectListHandler.calls != 0 {
-		t.Fatalf("project list handler calls = %d, want 0", projectListHandler.calls)
+	if projectHandler.calls != 0 {
+		t.Fatalf("project list handler calls = %d, want 0", projectHandler.calls)
 	}
 
 	authorized := httptest.NewRecorder()
@@ -198,8 +198,8 @@ func TestProjectRoutesRequireSessionCookie(t *testing.T) {
 	if authorized.Code != http.StatusOK {
 		t.Fatalf("authorized status = %d, want %d", authorized.Code, http.StatusOK)
 	}
-	if projectListHandler.calls != 1 {
-		t.Fatalf("project list handler calls = %d, want 1", projectListHandler.calls)
+	if projectHandler.calls != 1 {
+		t.Fatalf("project list handler calls = %d, want 1", projectHandler.calls)
 	}
 
 	unauthorizedCreate := httptest.NewRecorder()
@@ -210,8 +210,8 @@ func TestProjectRoutesRequireSessionCookie(t *testing.T) {
 	if unauthorizedCreate.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthorized create status = %d, want %d", unauthorizedCreate.Code, http.StatusUnauthorized)
 	}
-	if projectListHandler.createCalls != 0 {
-		t.Fatalf("project create handler calls = %d, want 0", projectListHandler.createCalls)
+	if projectHandler.createCalls != 0 {
+		t.Fatalf("project create handler calls = %d, want 0", projectHandler.createCalls)
 	}
 
 	authorizedCreate := httptest.NewRecorder()
@@ -221,8 +221,8 @@ func TestProjectRoutesRequireSessionCookie(t *testing.T) {
 	if authorizedCreate.Code != http.StatusCreated {
 		t.Fatalf("authorized create status = %d, want %d", authorizedCreate.Code, http.StatusCreated)
 	}
-	if projectListHandler.createCalls != 1 {
-		t.Fatalf("project create handler calls = %d, want 1", projectListHandler.createCalls)
+	if projectHandler.createCalls != 1 {
+		t.Fatalf("project create handler calls = %d, want 1", projectHandler.createCalls)
 	}
 
 	unauthorizedDetail := httptest.NewRecorder()
@@ -233,8 +233,8 @@ func TestProjectRoutesRequireSessionCookie(t *testing.T) {
 	if unauthorizedDetail.Code != http.StatusUnauthorized {
 		t.Fatalf("unauthorized detail status = %d, want %d", unauthorizedDetail.Code, http.StatusUnauthorized)
 	}
-	if projectListHandler.detailCalls != 0 {
-		t.Fatalf("project detail handler calls = %d, want 0", projectListHandler.detailCalls)
+	if projectHandler.detailCalls != 0 {
+		t.Fatalf("project detail handler calls = %d, want 0", projectHandler.detailCalls)
 	}
 
 	authorizedDetail := httptest.NewRecorder()
@@ -244,8 +244,8 @@ func TestProjectRoutesRequireSessionCookie(t *testing.T) {
 	if authorizedDetail.Code != http.StatusOK {
 		t.Fatalf("authorized detail status = %d, want %d", authorizedDetail.Code, http.StatusOK)
 	}
-	if projectListHandler.detailCalls != 1 {
-		t.Fatalf("project detail handler calls = %d, want 1", projectListHandler.detailCalls)
+	if projectHandler.detailCalls != 1 {
+		t.Fatalf("project detail handler calls = %d, want 1", projectHandler.detailCalls)
 	}
 }
 
@@ -281,12 +281,12 @@ func (h *stubTelemetryHandler) Batch(c *gin.Context) {
 	c.Status(http.StatusAccepted)
 }
 
-type stubEventListHandler struct {
+type stubEventHandler struct {
 	calls       int
 	detailCalls int
 }
 
-type stubProjectListHandler struct {
+type stubProjectHandler struct {
 	calls       int
 	createCalls int
 	detailCalls int
@@ -319,27 +319,27 @@ func (h *stubAuthHandler) Logout(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func (h *stubProjectListHandler) List(c *gin.Context) {
+func (h *stubProjectHandler) List(c *gin.Context) {
 	h.calls++
 	c.Status(http.StatusOK)
 }
 
-func (h *stubProjectListHandler) Create(c *gin.Context) {
+func (h *stubProjectHandler) Create(c *gin.Context) {
 	h.createCalls++
 	c.Status(http.StatusCreated)
 }
 
-func (h *stubProjectListHandler) Detail(c *gin.Context) {
+func (h *stubProjectHandler) Detail(c *gin.Context) {
 	h.detailCalls++
 	c.Status(http.StatusOK)
 }
 
-func (h *stubEventListHandler) Detail(c *gin.Context) {
+func (h *stubEventHandler) Detail(c *gin.Context) {
 	h.detailCalls++
 	c.Status(http.StatusOK)
 }
 
-func (h *stubEventListHandler) List(c *gin.Context) {
+func (h *stubEventHandler) List(c *gin.Context) {
 	h.calls++
 	c.Status(http.StatusOK)
 }

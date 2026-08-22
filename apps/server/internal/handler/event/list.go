@@ -1,7 +1,6 @@
-package handler
+package event
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -10,26 +9,14 @@ import (
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
 	"github.com/liu04919/monitor-platform/apps/server/internal/eventquery"
+	"github.com/liu04919/monitor-platform/apps/server/internal/httpapi"
 	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
 )
 
-type EventQueryService interface {
-	List(ctx context.Context, request eventquery.ListRequest) (eventquery.ListPage, error)
-	Detail(ctx context.Context, request eventquery.DetailRequest) (eventquery.EventDetail, error)
-}
-
-type EventListHandler struct {
-	service EventQueryService
-}
-
-func NewEventListHandler(service EventQueryService) *EventListHandler {
-	return &EventListHandler{service: service}
-}
-
-func (h *EventListHandler) List(c *gin.Context) {
+func (h *Handler) List(c *gin.Context) {
 	user, ok := middleware.CurrentUser(c)
 	if !ok {
-		writeAPIError(c, http.StatusInternalServerError, "AUTH_CONTEXT_MISSING", "authenticated user context is missing", nil)
+		httpapi.WriteError(c, http.StatusInternalServerError, "AUTH_CONTEXT_MISSING", "authenticated user context is missing", nil)
 		return
 	}
 
@@ -101,9 +88,9 @@ func writeEventListError(c *gin.Context, err error) {
 	case errors.Is(err, eventquery.ErrInvalidCursor):
 		writeEventListQueryError(c, eventquery.ErrInvalidCursor)
 	case errors.Is(err, eventquery.ErrProjectNotFound):
-		writeAPIError(c, http.StatusNotFound, "PROJECT_NOT_FOUND", "project was not found", nil)
+		httpapi.WriteError(c, http.StatusNotFound, "PROJECT_NOT_FOUND", "project was not found", nil)
 	default:
-		writeAPIError(
+		httpapi.WriteError(
 			c,
 			http.StatusInternalServerError,
 			"INTERNAL_ERROR",
@@ -132,12 +119,12 @@ func writeEventListQueryError(c *gin.Context, err error) {
 		message = "cursor is invalid"
 	}
 
-	writeAPIError(
+	httpapi.WriteError(
 		c,
 		http.StatusBadRequest,
 		"INVALID_QUERY",
 		message,
-		&errorDetails{Field: field},
+		&httpapi.ErrorDetails{Field: field},
 	)
 }
 

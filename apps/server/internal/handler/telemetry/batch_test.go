@@ -1,4 +1,4 @@
-package handler
+package telemetry
 
 import (
 	"bytes"
@@ -16,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
+	"github.com/liu04919/monitor-platform/apps/server/internal/httpapi"
 	"github.com/liu04919/monitor-platform/apps/server/internal/ingestion"
 )
 
@@ -170,7 +171,7 @@ func TestTelemetryBatchMapsRequestAndValidationErrors(t *testing.T) {
 				t.Fatalf("expected service not to be called, got %d calls", service.calls)
 			}
 
-			var body errorEnvelope
+			var body httpapi.ErrorEnvelope
 			decodeResponse(t, response, &body)
 
 			if body.Error.Code != test.wantCode {
@@ -203,7 +204,7 @@ func TestTelemetryBatchDoesNotExposeIngestionFailure(t *testing.T) {
 		t.Fatalf("response exposed internal error: %s", response.Body.String())
 	}
 
-	var body errorEnvelope
+	var body httpapi.ErrorEnvelope
 	decodeResponse(t, response, &body)
 	if body.Error.Code != "INTERNAL_ERROR" {
 		t.Fatalf("expected INTERNAL_ERROR, got %q", body.Error.Code)
@@ -245,7 +246,7 @@ func TestTelemetryBatchMapsKnownIngestionErrors(t *testing.T) {
 				t.Fatalf("expected status %d, got %d: %s", test.wantStatus, response.Code, response.Body.String())
 			}
 
-			var body errorEnvelope
+			var body httpapi.ErrorEnvelope
 			decodeResponse(t, response, &body)
 			if body.Error.Code != test.wantCode {
 				t.Fatalf("expected error code %q, got %q", test.wantCode, body.Error.Code)
@@ -280,7 +281,7 @@ func performTelemetryRequest(
 	gin.SetMode(gin.TestMode)
 
 	engine := gin.New()
-	engine.POST("/api/v1/events/batch", NewTelemetryHandler(service).Batch)
+	engine.POST("/api/v1/events/batch", NewHandler(service).Batch)
 
 	request := httptest.NewRequest(
 		http.MethodPost,
@@ -298,6 +299,7 @@ func contractBatch(t *testing.T) dto.TelemetryBatch {
 	t.Helper()
 
 	path := filepath.Join(
+		"..",
 		"..",
 		"..",
 		"..",

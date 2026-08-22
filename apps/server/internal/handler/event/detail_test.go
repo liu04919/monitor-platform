@@ -1,4 +1,4 @@
-package handler
+package event
 
 import (
 	"encoding/json"
@@ -14,12 +14,13 @@ import (
 	"github.com/liu04919/monitor-platform/apps/server/internal/auth"
 	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
 	"github.com/liu04919/monitor-platform/apps/server/internal/eventquery"
+	"github.com/liu04919/monitor-platform/apps/server/internal/httpapi"
 	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
 )
 
 func TestEventDetailHandlerReturnsStructuredJSON(t *testing.T) {
 	timestamp := time.Date(2026, 8, 19, 12, 0, 0, 123_000_000, time.UTC)
-	service := &stubEventListService{
+	service := &stubService{
 		detail: eventquery.EventDetail{
 			SchemaVersion: 2,
 			ProjectID:     "project-1",
@@ -39,7 +40,7 @@ func TestEventDetailHandlerReturnsStructuredJSON(t *testing.T) {
 		},
 	}
 	recorder := performEventDetailRequest(
-		NewEventListHandler(service),
+		NewHandler(service),
 		"/api/v1/projects/project-1/events/event-1",
 	)
 	if recorder.Code != http.StatusOK {
@@ -82,16 +83,16 @@ func TestEventDetailHandlerMapsErrors(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			service := &stubEventListService{detailErr: test.err}
+			service := &stubService{detailErr: test.err}
 			recorder := performEventDetailRequest(
-				NewEventListHandler(service),
+				NewHandler(service),
 				"/api/v1/projects/project-1/events/event-1",
 			)
 			if recorder.Code != test.wantStatus {
 				t.Fatalf("status = %d, want %d: %s", recorder.Code, test.wantStatus, recorder.Body.String())
 			}
 
-			var response errorEnvelope
+			var response httpapi.ErrorEnvelope
 			if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 				t.Fatalf("decode response: %v", err)
 			}
@@ -108,10 +109,10 @@ func TestEventDetailHandlerMapsErrors(t *testing.T) {
 	}
 }
 
-func performEventDetailRequest(handler *EventListHandler, url string) *httptest.ResponseRecorder {
+func performEventDetailRequest(handler *Handler, url string) *httptest.ResponseRecorder {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	engine.Use(middleware.SessionAuth(stubHandlerAuthenticator{}))
+	engine.Use(middleware.SessionAuth(stubAuthenticator{}))
 	engine.GET("/api/v1/projects/:projectId/events/:eventId", handler.Detail)
 
 	recorder := httptest.NewRecorder()

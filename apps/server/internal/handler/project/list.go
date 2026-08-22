@@ -1,39 +1,24 @@
-package handler
+package project
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/liu04919/monitor-platform/apps/server/internal/httpapi"
 	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
-	"github.com/liu04919/monitor-platform/apps/server/internal/project"
 )
 
-type ProjectService interface {
-	List(ctx context.Context, ownerUserID string) ([]project.ProjectSummary, error)
-	Get(ctx context.Context, ownerUserID, projectID string) (project.Project, error)
-	Create(ctx context.Context, ownerUserID string, request project.CreateRequest) (project.Project, error)
-}
-
-type ProjectHandler struct {
-	service ProjectService
-}
-
-func NewProjectHandler(service ProjectService) *ProjectHandler {
-	return &ProjectHandler{service: service}
-}
-
-func (h *ProjectHandler) List(c *gin.Context) {
+func (h *Handler) List(c *gin.Context) {
 	user, ok := middleware.CurrentUser(c)
 	if !ok {
-		writeAPIError(c, http.StatusInternalServerError, "AUTH_CONTEXT_MISSING", "authenticated user context is missing", nil)
+		httpapi.WriteError(c, http.StatusInternalServerError, "AUTH_CONTEXT_MISSING", "authenticated user context is missing", nil)
 		return
 	}
 
 	projects, err := h.service.List(c.Request.Context(), user.ID)
 	if err != nil {
-		writeAPIError(
+		httpapi.WriteError(
 			c,
 			http.StatusInternalServerError,
 			"INTERNAL_ERROR",

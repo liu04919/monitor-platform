@@ -1,7 +1,6 @@
-package handler
+package event
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -15,14 +14,15 @@ import (
 	"github.com/liu04919/monitor-platform/apps/server/internal/auth"
 	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
 	"github.com/liu04919/monitor-platform/apps/server/internal/eventquery"
+	"github.com/liu04919/monitor-platform/apps/server/internal/httpapi"
 	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
 )
 
-func TestEventListHandlerReturnsPage(t *testing.T) {
+func TestEventHandlerReturnsPage(t *testing.T) {
 	userID := "user-1"
 	level := dto.EventLevelError
 	timestamp := time.Date(2026, 8, 19, 1, 2, 3, 456_000_000, time.UTC)
-	service := &stubEventListService{
+	service := &stubService{
 		page: eventquery.ListPage{
 			Events: []eventquery.EventSummary{
 				{
@@ -44,7 +44,7 @@ func TestEventListHandlerReturnsPage(t *testing.T) {
 	}
 
 	recorder := performEventListRequest(
-		NewEventListHandler(service),
+		NewHandler(service),
 		"/api/v1/projects/project-1/events?category=error&eventType=js_error&limit=20&cursor=current-cursor",
 	)
 
@@ -77,7 +77,7 @@ func TestEventListHandlerReturnsPage(t *testing.T) {
 	}
 }
 
-func TestEventListHandlerMapsErrors(t *testing.T) {
+func TestEventHandlerMapsListErrors(t *testing.T) {
 	internalError := errors.New("clickhouse password leaked")
 	tests := []struct {
 		name          string
@@ -98,8 +98,8 @@ func TestEventListHandlerMapsErrors(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			service := &stubEventListService{err: test.serviceError}
-			recorder := performEventListRequest(NewEventListHandler(service), test.url)
+			service := &stubService{err: test.serviceError}
+			recorder := performEventListRequest(NewHandler(service), test.url)
 
 			if recorder.Code != test.wantStatus {
 				t.Fatalf("status = %d, want %d: %s", recorder.Code, test.wantStatus, recorder.Body.String())
@@ -108,7 +108,7 @@ func TestEventListHandlerMapsErrors(t *testing.T) {
 				t.Fatalf("service calls = %d, want %d", service.calls, test.wantCalls)
 			}
 
-			var response errorEnvelope
+			var response httpapi.ErrorEnvelope
 			if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 				t.Fatalf("decode response: %v", err)
 			}
@@ -125,10 +125,10 @@ func TestEventListHandlerMapsErrors(t *testing.T) {
 	}
 }
 
-func performEventListRequest(handler *EventListHandler, url string) *httptest.ResponseRecorder {
+func performEventListRequest(handler *Handler, url string) *httptest.ResponseRecorder {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
-	engine.Use(middleware.SessionAuth(stubHandlerAuthenticator{}))
+	engine.Use(middleware.SessionAuth(stubAuthenticator{}))
 	engine.GET("/api/v1/projects/:projectId/events", handler.List)
 
 	recorder := httptest.NewRecorder()
@@ -136,33 +136,4 @@ func performEventListRequest(handler *EventListHandler, url string) *httptest.Re
 	request.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: "session-token"})
 	engine.ServeHTTP(recorder, request)
 	return recorder
-}
-
-type stubEventListService struct {
-	page          eventquery.ListPage
-	err           error
-	calls         int
-	request       eventquery.ListRequest
-	detail        eventquery.EventDetail
-	detailErr     error
-	detailCalls   int
-	detailRequest eventquery.DetailRequest
-}
-
-func (s *stubEventListService) Detail(
-	_ context.Context,
-	request eventquery.DetailRequest,
-) (eventquery.EventDetail, error) {
-	s.detailCalls++
-	s.detailRequest = request
-	return s.detail, s.detailErr
-}
-
-func (s *stubEventListService) List(
-	_ context.Context,
-	request eventquery.ListRequest,
-) (eventquery.ListPage, error) {
-	s.calls++
-	s.request = request
-	return s.page, s.err
 }

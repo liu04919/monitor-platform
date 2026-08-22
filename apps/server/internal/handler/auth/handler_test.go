@@ -1,4 +1,4 @@
-package handler
+package auth
 
 import (
 	"bytes"
@@ -11,17 +11,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/liu04919/monitor-platform/apps/server/internal/auth"
+	authdomain "github.com/liu04919/monitor-platform/apps/server/internal/auth"
+	"github.com/liu04919/monitor-platform/apps/server/internal/httpapi"
 )
 
 func TestAuthHandlerRegistersWithoutCreatingSessionCookie(t *testing.T) {
 	createdAt := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	service := &stubAuthService{registerUser: auth.User{
+	service := &stubAuthService{registerUser: authdomain.User{
 		ID:        "user-1",
 		Email:     "user@example.com",
 		CreatedAt: createdAt,
 	}}
-	handler := NewAuthHandler(service, 24*time.Hour, true)
+	handler := NewHandler(service, 24*time.Hour, true)
 	recorder := performAuthRequest(
 		http.MethodPost,
 		"/api/v1/auth/register",
@@ -43,7 +44,7 @@ func TestAuthHandlerRegistersWithoutCreatingSessionCookie(t *testing.T) {
 		t.Fatalf("registration unexpectedly set cookies: %#v", cookies)
 	}
 
-	var response authUserEnvelope
+	var response userEnvelope
 	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
@@ -71,7 +72,7 @@ func TestAuthHandlerRejectsInvalidBodies(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			service := &stubAuthService{}
-			handler := NewAuthHandler(service, time.Hour, false)
+			handler := NewHandler(service, time.Hour, false)
 			recorder := performAuthRequest(
 				http.MethodPost,
 				"/api/v1/auth/register",
@@ -84,7 +85,7 @@ func TestAuthHandlerRejectsInvalidBodies(t *testing.T) {
 			if recorder.Code != test.wantStatus {
 				t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
 			}
-			var response errorEnvelope
+			var response httpapi.ErrorEnvelope
 			if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 				t.Fatalf("decode response: %v", err)
 			}
@@ -105,15 +106,15 @@ func TestAuthHandlerMapsDomainErrors(t *testing.T) {
 		wantStatus int
 		wantCode   string
 	}{
-		{name: "invalid email", err: auth.ErrInvalidEmail, wantStatus: http.StatusUnprocessableEntity, wantCode: "INVALID_EMAIL"},
-		{name: "invalid password", err: auth.ErrInvalidPassword, wantStatus: http.StatusUnprocessableEntity, wantCode: "INVALID_PASSWORD"},
-		{name: "email conflict", err: auth.ErrEmailConflict, wantStatus: http.StatusConflict, wantCode: "EMAIL_CONFLICT"},
+		{name: "invalid email", err: authdomain.ErrInvalidEmail, wantStatus: http.StatusUnprocessableEntity, wantCode: "INVALID_EMAIL"},
+		{name: "invalid password", err: authdomain.ErrInvalidPassword, wantStatus: http.StatusUnprocessableEntity, wantCode: "INVALID_PASSWORD"},
+		{name: "email conflict", err: authdomain.ErrEmailConflict, wantStatus: http.StatusConflict, wantCode: "EMAIL_CONFLICT"},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			service := &stubAuthService{registerErr: test.err}
-			handler := NewAuthHandler(service, time.Hour, false)
+			handler := NewHandler(service, time.Hour, false)
 			recorder := performAuthRequest(
 				http.MethodPost,
 				"/api/v1/auth/register",
@@ -129,9 +130,9 @@ func TestAuthHandlerMapsDomainErrors(t *testing.T) {
 
 func TestAuthHandlerMeAndLogoutUseCookie(t *testing.T) {
 	service := &stubAuthService{
-		authenticatedUser: auth.User{ID: "user-1", Email: "user@example.com"},
+		authenticatedUser: authdomain.User{ID: "user-1", Email: "user@example.com"},
 	}
-	handler := NewAuthHandler(service, time.Hour, false)
+	handler := NewHandler(service, time.Hour, false)
 
 	meRecorder := performAuthRequest(
 		http.MethodGet,
@@ -168,21 +169,21 @@ func TestAuthHandlerMeDistinguishesMissingAndUnavailableSession(t *testing.T) {
 		wantStatus int
 		wantCode   string
 	}{
-		{err: auth.ErrUnauthenticated, wantStatus: http.StatusUnauthorized, wantCode: "UNAUTHENTICATED"},
-		{err: auth.ErrSessionUnavailable, wantStatus: http.StatusServiceUnavailable, wantCode: "SESSION_UNAVAILABLE"},
+		{err: authdomain.ErrUnauthenticated, wantStatus: http.StatusUnauthorized, wantCode: "UNAUTHENTICATED"},
+		{err: authdomain.ErrSessionUnavailable, wantStatus: http.StatusServiceUnavailable, wantCode: "SESSION_UNAVAILABLE"},
 	}
 
 	for _, test := range tests {
 		service := &stubAuthService{authenticateErr: test.err}
-		handler := NewAuthHandler(service, time.Hour, false)
+		handler := NewHandler(service, time.Hour, false)
 		recorder := performAuthRequest(http.MethodGet, "/api/v1/auth/me", "", "", handler.Me, "token")
 		assertAPIError(t, recorder, test.wantStatus, test.wantCode)
 	}
 }
 
 func TestAuthHandlerLogoutDoesNotClearCookieWhenSessionRevocationFails(t *testing.T) {
-	service := &stubAuthService{logoutErr: auth.ErrSessionUnavailable}
-	handler := NewAuthHandler(service, time.Hour, false)
+	service := &stubAuthService{logoutErr: authdomain.ErrSessionUnavailable}
+	handler := NewHandler(service, time.Hour, false)
 	recorder := performAuthRequest(
 		http.MethodDelete,
 		"/api/v1/auth/logout",
@@ -219,7 +220,7 @@ func performAuthRequest(
 		request.Header.Set("Content-Type", contentType)
 	}
 	if token != "" {
-		request.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: token})
+		request.AddCookie(&http.Cookie{Name: authdomain.SessionCookieName, Value: token})
 	}
 	engine.ServeHTTP(recorder, request)
 	return recorder
@@ -230,7 +231,7 @@ func assertAPIError(t *testing.T, recorder *httptest.ResponseRecorder, status in
 	if recorder.Code != status {
 		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, status, recorder.Body.String())
 	}
-	var response errorEnvelope
+	var response httpapi.ErrorEnvelope
 	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
@@ -240,32 +241,32 @@ func assertAPIError(t *testing.T, recorder *httptest.ResponseRecorder, status in
 }
 
 type stubAuthService struct {
-	registerUser      auth.User
+	registerUser      authdomain.User
 	registerErr       error
 	registerCalls     int
 	registerEmail     string
 	registerPassword  string
-	loginSession      auth.Session
+	loginSession      authdomain.Session
 	loginErr          error
-	authenticatedUser auth.User
+	authenticatedUser authdomain.User
 	authenticateErr   error
 	authToken         string
 	logoutErr         error
 	logoutToken       string
 }
 
-func (s *stubAuthService) Register(_ context.Context, email, password string) (auth.User, error) {
+func (s *stubAuthService) Register(_ context.Context, email, password string) (authdomain.User, error) {
 	s.registerCalls++
 	s.registerEmail = email
 	s.registerPassword = password
 	return s.registerUser, s.registerErr
 }
 
-func (s *stubAuthService) Login(_ context.Context, _, _ string) (auth.Session, error) {
+func (s *stubAuthService) Login(_ context.Context, _, _ string) (authdomain.Session, error) {
 	return s.loginSession, s.loginErr
 }
 
-func (s *stubAuthService) Authenticate(_ context.Context, token string) (auth.User, error) {
+func (s *stubAuthService) Authenticate(_ context.Context, token string) (authdomain.User, error) {
 	s.authToken = token
 	return s.authenticatedUser, s.authenticateErr
 }

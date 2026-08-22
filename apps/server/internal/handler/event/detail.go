@@ -1,4 +1,4 @@
-package handler
+package event
 
 import (
 	"encoding/json"
@@ -9,13 +9,14 @@ import (
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
 	"github.com/liu04919/monitor-platform/apps/server/internal/eventquery"
+	"github.com/liu04919/monitor-platform/apps/server/internal/httpapi"
 	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
 )
 
-func (h *EventListHandler) Detail(c *gin.Context) {
+func (h *Handler) Detail(c *gin.Context) {
 	user, ok := middleware.CurrentUser(c)
 	if !ok {
-		writeAPIError(c, http.StatusInternalServerError, "AUTH_CONTEXT_MISSING", "authenticated user context is missing", nil)
+		httpapi.WriteError(c, http.StatusInternalServerError, "AUTH_CONTEXT_MISSING", "authenticated user context is missing", nil)
 		return
 	}
 
@@ -56,23 +57,23 @@ func (h *EventListHandler) Detail(c *gin.Context) {
 func writeEventDetailError(c *gin.Context, err error) {
 	switch {
 	case errors.Is(err, eventquery.ErrProjectIDRequired):
-		writeAPIError(
+		httpapi.WriteError(
 			c,
 			http.StatusBadRequest,
 			"INVALID_PATH",
 			"projectId is required",
-			&errorDetails{Field: "projectId"},
+			&httpapi.ErrorDetails{Field: "projectId"},
 		)
 	case errors.Is(err, eventquery.ErrInvalidEventID):
-		writeAPIError(
+		httpapi.WriteError(
 			c,
 			http.StatusBadRequest,
 			"INVALID_PATH",
 			"eventId is invalid",
-			&errorDetails{Field: "eventId"},
+			&httpapi.ErrorDetails{Field: "eventId"},
 		)
 	case errors.Is(err, eventquery.ErrEventNotFound):
-		writeAPIError(
+		httpapi.WriteError(
 			c,
 			http.StatusNotFound,
 			"EVENT_NOT_FOUND",
@@ -80,9 +81,9 @@ func writeEventDetailError(c *gin.Context, err error) {
 			nil,
 		)
 	case errors.Is(err, eventquery.ErrProjectNotFound):
-		writeAPIError(c, http.StatusNotFound, "PROJECT_NOT_FOUND", "project was not found", nil)
+		httpapi.WriteError(c, http.StatusNotFound, "PROJECT_NOT_FOUND", "project was not found", nil)
 	default:
-		writeAPIError(
+		httpapi.WriteError(
 			c,
 			http.StatusInternalServerError,
 			"INTERNAL_ERROR",
