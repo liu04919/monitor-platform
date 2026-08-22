@@ -43,6 +43,14 @@ export async function postJSON<T>(path: string, body: unknown, signal?: AbortSig
   })
 }
 
+export async function postRequest<T>(path: string, signal?: AbortSignal): Promise<T> {
+  return requestJSON<T>(path, {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+    signal,
+  })
+}
+
 export async function patchJSON<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   return requestJSON<T>(path, {
     method: 'PATCH',

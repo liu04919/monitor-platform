@@ -1,0 +1,28 @@
+.rotation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.description p:last-child {
+  margin-top: 5px;
+  line-height: 1.6;
+}
+
+.feedback {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 620px) {
+  .rotation {
+    grid-template-columns: 1fr;
+  }
+
+  .rotation > button {
+    width: 100%;
+  }
+}

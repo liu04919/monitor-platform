@@ -11,6 +11,7 @@ type Service interface {
 	Get(ctx context.Context, ownerUserID, projectID string) (projectdomain.Project, error)
 	Create(ctx context.Context, ownerUserID string, request projectdomain.CreateRequest) (projectdomain.Project, error)
 	Update(ctx context.Context, ownerUserID, projectID string, request projectdomain.UpdateRequest) (projectdomain.Project, error)
+	RotatePublicKey(ctx context.Context, ownerUserID, projectID string) (projectdomain.Project, error)
 }
 
 type Handler struct {

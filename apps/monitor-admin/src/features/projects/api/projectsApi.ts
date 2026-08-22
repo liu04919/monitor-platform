@@ -1,4 +1,4 @@
-import { getJSON, patchJSON, postJSON } from '@/shared/api/apiClient'
+import { getJSON, patchJSON, postJSON, postRequest } from '@/shared/api/apiClient'
 import type {
   CreateProjectInput,
   CreatedProject,
@@ -21,4 +21,8 @@ export function createProject(input: CreateProjectInput) {
 
 export function updateProject(projectId: string, input: UpdateProjectInput) {
   return patchJSON<ProjectDetail>(`/projects/${encodeURIComponent(projectId)}`, input)
+}
+
+export function rotateProjectPublicKey(projectId: string) {
+  return postRequest<ProjectDetail>(`/projects/${encodeURIComponent(projectId)}/public-key/rotate`)
 }

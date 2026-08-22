@@ -24,6 +24,7 @@ type ProjectHandler interface {
 	Detail(c *gin.Context)
 	Create(c *gin.Context)
 	Update(c *gin.Context)
+	RotatePublicKey(c *gin.Context)
 }
 
 type AuthHandler interface {
@@ -65,6 +66,7 @@ func New(
 	projects.POST("", projectHandler.Create)
 	projects.GET("/:projectId", projectHandler.Detail)
 	projects.PATCH("/:projectId", projectHandler.Update)
+	projects.POST("/:projectId/public-key/rotate", projectHandler.RotatePublicKey)
 	projects.GET("/:projectId/events", eventQueryHandler.List)
 	projects.GET("/:projectId/events/:eventId", eventQueryHandler.Detail)
 

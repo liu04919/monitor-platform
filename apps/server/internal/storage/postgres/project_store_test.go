@@ -189,3 +189,57 @@ func TestProjectStoreHidesMissingOrUnownedUpdate(t *testing.T) {
 		t.Fatalf("Update() error = %v, want %v", err, projectdomain.ErrProjectNotFound)
 	}
 }
+
+func TestProjectStoreRotatesOwnedProjectPublicKey(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	database, mock := newMockDatabase(t)
+	createdAt := time.Date(2026, 8, 22, 1, 2, 3, 0, time.UTC)
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(
+		`UPDATE "projects" SET "public_key"=$1,"updated_at"=$2 WHERE id = $3 AND owner_user_id = $4`,
+	)).
+		WithArgs("pk_new", sqlmock.AnyArg(), projectID, "user-1").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	mock.ExpectQuery(regexp.QuoteMeta(getProjectSQL)).
+		WithArgs(projectID, "user-1", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "owner_user_id", "name", "public_key", "enabled", "created_at"}).
+			AddRow(projectID, "user-1", "Monitor", "pk_new", true, createdAt))
+
+	rotatedProject, err := NewProjectStore(database).RotatePublicKey(
+		context.Background(),
+		"user-1",
+		projectID,
+		"pk_new",
+	)
+	if err != nil {
+		t.Fatalf("RotatePublicKey() error = %v", err)
+	}
+	if rotatedProject.PublicKey != "pk_new" || rotatedProject.ID != projectID {
+		t.Fatalf("rotated project = %#v", rotatedProject)
+	}
+}
+
+func TestProjectStoreHidesMissingOrUnownedPublicKeyRotation(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	database, mock := newMockDatabase(t)
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(
+		`UPDATE "projects" SET "public_key"=$1,"updated_at"=$2 WHERE id = $3 AND owner_user_id = $4`,
+	)).
+		WithArgs("pk_new", sqlmock.AnyArg(), projectID, "other-user").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	_, err := NewProjectStore(database).RotatePublicKey(
+		context.Background(),
+		"other-user",
+		projectID,
+		"pk_new",
+	)
+	if !errors.Is(err, projectdomain.ErrProjectNotFound) {
+		t.Fatalf("RotatePublicKey() error = %v, want %v", err, projectdomain.ErrProjectNotFound)
+	}
+}

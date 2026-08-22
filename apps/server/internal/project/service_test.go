@@ -325,6 +325,100 @@ func TestServiceUpdateMapsStoreErrors(t *testing.T) {
 	}
 }
 
+func TestServiceRotatePublicKeyGeneratesAndStoresNewKey(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	store := &stubStore{rotatedProject: Project{
+		ProjectSummary: ProjectSummary{ID: projectID, Name: "Monitor", Enabled: true},
+		OwnerUserID:    "user-1",
+		PublicKey:      "pk_new",
+	}}
+	service := NewService(store)
+	service.generatePublicKey = func() (string, error) { return "pk_new", nil }
+
+	rotatedProject, err := service.RotatePublicKey(
+		context.Background(),
+		" user-1 ",
+		" "+projectID+" ",
+	)
+	if err != nil {
+		t.Fatalf("RotatePublicKey() error = %v", err)
+	}
+	if store.rotateCalls != 1 || store.ownerUserID != "user-1" || store.projectID != projectID {
+		t.Fatalf("store rotate = calls %d, owner %q, project %q", store.rotateCalls, store.ownerUserID, store.projectID)
+	}
+	if store.rotatedPublicKey != "pk_new" || rotatedProject.PublicKey != "pk_new" {
+		t.Fatalf("rotated public key = store %q, project %#v", store.rotatedPublicKey, rotatedProject)
+	}
+}
+
+func TestServiceRotatePublicKeyValidatesBeforeGenerating(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	tests := []struct {
+		name        string
+		ownerUserID string
+		projectID   string
+		wantErr     error
+	}{
+		{name: "缺少用户", projectID: projectID, wantErr: ErrOwnerUserIDRequired},
+		{name: "项目 ID 无效", ownerUserID: "user-1", projectID: "caller-chosen-id", wantErr: ErrProjectNotFound},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := &stubStore{}
+			generatorCalls := 0
+			service := NewService(store)
+			service.generatePublicKey = func() (string, error) {
+				generatorCalls++
+				return "pk_new", nil
+			}
+
+			_, err := service.RotatePublicKey(
+				context.Background(),
+				test.ownerUserID,
+				test.projectID,
+			)
+			if !errors.Is(err, test.wantErr) || generatorCalls != 0 || store.rotateCalls != 0 {
+				t.Fatalf(
+					"RotatePublicKey() error = %v, want %v, generator calls = %d, store calls = %d",
+					err,
+					test.wantErr,
+					generatorCalls,
+					store.rotateCalls,
+				)
+			}
+		})
+	}
+}
+
+func TestServiceRotatePublicKeyWrapsGeneratorAndStoreErrors(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	generatorError := errors.New("entropy unavailable")
+	service := NewService(&stubStore{})
+	service.generatePublicKey = func() (string, error) { return "", generatorError }
+	_, err := service.RotatePublicKey(context.Background(), "user-1", projectID)
+	if !errors.Is(err, generatorError) {
+		t.Fatalf("generator error = %v, want wrapped %v", err, generatorError)
+	}
+
+	store := &stubStore{rotateErr: ErrProjectNotFound}
+	service = NewService(store)
+	service.generatePublicKey = func() (string, error) { return "pk_new", nil }
+	_, err = service.RotatePublicKey(context.Background(), "user-1", projectID)
+	if !errors.Is(err, ErrProjectNotFound) {
+		t.Fatalf("missing project error = %v, want %v", err, ErrProjectNotFound)
+	}
+
+	storeError := errors.New("postgres unavailable")
+	store = &stubStore{rotateErr: storeError}
+	service = NewService(store)
+	service.generatePublicKey = func() (string, error) { return "pk_new", nil }
+	_, err = service.RotatePublicKey(context.Background(), "user-1", projectID)
+	if !errors.Is(err, storeError) {
+		t.Fatalf("store error = %v, want wrapped %v", err, storeError)
+	}
+}
+
 func TestServiceCanAccessUsesProjectOwnership(t *testing.T) {
 	const projectID = "11111111-1111-4111-8111-111111111111"
 	store := &stubStore{owns: true}
@@ -379,24 +473,28 @@ func TestSecureProjectIDProducesUUID(t *testing.T) {
 }
 
 type stubStore struct {
-	projects       []ProjectSummary
-	err            error
-	calls          int
-	createdProject Project
-	createErr      error
-	createCalls    int
-	ownerUserID    string
-	owns           bool
-	ownsErr        error
-	ownsCalls      int
-	foundProject   Project
-	getErr         error
-	getCalls       int
-	projectID      string
-	updatedProject Project
-	updateRequest  UpdateRequest
-	updateErr      error
-	updateCalls    int
+	projects         []ProjectSummary
+	err              error
+	calls            int
+	createdProject   Project
+	createErr        error
+	createCalls      int
+	ownerUserID      string
+	owns             bool
+	ownsErr          error
+	ownsCalls        int
+	foundProject     Project
+	getErr           error
+	getCalls         int
+	projectID        string
+	updatedProject   Project
+	updateRequest    UpdateRequest
+	updateErr        error
+	updateCalls      int
+	rotatedProject   Project
+	rotatedPublicKey string
+	rotateErr        error
+	rotateCalls      int
 }
 
 func (s *stubStore) List(_ context.Context, ownerUserID string) ([]ProjectSummary, error) {
@@ -435,6 +533,19 @@ func (s *stubStore) Update(
 	s.projectID = projectID
 	s.updateRequest = request
 	return s.updatedProject, s.updateErr
+}
+
+func (s *stubStore) RotatePublicKey(
+	_ context.Context,
+	ownerUserID string,
+	projectID string,
+	publicKey string,
+) (Project, error) {
+	s.rotateCalls++
+	s.ownerUserID = ownerUserID
+	s.projectID = projectID
+	s.rotatedPublicKey = publicKey
+	return s.rotatedProject, s.rotateErr
 }
 
 func boolPointer(value bool) *bool {

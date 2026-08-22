@@ -24,6 +24,9 @@ type stubService struct {
 	updateErr     error
 	updateCalls   int
 	updateRequest projectdomain.UpdateRequest
+	rotated       projectdomain.Project
+	rotateErr     error
+	rotateCalls   int
 }
 
 func (s *stubService) List(_ context.Context, ownerUserID string) ([]projectdomain.ProjectSummary, error) {
@@ -65,6 +68,17 @@ func (s *stubService) Update(
 	s.projectID = projectID
 	s.updateRequest = request
 	return s.updated, s.updateErr
+}
+
+func (s *stubService) RotatePublicKey(
+	_ context.Context,
+	ownerUserID string,
+	projectID string,
+) (projectdomain.Project, error) {
+	s.rotateCalls++
+	s.ownerUserID = ownerUserID
+	s.projectID = projectID
+	return s.rotated, s.rotateErr
 }
 
 type stubAuthenticator struct{}

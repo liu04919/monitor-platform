@@ -46,6 +46,14 @@ function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
         createdAt: 1_787_068_900_000,
         publicKey: 'pk_created',
       }
+    : init?.method === 'POST' && url.endsWith(`/projects/${projectId}/public-key/rotate`)
+    ? {
+        id: projectId,
+        name: projectId === secondProjectId ? 'Project Two' : 'Monitor Local',
+        enabled: true,
+        createdAt: 1_787_068_800_000,
+        publicKey: 'pk_rotated',
+      }
     : init?.method === 'PATCH' && url.endsWith(`/projects/${projectId}`)
     ? {
         id: projectId,
@@ -236,6 +244,28 @@ describe('admin event routes', () => {
 
     expect(await screen.findByText('请输入项目名称')).toBeInTheDocument()
     expect(fetchMock.mock.calls.every(([, init]) => init?.method !== 'PATCH')).toBe(true)
+  })
+
+  it('确认后轮换 publicKey 并直接更新 SDK 配置缓存', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn(successfulFetch)
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute(`/projects/${secondProjectId}/settings`)
+
+    expect(await screen.findByText(/publicKey: 'pk_project_two'/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '重新生成 publicKey' }))
+
+    expect(screen.getByText('旧 publicKey 会立即失效')).toBeInTheDocument()
+    expect(fetchMock.mock.calls.every(([input]) => !String(input).endsWith('/public-key/rotate'))).toBe(true)
+    await user.click(screen.getByRole('button', { name: '确认重新生成' }))
+
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([input, init]) =>
+        String(input).endsWith(`/projects/${secondProjectId}/public-key/rotate`) && init?.method === 'POST',
+      )).toBe(true)
+    })
+    expect(await screen.findByText(/publicKey: 'pk_rotated'/)).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('旧 publicKey 现在无法继续上报')
   })
 
   it('在登录状态失效时跳转到登录页', async () => {

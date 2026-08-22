@@ -199,6 +199,19 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	if status != http.StatusNotFound || otherProjectUpdate.Error.Code != "PROJECT_NOT_FOUND" {
 		t.Fatalf("其他用户跨项目更新 = status %d, code %q", status, otherProjectUpdate.Error.Code)
 	}
+	status, noSessionRotation := rotateApplicationProjectPublicKey(t, server.URL, projectID, nil)
+	if status != http.StatusUnauthorized || noSessionRotation.Error.Code != "UNAUTHENTICATED" {
+		t.Fatalf("无 Session 轮换 publicKey = status %d, code %q", status, noSessionRotation.Error.Code)
+	}
+	status, otherUserRotation := rotateApplicationProjectPublicKey(
+		t,
+		server.URL,
+		projectID,
+		otherSessionCookie,
+	)
+	if status != http.StatusNotFound || otherUserRotation.Error.Code != "PROJECT_NOT_FOUND" {
+		t.Fatalf("其他用户跨项目轮换 publicKey = status %d, code %q", status, otherUserRotation.Error.Code)
+	}
 	status, otherUserEvents := getApplicationEvents(t, server.URL, projectID, otherSessionCookie, nil)
 	if status != http.StatusNotFound || otherUserEvents.Error.Code != "PROJECT_NOT_FOUND" {
 		t.Fatalf("其他用户跨项目读取 = status %d, code %q", status, otherUserEvents.Error.Code)
@@ -235,7 +248,22 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 		t.Fatalf("重新启用项目 = status %d, response %#v", status, updatedProject)
 	}
 
-	batch := applicationBatch(projectID, publicKey, "normal-"+suffix, now)
+	status, rotatedProject := rotateApplicationProjectPublicKey(t, server.URL, projectID, sessionCookie)
+	if status != http.StatusOK || rotatedProject.Data.PublicKey == "" || rotatedProject.Data.PublicKey == publicKey {
+		t.Fatalf("轮换 publicKey = status %d, response %#v", status, rotatedProject)
+	}
+	if rotatedProject.Data.ID != projectID || rotatedProject.Data.Name != updatedProjectName || !rotatedProject.Data.Enabled {
+		t.Fatalf("轮换 publicKey 改变了项目属性 = %#v", rotatedProject.Data)
+	}
+	rotatedPublicKey := rotatedProject.Data.PublicKey
+
+	oldKeyBatch := applicationBatch(projectID, publicKey, "old-key-"+suffix, now)
+	status, response = postTelemetryBatch(t, server.URL, oldKeyBatch)
+	if status != http.StatusForbidden || response.Error.Code != "INVALID_PUBLIC_KEY" {
+		t.Fatalf("旧 publicKey 上报结果 = status %d, code %q", status, response.Error.Code)
+	}
+
+	batch := applicationBatch(projectID, rotatedPublicKey, "normal-"+suffix, now)
 	status, response = postTelemetryBatch(t, server.URL, batch)
 	if status != http.StatusAccepted {
 		t.Fatalf("正常上报状态码 = %d, want %d, error = %q", status, http.StatusAccepted, response.Error.Code)
@@ -807,6 +835,40 @@ func patchApplicationProject(
 	var decoded applicationProjectResponse
 	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
 		t.Fatalf("解码更新项目响应失败: %v", err)
+	}
+
+	return response.StatusCode, decoded
+}
+
+func rotateApplicationProjectPublicKey(
+	t *testing.T,
+	serverURL string,
+	projectID string,
+	sessionCookie *http.Cookie,
+) (int, applicationProjectResponse) {
+	t.Helper()
+
+	request, err := http.NewRequest(
+		http.MethodPost,
+		serverURL+"/api/v1/projects/"+url.PathEscape(projectID)+"/public-key/rotate",
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("创建轮换 publicKey 请求失败: %v", err)
+	}
+	if sessionCookie != nil {
+		request.AddCookie(sessionCookie)
+	}
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("发送轮换 publicKey 请求失败: %v", err)
+	}
+	defer response.Body.Close()
+
+	var decoded applicationProjectResponse
+	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+		t.Fatalf("解码轮换 publicKey 响应失败: %v", err)
 	}
 
 	return response.StatusCode, decoded

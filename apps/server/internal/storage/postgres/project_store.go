@@ -128,6 +128,29 @@ func (s *ProjectStore) Update(
 	return s.Get(ctx, ownerUserID, projectID)
 }
 
+func (s *ProjectStore) RotatePublicKey(
+	ctx context.Context,
+	ownerUserID string,
+	projectID string,
+	publicKey string,
+) (projectdomain.Project, error) {
+	result := s.db.WithContext(ctx).
+		Model(&Project{}).
+		Where("id = ? AND owner_user_id = ?", projectID, ownerUserID).
+		Updates(map[string]any{
+			"public_key": publicKey,
+			"updated_at": time.Now().UTC(),
+		})
+	if result.Error != nil {
+		return projectdomain.Project{}, fmt.Errorf("rotate project public key: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return projectdomain.Project{}, projectdomain.ErrProjectNotFound
+	}
+
+	return s.Get(ctx, ownerUserID, projectID)
+}
+
 func (s *ProjectStore) Owns(ctx context.Context, ownerUserID, projectID string) (bool, error) {
 	var count int64
 	if err := s.db.WithContext(ctx).

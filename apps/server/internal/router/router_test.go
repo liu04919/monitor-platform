@@ -270,6 +270,37 @@ func TestProjectRoutesRequireSessionCookie(t *testing.T) {
 	if projectHandler.updateCalls != 1 {
 		t.Fatalf("project update handler calls = %d, want 1", projectHandler.updateCalls)
 	}
+
+	unauthorizedRotation := httptest.NewRecorder()
+	engine.ServeHTTP(
+		unauthorizedRotation,
+		httptest.NewRequest(
+			http.MethodPost,
+			"/api/v1/projects/project-1/public-key/rotate",
+			nil,
+		),
+	)
+	if unauthorizedRotation.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized rotation status = %d, want %d", unauthorizedRotation.Code, http.StatusUnauthorized)
+	}
+	if projectHandler.rotateCalls != 0 {
+		t.Fatalf("project rotate handler calls = %d, want 0", projectHandler.rotateCalls)
+	}
+
+	authorizedRotation := httptest.NewRecorder()
+	rotationRequest := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/projects/project-1/public-key/rotate",
+		nil,
+	)
+	rotationRequest.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: testSessionToken})
+	engine.ServeHTTP(authorizedRotation, rotationRequest)
+	if authorizedRotation.Code != http.StatusOK {
+		t.Fatalf("authorized rotation status = %d, want %d", authorizedRotation.Code, http.StatusOK)
+	}
+	if projectHandler.rotateCalls != 1 {
+		t.Fatalf("project rotate handler calls = %d, want 1", projectHandler.rotateCalls)
+	}
 }
 
 func newTestRouter(
@@ -314,6 +345,7 @@ type stubProjectHandler struct {
 	createCalls int
 	detailCalls int
 	updateCalls int
+	rotateCalls int
 }
 
 type stubAuthHandler struct {
@@ -360,6 +392,11 @@ func (h *stubProjectHandler) Detail(c *gin.Context) {
 
 func (h *stubProjectHandler) Update(c *gin.Context) {
 	h.updateCalls++
+	c.Status(http.StatusOK)
+}
+
+func (h *stubProjectHandler) RotatePublicKey(c *gin.Context) {
+	h.rotateCalls++
 	c.Status(http.StatusOK)
 }
 

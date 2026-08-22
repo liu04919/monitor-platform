@@ -59,6 +59,7 @@ type Store interface {
 	Get(ctx context.Context, ownerUserID, projectID string) (Project, error)
 	Create(ctx context.Context, project Project) error
 	Update(ctx context.Context, ownerUserID, projectID string, request UpdateRequest) (Project, error)
+	RotatePublicKey(ctx context.Context, ownerUserID, projectID, publicKey string) (Project, error)
 	Owns(ctx context.Context, ownerUserID, projectID string) (bool, error)
 }
 
@@ -191,6 +192,37 @@ func (s *Service) Update(
 			return Project{}, ErrProjectNotFound
 		}
 		return Project{}, fmt.Errorf("更新项目: %w", err)
+	}
+
+	return updatedProject, nil
+}
+
+func (s *Service) RotatePublicKey(
+	ctx context.Context,
+	ownerUserID string,
+	projectID string,
+) (Project, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return Project{}, ErrOwnerUserIDRequired
+	}
+
+	projectID = strings.TrimSpace(projectID)
+	if uuid.Validate(projectID) != nil {
+		return Project{}, ErrProjectNotFound
+	}
+
+	publicKey, err := s.generatePublicKey()
+	if err != nil {
+		return Project{}, fmt.Errorf("生成项目 publicKey: %w", err)
+	}
+
+	updatedProject, err := s.store.RotatePublicKey(ctx, ownerUserID, projectID, publicKey)
+	if err != nil {
+		if errors.Is(err, ErrProjectNotFound) {
+			return Project{}, ErrProjectNotFound
+		}
+		return Project{}, fmt.Errorf("轮换项目 publicKey: %w", err)
 	}
 
 	return updatedProject, nil

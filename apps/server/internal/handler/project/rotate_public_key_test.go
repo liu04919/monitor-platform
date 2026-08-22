@@ -17,26 +17,23 @@ import (
 	projectdomain "github.com/liu04919/monitor-platform/apps/server/internal/project"
 )
 
-func TestProjectDetailHandlerReturnsOwnedProjectWithPublicKey(t *testing.T) {
+func TestProjectHandlerRotatesPublicKey(t *testing.T) {
 	const projectID = "11111111-1111-4111-8111-111111111111"
-	createdAt := time.Date(2026, 8, 22, 1, 2, 3, 456_000_000, time.UTC)
-	service := &stubService{foundProject: projectdomain.Project{
+	createdAt := time.Date(2026, 8, 22, 1, 2, 3, 0, time.UTC)
+	service := &stubService{rotated: projectdomain.Project{
 		ProjectSummary: projectdomain.ProjectSummary{
-			ID:        projectID,
-			Name:      "Monitor Web",
-			Enabled:   true,
-			CreatedAt: createdAt,
+			ID: projectID, Name: "Monitor", Enabled: true, CreatedAt: createdAt,
 		},
 		OwnerUserID: "user-1",
-		PublicKey:   "pk_generated",
+		PublicKey:   "pk_new",
 	}}
 
-	recorder := performProjectDetailRequest(NewHandler(service), projectID)
+	recorder := performRotatePublicKeyRequest(NewHandler(service), projectID)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
-	if service.getCalls != 1 || service.ownerUserID != "user-1" || service.projectID != projectID {
-		t.Fatalf("service get = calls %d, owner %q, project %q", service.getCalls, service.ownerUserID, service.projectID)
+	if service.rotateCalls != 1 || service.ownerUserID != "user-1" || service.projectID != projectID {
+		t.Fatalf("service rotate = calls %d, owner %q, project %q", service.rotateCalls, service.ownerUserID, service.projectID)
 	}
 	if recorder.Header().Get("Cache-Control") != "no-store" {
 		t.Fatalf("Cache-Control = %q, want no-store", recorder.Header().Get("Cache-Control"))
@@ -46,12 +43,13 @@ func TestProjectDetailHandlerReturnsOwnedProjectWithPublicKey(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if response.Data.ID != projectID || response.Data.PublicKey != "pk_generated" || response.Data.CreatedAt != createdAt.UnixMilli() {
+	if response.Data.ID != projectID || response.Data.PublicKey != "pk_new" {
 		t.Fatalf("response = %#v", response.Data)
 	}
 }
 
-func TestProjectDetailHandlerMapsNotFoundAndInternalErrors(t *testing.T) {
+func TestProjectHandlerMapsRotatePublicKeyErrors(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
 	tests := []struct {
 		name       string
 		err        error
@@ -64,8 +62,8 @@ func TestProjectDetailHandlerMapsNotFoundAndInternalErrors(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			service := &stubService{getErr: test.err}
-			recorder := performProjectDetailRequest(NewHandler(service), "11111111-1111-4111-8111-111111111111")
+			service := &stubService{rotateErr: test.err}
+			recorder := performRotatePublicKeyRequest(NewHandler(service), projectID)
 			if recorder.Code != test.wantStatus {
 				t.Fatalf("status = %d, want %d", recorder.Code, test.wantStatus)
 			}
@@ -83,14 +81,18 @@ func TestProjectDetailHandlerMapsNotFoundAndInternalErrors(t *testing.T) {
 	}
 }
 
-func performProjectDetailRequest(handler *Handler, projectID string) *httptest.ResponseRecorder {
+func performRotatePublicKeyRequest(handler *Handler, projectID string) *httptest.ResponseRecorder {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	engine.Use(middleware.SessionAuth(stubAuthenticator{}))
-	engine.GET("/api/v1/projects/:projectId", handler.Detail)
+	engine.POST("/api/v1/projects/:projectId/public-key/rotate", handler.RotatePublicKey)
 
 	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/api/v1/projects/"+projectID, nil)
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/projects/"+projectID+"/public-key/rotate",
+		nil,
+	)
 	request.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: "session-token"})
 	engine.ServeHTTP(recorder, request)
 	return recorder

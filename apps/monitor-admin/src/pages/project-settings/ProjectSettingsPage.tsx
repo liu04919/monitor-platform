@@ -3,6 +3,7 @@ import { Alert, Badge, Button, CopyButton, Group, Paper, Skeleton, Text } from '
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 import { updateProject } from '@/features/projects/api/projectsApi'
+import { ProjectKeyRotation } from '@/features/projects/components/ProjectKeyRotation/ProjectKeyRotation'
 import { ProjectSDKConfig } from '@/features/projects/components/ProjectSDKConfig/ProjectSDKConfig'
 import { ProjectSettingsForm } from '@/features/projects/components/ProjectSettingsForm/ProjectSettingsForm'
 import { projectErrorMessage } from '@/features/projects/model/projectError'
@@ -126,6 +127,7 @@ export function ProjectSettingsPage() {
           <p>配置来自当前项目详情，可以随时回来复制，不需要重新创建项目。</p>
         </div>
         <ProjectSDKConfig project={project} />
+        <ProjectKeyRotation projectId={project.id} />
       </Paper>
     </section>
   )
