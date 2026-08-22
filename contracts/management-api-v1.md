@@ -86,6 +86,32 @@ Content-Type: application/json
 不暴露内部错误的 `500 INTERNAL_ERROR`。调用方提交 `id` 等未知字段会返回
 `400 MALFORMED_JSON`。
 
+## 项目详情
+
+```http
+GET /api/v1/projects/{projectId}
+```
+
+该接口用于当前项目的设置与 SDK 接入页。只有项目所有者可以读取；不存在、UUID 非法或属于其他
+用户的项目统一返回 `404 PROJECT_NOT_FOUND`，不会泄露项目是否存在。成功响应会重新返回
+`publicKey`：
+
+```json
+{
+  "data": {
+    "id": "7b5d9a2f-3c61-4e88-9f42-2d6b81a530c7",
+    "name": "Monitor Web",
+    "enabled": true,
+    "createdAt": 1787155200000,
+    "publicKey": "pk_generated_value"
+  }
+}
+```
+
+`publicKey` 是浏览器 SDK 的公开接入凭据，不是管理端 Session 或读取凭据。项目列表继续不返回
+该字段，详情接口则允许已登录的项目所有者随时重新复制 SDK 配置。数据库故障返回不暴露内部
+错误的 `500 INTERNAL_ERROR`。
+
 ## 事件列表
 
 ```http

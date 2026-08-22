@@ -15,6 +15,7 @@ import (
 
 const (
 	listProjectsSQL  = `SELECT "id","name","enabled","created_at" FROM "projects" WHERE owner_user_id = $1 ORDER BY created_at ASC,id ASC`
+	getProjectSQL    = `SELECT "id","owner_user_id","name","public_key","enabled","created_at" FROM "projects" WHERE id = $1 AND owner_user_id = $2 LIMIT $3`
 	insertProjectSQL = `INSERT INTO "projects" ("id","owner_user_id","name","public_key","enabled","created_at","updated_at") VALUES ($1,$2,$3,$4,$5,$6,$7)`
 )
 
@@ -47,6 +48,37 @@ func TestProjectStoreListPreservesDatabaseFailure(t *testing.T) {
 	_, err := NewProjectStore(database).List(context.Background(), "user-1")
 	if !errors.Is(err, databaseError) {
 		t.Fatalf("List() error = %v, want wrapped %v", err, databaseError)
+	}
+}
+
+func TestProjectStoreGetsOwnedProjectWithPublicKey(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	createdAt := time.Date(2026, 8, 22, 1, 2, 3, 0, time.UTC)
+	database, mock := newMockDatabase(t)
+	mock.ExpectQuery(regexp.QuoteMeta(getProjectSQL)).
+		WithArgs(projectID, "user-1", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "owner_user_id", "name", "public_key", "enabled", "created_at"}).
+			AddRow(projectID, "user-1", "Monitor Web", "pk_generated", true, createdAt))
+
+	foundProject, err := NewProjectStore(database).Get(context.Background(), "user-1", projectID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if foundProject.ID != projectID || foundProject.OwnerUserID != "user-1" || foundProject.PublicKey != "pk_generated" {
+		t.Fatalf("project = %#v", foundProject)
+	}
+}
+
+func TestProjectStoreHidesMissingOrUnownedProject(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	database, mock := newMockDatabase(t)
+	mock.ExpectQuery(regexp.QuoteMeta(getProjectSQL)).
+		WithArgs(projectID, "other-user", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "owner_user_id", "name", "public_key", "enabled", "created_at"}))
+
+	_, err := NewProjectStore(database).Get(context.Background(), "other-user", projectID)
+	if !errors.Is(err, projectdomain.ErrProjectNotFound) {
+		t.Fatalf("Get() error = %v, want %v", err, projectdomain.ErrProjectNotFound)
 	}
 }
 

@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Alert, Button, CopyButton, Group, Modal, Stack, Text, TextInput, Title } from '@mantine/core'
+import { Alert, Button, Group, Modal, Stack, Text, TextInput, Title } from '@mantine/core'
 import { useForm } from 'react-hook-form'
+import { ProjectSDKConfig } from '@/features/projects/components/ProjectSDKConfig/ProjectSDKConfig'
 import {
   createProjectSchema,
   type CreateProjectFormValues,
@@ -28,7 +29,6 @@ export function CreateProjectDialog({
     defaultValues: { name: '' },
     mode: 'onBlur',
   })
-  const sdkConfig = createdProject ? buildSDKConfig(createdProject) : ''
   const submit = form.handleSubmit((values) => onSubmit(values))
 
   return (
@@ -56,20 +56,7 @@ export function CreateProjectDialog({
           <Text className={styles.description}>
             项目已自动切换。把下面配置放进浏览器 SDK 初始化代码即可开始上报。
           </Text>
-          <Group justify="space-between">
-            <Text fw={700} size="sm">SDK 配置</Text>
-            <CopyButton value={sdkConfig} timeout={1_600}>
-              {({ copied, copy }) => (
-                <Button variant="default" size="compact-sm" onClick={copy}>
-                  {copied ? '已复制' : '复制配置'}
-                </Button>
-              )}
-            </CopyButton>
-          </Group>
-          <pre className={styles.config}><code>{sdkConfig}</code></pre>
-          <Text className={styles.boundary}>
-            publicKey 会出现在浏览器中，只能用于事件上报，不能读取管理数据。
-          </Text>
+          <ProjectSDKConfig project={createdProject} />
           <Button onClick={onClose}>完成</Button>
         </Stack>
       ) : (
@@ -100,17 +87,4 @@ export function CreateProjectDialog({
       )}
     </Modal>
   )
-}
-
-function buildSDKConfig(project: CreatedProject) {
-  return `createMonitor({
-  url: 'http://127.0.0.1:8080/api/v1/events/batch',
-  projectName: '${escapeJavaScriptString(project.name)}',
-  appId: '${escapeJavaScriptString(project.id)}',
-  publicKey: '${escapeJavaScriptString(project.publicKey)}',
-})`
-}
-
-function escapeJavaScriptString(value: string) {
-  return value.replaceAll('\\', '\\\\').replaceAll("'", "\\'")
 }

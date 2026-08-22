@@ -1,6 +1,6 @@
 # monitor-admin
 
-管理端实现账号注册、登录、退出，当前用户的项目创建/切换，以及原始事件列表和详情。暂不模拟 Workspace、事件聚合状态、环境筛选、项目编辑或删除。
+管理端实现账号注册、登录、退出，当前用户的项目创建/切换与 SDK 配置查看，以及原始事件列表和详情。暂不模拟 Workspace、事件聚合状态、环境筛选、项目编辑或删除。
 
 ## 本地启动
 
@@ -14,14 +14,15 @@ pnpm dev
 
 访问 `http://127.0.0.1:5174`。Vite 将同源 `/api` 请求代理到 `MONITOR_API_ORIGIN`，默认 `http://127.0.0.1:8080`；浏览器自动携带服务端设置的 HttpOnly Session Cookie，不存在前端管理 Token。
 
-新账号初次登录时会看到第一个项目引导。创建成功后页面只在当前流程展示一次 `publicKey`，项目列表不会再次返回该字段。
+新账号初次登录时会看到第一个项目引导。项目列表不返回 `publicKey`；项目所有者可以从受保护的
+项目设置页随时重新查看并复制 SDK 配置。
 
 ## 前端架构
 
 ```text
 src/
 ├─ app/       # Router、QueryClient 和全局 Provider
-├─ pages/     # 登录、注册、事件列表与详情路由页
+├─ pages/     # 登录、注册、项目设置、事件列表与详情路由页
 ├─ features/  # auth、projects、events 领域的 API、模型和组件
 ├─ widgets/   # AppShell 等跨页面布局
 ├─ shared/    # API 客户端、工具和基础 UI

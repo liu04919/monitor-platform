@@ -158,10 +158,24 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 		t.Fatalf("项目列表未返回测试项目 %q", projectID)
 	}
 
+	status, projectDetail := getApplicationProject(t, server.URL, projectID, nil)
+	if status != http.StatusUnauthorized || projectDetail.Error.Code != "UNAUTHENTICATED" {
+		t.Fatalf("无 Session 查询项目详情 = status %d, code %q", status, projectDetail.Error.Code)
+	}
+
+	status, projectDetail = getApplicationProject(t, server.URL, projectID, sessionCookie)
+	if status != http.StatusOK || projectDetail.Data.ID != projectID || projectDetail.Data.PublicKey != publicKey {
+		t.Fatalf("查询项目详情 = status %d, response %#v", status, projectDetail)
+	}
+
 	otherSessionCookie := assertApplicationAuthentication(t, server.URL, otherUserEmail)
 	status, otherProjects := getApplicationProjects(t, server.URL, otherSessionCookie)
 	if status != http.StatusOK || len(otherProjects.Data.Projects) != 0 {
 		t.Fatalf("其他用户项目列表 = status %d, projects %#v", status, otherProjects.Data.Projects)
+	}
+	status, otherProjectDetail := getApplicationProject(t, server.URL, projectID, otherSessionCookie)
+	if status != http.StatusNotFound || otherProjectDetail.Error.Code != "PROJECT_NOT_FOUND" {
+		t.Fatalf("其他用户跨项目读取详情 = status %d, code %q", status, otherProjectDetail.Error.Code)
 	}
 	status, otherUserEvents := getApplicationEvents(t, server.URL, projectID, otherSessionCookie, nil)
 	if status != http.StatusNotFound || otherUserEvents.Error.Code != "PROJECT_NOT_FOUND" {
@@ -625,6 +639,40 @@ func getApplicationProjects(
 	var decoded applicationProjectListResponse
 	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
 		t.Fatalf("解码项目列表响应失败: %v", err)
+	}
+
+	return response.StatusCode, decoded
+}
+
+func getApplicationProject(
+	t *testing.T,
+	serverURL string,
+	projectID string,
+	sessionCookie *http.Cookie,
+) (int, applicationProjectCreateResponse) {
+	t.Helper()
+
+	request, err := http.NewRequest(
+		http.MethodGet,
+		serverURL+"/api/v1/projects/"+url.PathEscape(projectID),
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("创建项目详情请求失败: %v", err)
+	}
+	if sessionCookie != nil {
+		request.AddCookie(sessionCookie)
+	}
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("发送项目详情请求失败: %v", err)
+	}
+	defer response.Body.Close()
+
+	var decoded applicationProjectCreateResponse
+	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+		t.Fatalf("解码项目详情响应失败: %v", err)
 	}
 
 	return response.StatusCode, decoded

@@ -86,12 +86,27 @@ type stubProjectService struct {
 	createCalls   int
 	createRequest project.CreateRequest
 	ownerUserID   string
+	foundProject  project.Project
+	getErr        error
+	getCalls      int
+	projectID     string
 }
 
 func (s *stubProjectService) List(_ context.Context, ownerUserID string) ([]project.ProjectSummary, error) {
 	s.calls++
 	s.ownerUserID = ownerUserID
 	return s.projects, s.err
+}
+
+func (s *stubProjectService) Get(
+	_ context.Context,
+	ownerUserID string,
+	projectID string,
+) (project.Project, error) {
+	s.getCalls++
+	s.ownerUserID = ownerUserID
+	s.projectID = projectID
+	return s.foundProject, s.getErr
 }
 
 func (s *stubProjectService) Create(

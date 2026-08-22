@@ -44,6 +44,64 @@ func TestServiceListWrapsStoreError(t *testing.T) {
 	}
 }
 
+func TestServiceGetReturnsOwnedProject(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	createdAt := time.Date(2026, 8, 22, 1, 2, 3, 0, time.UTC)
+	store := &stubStore{foundProject: Project{
+		ProjectSummary: ProjectSummary{
+			ID:        projectID,
+			Name:      "Monitor Web",
+			Enabled:   true,
+			CreatedAt: createdAt,
+		},
+		OwnerUserID: "user-1",
+		PublicKey:   "pk_generated",
+	}}
+
+	foundProject, err := NewService(store).Get(context.Background(), " user-1 ", " "+projectID+" ")
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if store.getCalls != 1 || store.ownerUserID != "user-1" || store.projectID != projectID {
+		t.Fatalf("store get = calls %d, owner %q, project %q", store.getCalls, store.ownerUserID, store.projectID)
+	}
+	if foundProject != store.foundProject {
+		t.Fatalf("project = %#v, want %#v", foundProject, store.foundProject)
+	}
+}
+
+func TestServiceGetHidesInvalidAndMissingProject(t *testing.T) {
+	store := &stubStore{}
+	_, err := NewService(store).Get(context.Background(), "user-1", "caller-chosen-id")
+	if !errors.Is(err, ErrProjectNotFound) || store.getCalls != 0 {
+		t.Fatalf("invalid project error = %v, store calls = %d", err, store.getCalls)
+	}
+
+	store.getErr = ErrProjectNotFound
+	_, err = NewService(store).Get(
+		context.Background(),
+		"user-1",
+		"11111111-1111-4111-8111-111111111111",
+	)
+	if !errors.Is(err, ErrProjectNotFound) {
+		t.Fatalf("missing project error = %v, want %v", err, ErrProjectNotFound)
+	}
+}
+
+func TestServiceGetWrapsStoreError(t *testing.T) {
+	storeError := errors.New("postgres unavailable")
+	store := &stubStore{getErr: storeError}
+
+	_, err := NewService(store).Get(
+		context.Background(),
+		"user-1",
+		"11111111-1111-4111-8111-111111111111",
+	)
+	if !errors.Is(err, storeError) {
+		t.Fatalf("Get() error = %v, want wrapped %v", err, storeError)
+	}
+}
+
 func TestServiceCreateValidatesAndBuildsProject(t *testing.T) {
 	const generatedProjectID = "11111111-1111-4111-8111-111111111111"
 	createdAt := time.Date(2026, 8, 20, 1, 2, 3, 0, time.UTC)
@@ -236,12 +294,23 @@ type stubStore struct {
 	owns           bool
 	ownsErr        error
 	ownsCalls      int
+	foundProject   Project
+	getErr         error
+	getCalls       int
+	projectID      string
 }
 
 func (s *stubStore) List(_ context.Context, ownerUserID string) ([]ProjectSummary, error) {
 	s.calls++
 	s.ownerUserID = ownerUserID
 	return s.projects, s.err
+}
+
+func (s *stubStore) Get(_ context.Context, ownerUserID, projectID string) (Project, error) {
+	s.getCalls++
+	s.ownerUserID = ownerUserID
+	s.projectID = projectID
+	return s.foundProject, s.getErr
 }
 
 func (s *stubStore) Owns(_ context.Context, ownerUserID, _ string) (bool, error) {

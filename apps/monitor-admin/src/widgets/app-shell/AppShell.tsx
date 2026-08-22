@@ -10,7 +10,7 @@ import { CreateProjectDialog } from '@/features/projects/components/CreateProjec
 import { ProjectSwitcher } from '@/features/projects/components/ProjectSwitcher/ProjectSwitcher'
 import { projectsQueryKey, projectsQueryOptions } from '@/features/projects/model/projectQueries'
 import type { CreatedProject, ProjectListData } from '@/features/projects/model/projectTypes'
-import { ChevronIcon, EventsIcon, PulseIcon } from '@/shared/ui/icons/Icons'
+import { ChevronIcon, EventsIcon, PulseIcon, SettingsIcon } from '@/shared/ui/icons/Icons'
 import { useAdminStore } from '@/store/adminStore'
 import styles from './AppShell.module.css'
 
@@ -26,6 +26,7 @@ export function AppShell() {
   const projects = useMemo(() => projectsQuery.data?.projects || [], [projectsQuery.data?.projects])
   const selectedProject = projects.find((project) => project.id === projectId)
   const detailMatch = useMatch('/events/:eventId')
+  const settingsMatch = useMatch('/projects/:projectId/settings')
   const navigate = useNavigate()
   const createMutation = useMutation({
     mutationFn: createProject,
@@ -98,6 +99,15 @@ export function AppShell() {
             <EventsIcon />
             <span>事件流</span>
           </NavLink>
+          {projectId ? (
+            <NavLink
+              to={`/projects/${projectId}/settings`}
+              className={({ isActive }) => (isActive ? styles.active : undefined)}
+            >
+              <SettingsIcon />
+              <span>项目设置</span>
+            </NavLink>
+          ) : null}
         </nav>
         <div className={styles.sidebarFoot}>
           <span className={styles.connectionDot} />
@@ -120,6 +130,7 @@ export function AppShell() {
           <nav aria-label="面包屑">
             <NavLink to="/events">事件流</NavLink>
             {detailMatch ? <><ChevronIcon /><span>事件详情</span></> : null}
+            {settingsMatch ? <><ChevronIcon /><span>项目设置</span></> : null}
           </nav>
           <div className={styles.projectChip} title={projectId}>
             <span />

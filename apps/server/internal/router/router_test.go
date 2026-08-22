@@ -224,6 +224,29 @@ func TestProjectRoutesRequireSessionCookie(t *testing.T) {
 	if projectListHandler.createCalls != 1 {
 		t.Fatalf("project create handler calls = %d, want 1", projectListHandler.createCalls)
 	}
+
+	unauthorizedDetail := httptest.NewRecorder()
+	engine.ServeHTTP(
+		unauthorizedDetail,
+		httptest.NewRequest(http.MethodGet, "/api/v1/projects/project-1", nil),
+	)
+	if unauthorizedDetail.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized detail status = %d, want %d", unauthorizedDetail.Code, http.StatusUnauthorized)
+	}
+	if projectListHandler.detailCalls != 0 {
+		t.Fatalf("project detail handler calls = %d, want 0", projectListHandler.detailCalls)
+	}
+
+	authorizedDetail := httptest.NewRecorder()
+	detailRequest := httptest.NewRequest(http.MethodGet, "/api/v1/projects/project-1", nil)
+	detailRequest.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: testSessionToken})
+	engine.ServeHTTP(authorizedDetail, detailRequest)
+	if authorizedDetail.Code != http.StatusOK {
+		t.Fatalf("authorized detail status = %d, want %d", authorizedDetail.Code, http.StatusOK)
+	}
+	if projectListHandler.detailCalls != 1 {
+		t.Fatalf("project detail handler calls = %d, want 1", projectListHandler.detailCalls)
+	}
 }
 
 func newTestRouter(
@@ -266,6 +289,7 @@ type stubEventListHandler struct {
 type stubProjectListHandler struct {
 	calls       int
 	createCalls int
+	detailCalls int
 }
 
 type stubAuthHandler struct {
@@ -303,6 +327,11 @@ func (h *stubProjectListHandler) List(c *gin.Context) {
 func (h *stubProjectListHandler) Create(c *gin.Context) {
 	h.createCalls++
 	c.Status(http.StatusCreated)
+}
+
+func (h *stubProjectListHandler) Detail(c *gin.Context) {
+	h.detailCalls++
+	c.Status(http.StatusOK)
 }
 
 func (h *stubEventListHandler) Detail(c *gin.Context) {

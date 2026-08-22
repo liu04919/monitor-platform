@@ -35,7 +35,8 @@ pnpm --dir apps/monitor-admin install
 pnpm --dir apps/monitor-admin dev
 ```
 
-访问 `http://127.0.0.1:5174`，注册并登录，然后创建第一个项目。创建响应只展示一次 SDK `publicKey`。
+访问 `http://127.0.0.1:5174`，注册并登录，然后创建第一个项目。项目设置页可以随时重新查看并复制
+当前项目的 SDK 配置。
 
 ## 启动浏览器 SDK Demo
 

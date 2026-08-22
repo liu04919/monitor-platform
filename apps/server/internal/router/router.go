@@ -21,6 +21,7 @@ type EventQueryHandler interface {
 
 type ProjectHandler interface {
 	List(c *gin.Context)
+	Detail(c *gin.Context)
 	Create(c *gin.Context)
 }
 
@@ -61,6 +62,7 @@ func New(
 	projects.Use(middleware.SessionAuth(sessionAuthenticator))
 	projects.GET("", projectHandler.List)
 	projects.POST("", projectHandler.Create)
+	projects.GET("/:projectId", projectHandler.Detail)
 	projects.GET("/:projectId/events", eventQueryHandler.List)
 	projects.GET("/:projectId/events/:eventId", eventQueryHandler.Detail)
 

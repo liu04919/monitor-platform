@@ -28,7 +28,7 @@ const createdProjectId = '33333333-3333-4333-8333-333333333333'
 
 function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
   const url = String(input)
-  const projectId = url.includes(`/projects/${secondProjectId}/`) ? secondProjectId : primaryProjectId
+  const projectId = url.includes(secondProjectId) ? secondProjectId : primaryProjectId
   if (init?.method === 'DELETE' && url.endsWith('/auth/logout')) {
     return Promise.resolve({ ok: true, status: 204 } as Response)
   }
@@ -49,6 +49,14 @@ function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
           { id: primaryProjectId, name: 'Monitor Local', enabled: true, createdAt: 1_787_068_700_000 },
           { id: secondProjectId, name: 'Project Two', enabled: true, createdAt: 1_787_068_800_000 },
         ],
+      }
+    : url.endsWith(`/projects/${projectId}`)
+    ? {
+        id: projectId,
+        name: projectId === secondProjectId ? 'Project Two' : 'Monitor Local',
+        enabled: true,
+        createdAt: 1_787_068_800_000,
+        publicKey: projectId === secondProjectId ? 'pk_project_two' : 'pk_monitor_local',
       }
     : url.endsWith('/events/event-1')
     ? {
@@ -165,6 +173,19 @@ describe('admin event routes', () => {
 
     expect(await screen.findByText('请输入项目名称')).toBeInTheDocument()
     expect(fetchMock.mock.calls.every(([, init]) => init?.method !== 'POST')).toBe(true)
+  })
+
+  it('通过受保护的项目详情重新展示 SDK 配置', async () => {
+    const fetchMock = vi.fn(successfulFetch)
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute(`/projects/${secondProjectId}/settings`)
+
+    expect(await screen.findByRole('heading', { name: '项目设置' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Project Two' })).toBeInTheDocument()
+    expect(screen.getByText(/publicKey: 'pk_project_two'/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '复制配置' })).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith(`/projects/${secondProjectId}`))).toBe(true)
+    await waitFor(() => expect(useAdminStore.getState().projectId).toBe(secondProjectId))
   })
 
   it('在登录状态失效时跳转到登录页', async () => {

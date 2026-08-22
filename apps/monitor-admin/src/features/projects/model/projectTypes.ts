@@ -13,6 +13,8 @@ export interface CreateProjectInput {
   name: string
 }
 
-export interface CreatedProject extends ProjectSummary {
+export interface ProjectDetail extends ProjectSummary {
   publicKey: string
 }
+
+export type CreatedProject = ProjectDetail

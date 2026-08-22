@@ -12,6 +12,7 @@ import (
 
 type ProjectService interface {
 	List(ctx context.Context, ownerUserID string) ([]project.ProjectSummary, error)
+	Get(ctx context.Context, ownerUserID, projectID string) (project.Project, error)
 	Create(ctx context.Context, ownerUserID string, request project.CreateRequest) (project.Project, error)
 }
 

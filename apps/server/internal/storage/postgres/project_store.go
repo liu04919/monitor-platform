@@ -49,6 +49,32 @@ func (s *ProjectStore) List(ctx context.Context, ownerUserID string) ([]projectd
 	return projects, nil
 }
 
+func (s *ProjectStore) Get(ctx context.Context, ownerUserID, projectID string) (projectdomain.Project, error) {
+	var record Project
+	result := s.db.WithContext(ctx).
+		Select("id", "owner_user_id", "name", "public_key", "enabled", "created_at").
+		Where("id = ? AND owner_user_id = ?", projectID, ownerUserID).
+		Limit(1).
+		Find(&record)
+	if result.Error != nil {
+		return projectdomain.Project{}, fmt.Errorf("query project detail: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return projectdomain.Project{}, projectdomain.ErrProjectNotFound
+	}
+
+	return projectdomain.Project{
+		ProjectSummary: projectdomain.ProjectSummary{
+			ID:        record.ID,
+			Name:      record.Name,
+			Enabled:   record.Enabled,
+			CreatedAt: record.CreatedAt,
+		},
+		OwnerUserID: record.OwnerUserID,
+		PublicKey:   record.PublicKey,
+	}, nil
+}
+
 func (s *ProjectStore) Create(ctx context.Context, project projectdomain.Project) error {
 	record := Project{
 		ID:          project.ID,

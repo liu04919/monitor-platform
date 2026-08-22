@@ -1,0 +1,118 @@
+.page {
+  width: min(1040px, calc(100% - clamp(36px, 6vw, 88px)));
+  margin: 0 auto;
+  padding: 38px 0 64px;
+}
+
+.heading {
+  margin-bottom: 26px;
+}
+
+.heading p,
+.label {
+  margin: 0 0 7px;
+  color: var(--blue);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.heading h1 {
+  margin: 0;
+  color: #101725;
+  font-size: 30px;
+  font-weight: 740;
+  letter-spacing: -0.035em;
+}
+
+.heading span,
+.sdkHeading p {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.projectCard,
+.sdkCard {
+  padding: 24px;
+  background: white;
+  box-shadow: 0 6px 24px rgb(28 41 60 / 3%);
+}
+
+.sdkCard {
+  margin-top: 18px;
+}
+
+.cardHeading {
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.cardHeading h2,
+.sdkHeading h2 {
+  margin: 0;
+  color: #182235;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.metadata {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 20px;
+  padding-top: 20px;
+}
+
+.metadata > div:last-child {
+  grid-column: 1 / -1;
+}
+
+.metadata code {
+  display: block;
+  overflow-wrap: anywhere;
+  color: #4d5b70;
+  font: 12px/1.6 "Cascadia Code", Consolas, monospace;
+}
+
+.metadata button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.sdkHeading {
+  margin-bottom: 22px;
+}
+
+.sdkHeading p {
+  margin-bottom: 0;
+}
+
+@media (max-width: 760px) {
+  .page {
+    width: calc(100% - 28px);
+    padding-top: 27px;
+  }
+
+  .projectCard,
+  .sdkCard {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 520px) {
+  .metadata {
+    grid-template-columns: 1fr;
+  }
+
+  .metadata > div:last-child {
+    grid-column: auto;
+  }
+
+  .metadata button {
+    width: fit-content;
+  }
+}

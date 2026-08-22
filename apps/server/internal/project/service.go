@@ -22,6 +22,7 @@ const (
 var (
 	ErrInvalidProjectName  = errors.New("invalid project name")
 	ErrProjectIDCollision  = errors.New("generated project ID collided")
+	ErrProjectNotFound     = errors.New("project not found")
 	ErrOwnerUserIDRequired = errors.New("owner user ID is required")
 )
 
@@ -49,6 +50,7 @@ type CreateRequest struct {
 // Store 在控制面存储中查询和创建项目。
 type Store interface {
 	List(ctx context.Context, ownerUserID string) ([]ProjectSummary, error)
+	Get(ctx context.Context, ownerUserID, projectID string) (Project, error)
 	Create(ctx context.Context, project Project) error
 	Owns(ctx context.Context, ownerUserID, projectID string) (bool, error)
 }
@@ -81,6 +83,29 @@ func (s *Service) List(ctx context.Context, ownerUserID string) ([]ProjectSummar
 	}
 
 	return projects, nil
+}
+
+// Get 返回当前用户拥有的项目详情，包括浏览器 SDK 所需的 publicKey。
+func (s *Service) Get(ctx context.Context, ownerUserID, projectID string) (Project, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return Project{}, ErrOwnerUserIDRequired
+	}
+
+	projectID = strings.TrimSpace(projectID)
+	if uuid.Validate(projectID) != nil {
+		return Project{}, ErrProjectNotFound
+	}
+
+	foundProject, err := s.store.Get(ctx, ownerUserID, projectID)
+	if err != nil {
+		if errors.Is(err, ErrProjectNotFound) {
+			return Project{}, ErrProjectNotFound
+		}
+		return Project{}, fmt.Errorf("查询项目详情: %w", err)
+	}
+
+	return foundProject, nil
 }
 
 func (s *Service) Create(ctx context.Context, ownerUserID string, request CreateRequest) (Project, error) {
