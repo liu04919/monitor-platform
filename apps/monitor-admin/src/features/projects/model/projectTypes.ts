@@ -13,6 +13,11 @@ export interface CreateProjectInput {
   name: string
 }
 
+export interface UpdateProjectInput {
+  name?: string
+  enabled?: boolean
+}
+
 export interface ProjectDetail extends ProjectSummary {
   publicKey: string
 }

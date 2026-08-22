@@ -20,6 +20,10 @@ type stubService struct {
 	getErr        error
 	getCalls      int
 	projectID     string
+	updated       projectdomain.Project
+	updateErr     error
+	updateCalls   int
+	updateRequest projectdomain.UpdateRequest
 }
 
 func (s *stubService) List(_ context.Context, ownerUserID string) ([]projectdomain.ProjectSummary, error) {
@@ -48,6 +52,19 @@ func (s *stubService) Create(
 	s.ownerUserID = ownerUserID
 	s.createRequest = request
 	return s.created, s.createErr
+}
+
+func (s *stubService) Update(
+	_ context.Context,
+	ownerUserID string,
+	projectID string,
+	request projectdomain.UpdateRequest,
+) (projectdomain.Project, error) {
+	s.updateCalls++
+	s.ownerUserID = ownerUserID
+	s.projectID = projectID
+	s.updateRequest = request
+	return s.updated, s.updateErr
 }
 
 type stubAuthenticator struct{}

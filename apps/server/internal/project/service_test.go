@@ -230,6 +230,101 @@ func TestServiceCreateRetriesGeneratedIDCollision(t *testing.T) {
 	}
 }
 
+func TestServiceUpdateNormalizesAndUpdatesOwnedProject(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	name := " Monitor Web "
+	enabled := false
+	store := &stubStore{updatedProject: Project{
+		ProjectSummary: ProjectSummary{ID: projectID, Name: "Monitor Web", Enabled: false},
+		OwnerUserID:    "user-1",
+		PublicKey:      "pk_generated",
+	}}
+
+	updatedProject, err := NewService(store).Update(
+		context.Background(),
+		" user-1 ",
+		" "+projectID+" ",
+		UpdateRequest{Name: &name, Enabled: &enabled},
+	)
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if store.updateCalls != 1 || store.ownerUserID != "user-1" || store.projectID != projectID {
+		t.Fatalf("store update = calls %d, owner %q, project %q", store.updateCalls, store.ownerUserID, store.projectID)
+	}
+	if store.updateRequest.Name == nil || *store.updateRequest.Name != "Monitor Web" {
+		t.Fatalf("update request name = %#v", store.updateRequest.Name)
+	}
+	if store.updateRequest.Enabled == nil || *store.updateRequest.Enabled {
+		t.Fatalf("update request enabled = %#v", store.updateRequest.Enabled)
+	}
+	if updatedProject != store.updatedProject {
+		t.Fatalf("updated project = %#v, want %#v", updatedProject, store.updatedProject)
+	}
+}
+
+func TestServiceUpdateValidatesBeforeStore(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	emptyName := "  "
+	longName := strings.Repeat("中", maxProjectFieldLength+1)
+	tests := []struct {
+		name        string
+		ownerUserID string
+		projectID   string
+		request     UpdateRequest
+		wantErr     error
+	}{
+		{name: "缺少用户", projectID: projectID, request: UpdateRequest{Enabled: boolPointer(false)}, wantErr: ErrOwnerUserIDRequired},
+		{name: "项目 ID 无效", ownerUserID: "user-1", projectID: "caller-chosen-id", request: UpdateRequest{Enabled: boolPointer(false)}, wantErr: ErrProjectNotFound},
+		{name: "没有更新字段", ownerUserID: "user-1", projectID: projectID, wantErr: ErrNoProjectUpdates},
+		{name: "名称为空", ownerUserID: "user-1", projectID: projectID, request: UpdateRequest{Name: &emptyName}, wantErr: ErrInvalidProjectName},
+		{name: "名称超长", ownerUserID: "user-1", projectID: projectID, request: UpdateRequest{Name: &longName}, wantErr: ErrInvalidProjectName},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := &stubStore{}
+			_, err := NewService(store).Update(
+				context.Background(),
+				test.ownerUserID,
+				test.projectID,
+				test.request,
+			)
+			if !errors.Is(err, test.wantErr) || store.updateCalls != 0 {
+				t.Fatalf("Update() error = %v, want %v, store calls = %d", err, test.wantErr, store.updateCalls)
+			}
+		})
+	}
+}
+
+func TestServiceUpdateMapsStoreErrors(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	enabled := false
+
+	store := &stubStore{updateErr: ErrProjectNotFound}
+	_, err := NewService(store).Update(
+		context.Background(),
+		"user-1",
+		projectID,
+		UpdateRequest{Enabled: &enabled},
+	)
+	if !errors.Is(err, ErrProjectNotFound) {
+		t.Fatalf("Update() not found error = %v, want %v", err, ErrProjectNotFound)
+	}
+
+	storeError := errors.New("postgres unavailable")
+	store = &stubStore{updateErr: storeError}
+	_, err = NewService(store).Update(
+		context.Background(),
+		"user-1",
+		projectID,
+		UpdateRequest{Enabled: &enabled},
+	)
+	if !errors.Is(err, storeError) {
+		t.Fatalf("Update() error = %v, want wrapped %v", err, storeError)
+	}
+}
+
 func TestServiceCanAccessUsesProjectOwnership(t *testing.T) {
 	const projectID = "11111111-1111-4111-8111-111111111111"
 	store := &stubStore{owns: true}
@@ -298,6 +393,10 @@ type stubStore struct {
 	getErr         error
 	getCalls       int
 	projectID      string
+	updatedProject Project
+	updateRequest  UpdateRequest
+	updateErr      error
+	updateCalls    int
 }
 
 func (s *stubStore) List(_ context.Context, ownerUserID string) ([]ProjectSummary, error) {
@@ -323,4 +422,21 @@ func (s *stubStore) Create(_ context.Context, project Project) error {
 	s.createCalls++
 	s.createdProject = project
 	return s.createErr
+}
+
+func (s *stubStore) Update(
+	_ context.Context,
+	ownerUserID string,
+	projectID string,
+	request UpdateRequest,
+) (Project, error) {
+	s.updateCalls++
+	s.ownerUserID = ownerUserID
+	s.projectID = projectID
+	s.updateRequest = request
+	return s.updatedProject, s.updateErr
+}
+
+func boolPointer(value bool) *bool {
+	return &value
 }

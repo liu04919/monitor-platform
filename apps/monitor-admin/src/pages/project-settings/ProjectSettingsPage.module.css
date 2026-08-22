@@ -27,6 +27,7 @@
 }
 
 .heading span,
+.settingsHeading p,
 .sdkHeading p {
   display: block;
   margin-top: 8px;
@@ -36,12 +37,14 @@
 }
 
 .projectCard,
+.settingsCard,
 .sdkCard {
   padding: 24px;
   background: white;
   box-shadow: 0 6px 24px rgb(28 41 60 / 3%);
 }
 
+.settingsCard,
 .sdkCard {
   margin-top: 18px;
 }
@@ -52,6 +55,7 @@
 }
 
 .cardHeading h2,
+.settingsHeading h2,
 .sdkHeading h2 {
   margin: 0;
   color: #182235;
@@ -83,10 +87,12 @@
   height: 14px;
 }
 
+.settingsHeading,
 .sdkHeading {
   margin-bottom: 22px;
 }
 
+.settingsHeading p,
 .sdkHeading p {
   margin-bottom: 0;
 }
@@ -98,6 +104,7 @@
   }
 
   .projectCard,
+  .settingsCard,
   .sdkCard {
     padding: 18px;
   }

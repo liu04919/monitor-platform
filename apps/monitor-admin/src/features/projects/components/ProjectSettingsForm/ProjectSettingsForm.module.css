@@ -1,0 +1,20 @@
+.form {
+  margin-top: 20px;
+}
+
+.actions {
+  min-height: 36px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 520px) {
+  .actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .actions button {
+    width: 100%;
+  }
+}

@@ -132,3 +132,60 @@ func TestProjectStoreMapsDuplicateID(t *testing.T) {
 		t.Fatalf("Create() error = %v, want %v", err, projectdomain.ErrProjectIDCollision)
 	}
 }
+
+func TestProjectStoreUpdatesOwnedProject(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	database, mock := newMockDatabase(t)
+	createdAt := time.Date(2026, 8, 22, 1, 2, 3, 0, time.UTC)
+	name := "Renamed Project"
+	enabled := false
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(
+		`UPDATE "projects" SET "enabled"=$1,"name"=$2,"updated_at"=$3 WHERE id = $4 AND owner_user_id = $5`,
+	)).
+		WithArgs(false, name, sqlmock.AnyArg(), projectID, "user-1").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	mock.ExpectQuery(regexp.QuoteMeta(getProjectSQL)).
+		WithArgs(projectID, "user-1", 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "owner_user_id", "name", "public_key", "enabled", "created_at"}).
+			AddRow(projectID, "user-1", name, "pk_generated", false, createdAt))
+
+	updatedProject, err := NewProjectStore(database).Update(
+		context.Background(),
+		"user-1",
+		projectID,
+		projectdomain.UpdateRequest{Name: &name, Enabled: &enabled},
+	)
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if updatedProject.Name != name || updatedProject.Enabled || updatedProject.PublicKey != "pk_generated" {
+		t.Fatalf("updated project = %#v", updatedProject)
+	}
+}
+
+func TestProjectStoreHidesMissingOrUnownedUpdate(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	database, mock := newMockDatabase(t)
+	enabled := false
+
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta(
+		`UPDATE "projects" SET "enabled"=$1,"updated_at"=$2 WHERE id = $3 AND owner_user_id = $4`,
+	)).
+		WithArgs(false, sqlmock.AnyArg(), projectID, "other-user").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectCommit()
+
+	_, err := NewProjectStore(database).Update(
+		context.Background(),
+		"other-user",
+		projectID,
+		projectdomain.UpdateRequest{Enabled: &enabled},
+	)
+	if !errors.Is(err, projectdomain.ErrProjectNotFound) {
+		t.Fatalf("Update() error = %v, want %v", err, projectdomain.ErrProjectNotFound)
+	}
+}

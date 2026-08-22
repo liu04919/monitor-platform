@@ -3,6 +3,10 @@ import { getProject, listProjects } from '@/features/projects/api/projectsApi'
 
 export const projectsQueryKey = ['projects'] as const
 
+export function projectDetailQueryKey(projectId: string) {
+  return [...projectsQueryKey, projectId] as const
+}
+
 export function projectsQueryOptions() {
   return queryOptions({
     queryKey: projectsQueryKey,
@@ -13,7 +17,7 @@ export function projectsQueryOptions() {
 
 export function projectDetailQueryOptions(projectId: string) {
   return queryOptions({
-    queryKey: [...projectsQueryKey, projectId] as const,
+    queryKey: projectDetailQueryKey(projectId),
     queryFn: ({ signal }) => getProject(projectId, signal),
     enabled: Boolean(projectId),
     staleTime: 30_000,

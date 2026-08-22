@@ -33,6 +33,9 @@ function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
     return Promise.resolve({ ok: true, status: 204 } as Response)
   }
 
+  const updateBody = init?.method === 'PATCH' && init.body
+    ? JSON.parse(String(init.body)) as { name: string; enabled: boolean }
+    : undefined
   const data = url.endsWith('/auth/me') || url.endsWith('/auth/login') || url.endsWith('/auth/register')
     ? { id: 'user-1', email: 'user@example.com', createdAt: 1_787_068_600_000 }
     : init?.method === 'POST' && url.endsWith('/projects')
@@ -42,6 +45,14 @@ function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
         enabled: true,
         createdAt: 1_787_068_900_000,
         publicKey: 'pk_created',
+      }
+    : init?.method === 'PATCH' && url.endsWith(`/projects/${projectId}`)
+    ? {
+        id: projectId,
+        name: updateBody?.name || 'Monitor Local',
+        enabled: updateBody?.enabled ?? true,
+        createdAt: 1_787_068_800_000,
+        publicKey: projectId === secondProjectId ? 'pk_project_two' : 'pk_monitor_local',
       }
     : url.endsWith('/projects')
     ? {
@@ -186,6 +197,45 @@ describe('admin event routes', () => {
     expect(screen.getByRole('button', { name: '复制配置' })).toBeInTheDocument()
     expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith(`/projects/${secondProjectId}`))).toBe(true)
     await waitFor(() => expect(useAdminStore.getState().projectId).toBe(secondProjectId))
+  })
+
+  it('在项目设置页修改名称并停用 SDK 上报', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn(successfulFetch)
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute(`/projects/${secondProjectId}/settings`)
+
+    const nameInput = await screen.findByRole('textbox', { name: '项目名称' })
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Renamed Project')
+    await user.click(screen.getByRole('switch', { name: /允许 SDK 上报/ }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('项目将停止接收新事件')
+    await user.click(screen.getByRole('button', { name: '保存设置' }))
+
+    const updateCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')
+    expect(updateCall?.[0]).toBe(`/api/v1/projects/${secondProjectId}`)
+    expect(JSON.parse(String(updateCall?.[1]?.body))).toEqual({
+      name: 'Renamed Project',
+      enabled: false,
+    })
+    expect(await screen.findByRole('heading', { name: 'Renamed Project' })).toBeInTheDocument()
+    expect(screen.getByText('已停用')).toBeInTheDocument()
+    expect(screen.getByText('设置已保存')).toBeInTheDocument()
+  })
+
+  it('项目设置由 Zod 在请求前校验名称', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn(successfulFetch)
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute(`/projects/${secondProjectId}/settings`)
+
+    const nameInput = await screen.findByRole('textbox', { name: '项目名称' })
+    await user.clear(nameInput)
+    await user.click(screen.getByRole('button', { name: '保存设置' }))
+
+    expect(await screen.findByText('请输入项目名称')).toBeInTheDocument()
+    expect(fetchMock.mock.calls.every(([, init]) => init?.method !== 'PATCH')).toBe(true)
   })
 
   it('在登录状态失效时跳转到登录页', async () => {

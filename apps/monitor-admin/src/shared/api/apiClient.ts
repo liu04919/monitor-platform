@@ -43,6 +43,18 @@ export async function postJSON<T>(path: string, body: unknown, signal?: AbortSig
   })
 }
 
+export async function patchJSON<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  return requestJSON<T>(path, {
+    method: 'PATCH',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+    signal,
+  })
+}
+
 export async function deleteRequest(path: string, signal?: AbortSignal): Promise<void> {
   await requestJSON<void>(path, {
     method: 'DELETE',

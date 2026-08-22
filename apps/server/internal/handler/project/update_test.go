@@ -1,0 +1,150 @@
+package project
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gin-gonic/gin"
+
+	"github.com/liu04919/monitor-platform/apps/server/internal/auth"
+	"github.com/liu04919/monitor-platform/apps/server/internal/httpapi"
+	"github.com/liu04919/monitor-platform/apps/server/internal/middleware"
+	projectdomain "github.com/liu04919/monitor-platform/apps/server/internal/project"
+)
+
+func TestProjectHandlerUpdatesProject(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	createdAt := time.Date(2026, 8, 22, 1, 2, 3, 0, time.UTC)
+	service := &stubService{updated: projectdomain.Project{
+		ProjectSummary: projectdomain.ProjectSummary{
+			ID: projectID, Name: "Renamed Project", Enabled: false, CreatedAt: createdAt,
+		},
+		OwnerUserID: "user-1",
+		PublicKey:   "pk_generated",
+	}}
+
+	recorder := performProjectUpdateRequest(
+		NewHandler(service),
+		projectID,
+		`{"name":"Renamed Project","enabled":false}`,
+		"application/json; charset=utf-8",
+	)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusOK, recorder.Body.String())
+	}
+	if service.updateCalls != 1 || service.ownerUserID != "user-1" || service.projectID != projectID {
+		t.Fatalf("service update = calls %d, owner %q, project %q", service.updateCalls, service.ownerUserID, service.projectID)
+	}
+	if service.updateRequest.Name == nil || *service.updateRequest.Name != "Renamed Project" ||
+		service.updateRequest.Enabled == nil || *service.updateRequest.Enabled {
+		t.Fatalf("service update request = %#v", service.updateRequest)
+	}
+
+	var response projectDetailEnvelope
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response.Data.Name != "Renamed Project" || response.Data.Enabled || response.Data.PublicKey != "pk_generated" {
+		t.Fatalf("response = %#v", response.Data)
+	}
+}
+
+func TestProjectHandlerRejectsInvalidUpdateBody(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	tests := []struct {
+		name        string
+		body        string
+		contentType string
+		wantStatus  int
+		wantCode    string
+	}{
+		{name: "missing content type", body: `{}`, wantStatus: http.StatusUnsupportedMediaType, wantCode: "UNSUPPORTED_MEDIA_TYPE"},
+		{name: "malformed JSON", body: `{`, contentType: "application/json", wantStatus: http.StatusBadRequest, wantCode: "MALFORMED_JSON"},
+		{name: "unknown field", body: `{"publicKey":"replacement"}`, contentType: "application/json", wantStatus: http.StatusBadRequest, wantCode: "MALFORMED_JSON"},
+		{name: "multiple JSON values", body: `{} {}`, contentType: "application/json", wantStatus: http.StatusBadRequest, wantCode: "MALFORMED_JSON"},
+		{name: "body too large", body: `{"name":"` + strings.Repeat("a", int(maxProjectBodyBytes)) + `"}`, contentType: "application/json", wantStatus: http.StatusRequestEntityTooLarge, wantCode: "PAYLOAD_TOO_LARGE"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service := &stubService{}
+			recorder := performProjectUpdateRequest(NewHandler(service), projectID, test.body, test.contentType)
+			if recorder.Code != test.wantStatus {
+				t.Fatalf("status = %d, want %d, body = %s", recorder.Code, test.wantStatus, recorder.Body.String())
+			}
+			var response httpapi.ErrorEnvelope
+			if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if response.Error.Code != test.wantCode || service.updateCalls != 0 {
+				t.Fatalf("response code = %q, service calls = %d", response.Error.Code, service.updateCalls)
+			}
+		})
+	}
+}
+
+func TestProjectHandlerMapsUpdateErrors(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantCode   string
+		wantField  string
+	}{
+		{name: "no fields", err: projectdomain.ErrNoProjectUpdates, wantStatus: http.StatusUnprocessableEntity, wantCode: "INVALID_PROJECT"},
+		{name: "invalid name", err: projectdomain.ErrInvalidProjectName, wantStatus: http.StatusUnprocessableEntity, wantCode: "INVALID_PROJECT", wantField: "name"},
+		{name: "missing or unowned", err: projectdomain.ErrProjectNotFound, wantStatus: http.StatusNotFound, wantCode: "PROJECT_NOT_FOUND"},
+		{name: "internal", err: errors.New("postgres password leaked"), wantStatus: http.StatusInternalServerError, wantCode: "INTERNAL_ERROR"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service := &stubService{updateErr: test.err}
+			recorder := performProjectUpdateRequest(NewHandler(service), projectID, `{"enabled":false}`, "application/json")
+			if recorder.Code != test.wantStatus {
+				t.Fatalf("status = %d, want %d", recorder.Code, test.wantStatus)
+			}
+			var response httpapi.ErrorEnvelope
+			if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if response.Error.Code != test.wantCode {
+				t.Fatalf("code = %q, want %q", response.Error.Code, test.wantCode)
+			}
+			if test.wantField != "" && (response.Error.Details == nil || response.Error.Details.Field != test.wantField) {
+				t.Fatalf("details = %#v, want field %q", response.Error.Details, test.wantField)
+			}
+			if strings.Contains(recorder.Body.String(), "password") {
+				t.Fatalf("response exposed internal error: %s", recorder.Body.String())
+			}
+		})
+	}
+}
+
+func performProjectUpdateRequest(
+	handler *Handler,
+	projectID string,
+	body string,
+	contentType string,
+) *httptest.ResponseRecorder {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	engine.Use(middleware.SessionAuth(stubAuthenticator{}))
+	engine.PATCH("/api/v1/projects/:projectId", handler.Update)
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPatch, "/api/v1/projects/"+projectID, bytes.NewBufferString(body))
+	if contentType != "" {
+		request.Header.Set("Content-Type", contentType)
+	}
+	request.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: "session-token"})
+	engine.ServeHTTP(recorder, request)
+	return recorder
+}

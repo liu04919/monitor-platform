@@ -168,6 +168,18 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 		t.Fatalf("查询项目详情 = status %d, response %#v", status, projectDetail)
 	}
 
+	updatedProjectName := projectName + "（已更新）"
+	status, updatedProject := patchApplicationProject(
+		t,
+		server.URL,
+		projectID,
+		nil,
+		map[string]any{"name": updatedProjectName, "enabled": false},
+	)
+	if status != http.StatusUnauthorized || updatedProject.Error.Code != "UNAUTHENTICATED" {
+		t.Fatalf("无 Session 更新项目 = status %d, code %q", status, updatedProject.Error.Code)
+	}
+
 	otherSessionCookie := assertApplicationAuthentication(t, server.URL, otherUserEmail)
 	status, otherProjects := getApplicationProjects(t, server.URL, otherSessionCookie)
 	if status != http.StatusOK || len(otherProjects.Data.Projects) != 0 {
@@ -177,13 +189,54 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	if status != http.StatusNotFound || otherProjectDetail.Error.Code != "PROJECT_NOT_FOUND" {
 		t.Fatalf("其他用户跨项目读取详情 = status %d, code %q", status, otherProjectDetail.Error.Code)
 	}
+	status, otherProjectUpdate := patchApplicationProject(
+		t,
+		server.URL,
+		projectID,
+		otherSessionCookie,
+		map[string]any{"enabled": false},
+	)
+	if status != http.StatusNotFound || otherProjectUpdate.Error.Code != "PROJECT_NOT_FOUND" {
+		t.Fatalf("其他用户跨项目更新 = status %d, code %q", status, otherProjectUpdate.Error.Code)
+	}
 	status, otherUserEvents := getApplicationEvents(t, server.URL, projectID, otherSessionCookie, nil)
 	if status != http.StatusNotFound || otherUserEvents.Error.Code != "PROJECT_NOT_FOUND" {
 		t.Fatalf("其他用户跨项目读取 = status %d, code %q", status, otherUserEvents.Error.Code)
 	}
 
+	status, updatedProject = patchApplicationProject(
+		t,
+		server.URL,
+		projectID,
+		sessionCookie,
+		map[string]any{"name": updatedProjectName, "enabled": false},
+	)
+	if status != http.StatusOK || updatedProject.Data.Name != updatedProjectName || updatedProject.Data.Enabled {
+		t.Fatalf("更新并停用项目 = status %d, response %#v", status, updatedProject)
+	}
+	if updatedProject.Data.PublicKey != publicKey {
+		t.Fatalf("更新项目改变了 publicKey = %q, want %q", updatedProject.Data.PublicKey, publicKey)
+	}
+
+	disabledBatch := applicationBatch(projectID, publicKey, "disabled-"+suffix, now)
+	status, response := postTelemetryBatch(t, server.URL, disabledBatch)
+	if status != http.StatusForbidden || response.Error.Code != "INVALID_PUBLIC_KEY" {
+		t.Fatalf("已停用项目上报结果 = status %d, code %q", status, response.Error.Code)
+	}
+
+	status, updatedProject = patchApplicationProject(
+		t,
+		server.URL,
+		projectID,
+		sessionCookie,
+		map[string]any{"enabled": true},
+	)
+	if status != http.StatusOK || !updatedProject.Data.Enabled || updatedProject.Data.Name != updatedProjectName {
+		t.Fatalf("重新启用项目 = status %d, response %#v", status, updatedProject)
+	}
+
 	batch := applicationBatch(projectID, publicKey, "normal-"+suffix, now)
-	status, response := postTelemetryBatch(t, server.URL, batch)
+	status, response = postTelemetryBatch(t, server.URL, batch)
 	if status != http.StatusAccepted {
 		t.Fatalf("正常上报状态码 = %d, want %d, error = %q", status, http.StatusAccepted, response.Error.Code)
 	}
@@ -575,7 +628,7 @@ type applicationProjectListResponse struct {
 	} `json:"error"`
 }
 
-type applicationProjectCreateResponse struct {
+type applicationProjectResponse struct {
 	Data struct {
 		ID        string `json:"id"`
 		Name      string `json:"name"`
@@ -649,7 +702,7 @@ func getApplicationProject(
 	serverURL string,
 	projectID string,
 	sessionCookie *http.Cookie,
-) (int, applicationProjectCreateResponse) {
+) (int, applicationProjectResponse) {
 	t.Helper()
 
 	request, err := http.NewRequest(
@@ -670,7 +723,7 @@ func getApplicationProject(
 	}
 	defer response.Body.Close()
 
-	var decoded applicationProjectCreateResponse
+	var decoded applicationProjectResponse
 	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
 		t.Fatalf("解码项目详情响应失败: %v", err)
 	}
@@ -683,7 +736,7 @@ func postApplicationProject(
 	serverURL string,
 	sessionCookie *http.Cookie,
 	projectName string,
-) (int, applicationProjectCreateResponse) {
+) (int, applicationProjectResponse) {
 	t.Helper()
 
 	body, err := json.Marshal(map[string]string{
@@ -711,9 +764,49 @@ func postApplicationProject(
 	}
 	defer response.Body.Close()
 
-	var decoded applicationProjectCreateResponse
+	var decoded applicationProjectResponse
 	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
 		t.Fatalf("解码创建项目响应失败: %v", err)
+	}
+
+	return response.StatusCode, decoded
+}
+
+func patchApplicationProject(
+	t *testing.T,
+	serverURL string,
+	projectID string,
+	sessionCookie *http.Cookie,
+	updates map[string]any,
+) (int, applicationProjectResponse) {
+	t.Helper()
+
+	body, err := json.Marshal(updates)
+	if err != nil {
+		t.Fatalf("编码更新项目请求失败: %v", err)
+	}
+	request, err := http.NewRequest(
+		http.MethodPatch,
+		serverURL+"/api/v1/projects/"+url.PathEscape(projectID),
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		t.Fatalf("创建更新项目请求失败: %v", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	if sessionCookie != nil {
+		request.AddCookie(sessionCookie)
+	}
+
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatalf("发送更新项目请求失败: %v", err)
+	}
+	defer response.Body.Close()
+
+	var decoded applicationProjectResponse
+	if err := json.NewDecoder(response.Body).Decode(&decoded); err != nil {
+		t.Fatalf("解码更新项目响应失败: %v", err)
 	}
 
 	return response.StatusCode, decoded

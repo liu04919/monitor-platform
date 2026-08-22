@@ -247,6 +247,29 @@ func TestProjectRoutesRequireSessionCookie(t *testing.T) {
 	if projectHandler.detailCalls != 1 {
 		t.Fatalf("project detail handler calls = %d, want 1", projectHandler.detailCalls)
 	}
+
+	unauthorizedUpdate := httptest.NewRecorder()
+	engine.ServeHTTP(
+		unauthorizedUpdate,
+		httptest.NewRequest(http.MethodPatch, "/api/v1/projects/project-1", nil),
+	)
+	if unauthorizedUpdate.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized update status = %d, want %d", unauthorizedUpdate.Code, http.StatusUnauthorized)
+	}
+	if projectHandler.updateCalls != 0 {
+		t.Fatalf("project update handler calls = %d, want 0", projectHandler.updateCalls)
+	}
+
+	authorizedUpdate := httptest.NewRecorder()
+	updateRequest := httptest.NewRequest(http.MethodPatch, "/api/v1/projects/project-1", nil)
+	updateRequest.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: testSessionToken})
+	engine.ServeHTTP(authorizedUpdate, updateRequest)
+	if authorizedUpdate.Code != http.StatusOK {
+		t.Fatalf("authorized update status = %d, want %d", authorizedUpdate.Code, http.StatusOK)
+	}
+	if projectHandler.updateCalls != 1 {
+		t.Fatalf("project update handler calls = %d, want 1", projectHandler.updateCalls)
+	}
 }
 
 func newTestRouter(
@@ -290,6 +313,7 @@ type stubProjectHandler struct {
 	calls       int
 	createCalls int
 	detailCalls int
+	updateCalls int
 }
 
 type stubAuthHandler struct {
@@ -331,6 +355,11 @@ func (h *stubProjectHandler) Create(c *gin.Context) {
 
 func (h *stubProjectHandler) Detail(c *gin.Context) {
 	h.detailCalls++
+	c.Status(http.StatusOK)
+}
+
+func (h *stubProjectHandler) Update(c *gin.Context) {
+	h.updateCalls++
 	c.Status(http.StatusOK)
 }
 

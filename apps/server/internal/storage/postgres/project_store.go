@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
@@ -13,7 +14,7 @@ import (
 
 const projectPrimaryKeyConstraint = "projects_pkey"
 
-// ProjectStore 在 PostgreSQL 控制面读取和创建管理端项目。
+// ProjectStore 在 PostgreSQL 控制面读取、创建和更新管理端项目。
 type ProjectStore struct {
 	db *gorm.DB
 }
@@ -97,6 +98,34 @@ func (s *ProjectStore) Create(ctx context.Context, project projectdomain.Project
 	}
 
 	return nil
+}
+
+func (s *ProjectStore) Update(
+	ctx context.Context,
+	ownerUserID string,
+	projectID string,
+	request projectdomain.UpdateRequest,
+) (projectdomain.Project, error) {
+	updates := map[string]any{"updated_at": time.Now().UTC()}
+	if request.Name != nil {
+		updates["name"] = *request.Name
+	}
+	if request.Enabled != nil {
+		updates["enabled"] = *request.Enabled
+	}
+
+	result := s.db.WithContext(ctx).
+		Model(&Project{}).
+		Where("id = ? AND owner_user_id = ?", projectID, ownerUserID).
+		Updates(updates)
+	if result.Error != nil {
+		return projectdomain.Project{}, fmt.Errorf("update project: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return projectdomain.Project{}, projectdomain.ErrProjectNotFound
+	}
+
+	return s.Get(ctx, ownerUserID, projectID)
 }
 
 func (s *ProjectStore) Owns(ctx context.Context, ownerUserID, projectID string) (bool, error) {

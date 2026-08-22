@@ -23,6 +23,7 @@ type ProjectHandler interface {
 	List(c *gin.Context)
 	Detail(c *gin.Context)
 	Create(c *gin.Context)
+	Update(c *gin.Context)
 }
 
 type AuthHandler interface {
@@ -63,6 +64,7 @@ func New(
 	projects.GET("", projectHandler.List)
 	projects.POST("", projectHandler.Create)
 	projects.GET("/:projectId", projectHandler.Detail)
+	projects.PATCH("/:projectId", projectHandler.Update)
 	projects.GET("/:projectId/events", eventQueryHandler.List)
 	projects.GET("/:projectId/events/:eventId", eventQueryHandler.Detail)
 

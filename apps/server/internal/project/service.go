@@ -21,6 +21,7 @@ const (
 
 var (
 	ErrInvalidProjectName  = errors.New("invalid project name")
+	ErrNoProjectUpdates    = errors.New("project update must contain at least one field")
 	ErrProjectIDCollision  = errors.New("generated project ID collided")
 	ErrProjectNotFound     = errors.New("project not found")
 	ErrOwnerUserIDRequired = errors.New("owner user ID is required")
@@ -35,7 +36,7 @@ type ProjectSummary struct {
 	CreatedAt time.Time
 }
 
-// Project 是创建项目时写入控制面的完整记录。
+// Project 是控制面读取、创建和更新项目时使用的完整记录。
 // publicKey 会返回给管理端用于配置 SDK，但不会进入列表投影。
 type Project struct {
 	ProjectSummary
@@ -47,11 +48,17 @@ type CreateRequest struct {
 	Name string
 }
 
-// Store 在控制面存储中查询和创建项目。
+type UpdateRequest struct {
+	Name    *string
+	Enabled *bool
+}
+
+// Store 在控制面存储中查询、创建和更新项目。
 type Store interface {
 	List(ctx context.Context, ownerUserID string) ([]ProjectSummary, error)
 	Get(ctx context.Context, ownerUserID, projectID string) (Project, error)
 	Create(ctx context.Context, project Project) error
+	Update(ctx context.Context, ownerUserID, projectID string, request UpdateRequest) (Project, error)
 	Owns(ctx context.Context, ownerUserID, projectID string) (bool, error)
 }
 
@@ -148,6 +155,45 @@ func (s *Service) Create(ctx context.Context, ownerUserID string, request Create
 	}
 
 	return Project{}, fmt.Errorf("生成唯一项目 ID: %w", ErrProjectIDCollision)
+}
+
+func (s *Service) Update(
+	ctx context.Context,
+	ownerUserID string,
+	projectID string,
+	request UpdateRequest,
+) (Project, error) {
+	ownerUserID = strings.TrimSpace(ownerUserID)
+	if ownerUserID == "" {
+		return Project{}, ErrOwnerUserIDRequired
+	}
+
+	projectID = strings.TrimSpace(projectID)
+	if uuid.Validate(projectID) != nil {
+		return Project{}, ErrProjectNotFound
+	}
+
+	if request.Name == nil && request.Enabled == nil {
+		return Project{}, ErrNoProjectUpdates
+	}
+
+	if request.Name != nil {
+		name := strings.TrimSpace(*request.Name)
+		if name == "" || utf8.RuneCountInString(name) > maxProjectFieldLength {
+			return Project{}, ErrInvalidProjectName
+		}
+		request.Name = &name
+	}
+
+	updatedProject, err := s.store.Update(ctx, ownerUserID, projectID, request)
+	if err != nil {
+		if errors.Is(err, ErrProjectNotFound) {
+			return Project{}, ErrProjectNotFound
+		}
+		return Project{}, fmt.Errorf("更新项目: %w", err)
+	}
+
+	return updatedProject, nil
 }
 
 // CanAccess 判断指定用户是否拥有项目，供管理端项目下资源统一授权。

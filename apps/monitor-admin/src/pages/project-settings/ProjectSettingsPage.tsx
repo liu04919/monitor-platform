@@ -1,10 +1,21 @@
 import { useEffect } from 'react'
 import { Alert, Badge, Button, CopyButton, Group, Paper, Skeleton, Text } from '@mantine/core'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
+import { updateProject } from '@/features/projects/api/projectsApi'
 import { ProjectSDKConfig } from '@/features/projects/components/ProjectSDKConfig/ProjectSDKConfig'
+import { ProjectSettingsForm } from '@/features/projects/components/ProjectSettingsForm/ProjectSettingsForm'
 import { projectErrorMessage } from '@/features/projects/model/projectError'
-import { projectDetailQueryOptions } from '@/features/projects/model/projectQueries'
+import {
+  projectDetailQueryKey,
+  projectDetailQueryOptions,
+  projectsQueryKey,
+} from '@/features/projects/model/projectQueries'
+import type {
+  ProjectDetail,
+  ProjectListData,
+  UpdateProjectInput,
+} from '@/features/projects/model/projectTypes'
 import { AlertIcon, CopyIcon } from '@/shared/ui/icons/Icons'
 import { useAdminStore } from '@/store/adminStore'
 import styles from './ProjectSettingsPage.module.css'
@@ -13,7 +24,24 @@ export function ProjectSettingsPage() {
   const { projectId = '' } = useParams()
   const selectedProjectId = useAdminStore((state) => state.projectId)
   const setProjectId = useAdminStore((state) => state.setProjectId)
+  const queryClient = useQueryClient()
   const query = useQuery(projectDetailQueryOptions(projectId))
+  const updateMutation = useMutation({
+    mutationFn: (input: UpdateProjectInput) => updateProject(projectId, input),
+    onSuccess: (updatedProject) => {
+      queryClient.setQueryData<ProjectDetail>(projectDetailQueryKey(updatedProject.id), updatedProject)
+      queryClient.setQueryData<ProjectListData>(projectsQueryKey, (current) => current ? {
+        projects: current.projects.map((project) => project.id === updatedProject.id
+          ? {
+              id: updatedProject.id,
+              name: updatedProject.name,
+              enabled: updatedProject.enabled,
+              createdAt: updatedProject.createdAt,
+            }
+          : project),
+      } : current)
+    },
+  })
   const detailProjectId = query.data?.id
 
   useEffect(() => {
@@ -77,6 +105,20 @@ export function ProjectSettingsPage() {
           </div>
         </div>
       </Paper>
+      <Paper className={styles.settingsCard} withBorder radius="md">
+        <div className={styles.settingsHeading}>
+          <Text className={styles.label}>常规设置</Text>
+          <h2>名称与接入状态</h2>
+          <p>停用项目只会阻止新事件上报，不会删除已有数据。</p>
+        </div>
+        <ProjectSettingsForm
+          project={project}
+          isPending={updateMutation.isPending}
+          isSuccess={updateMutation.isSuccess}
+          errorMessage={updateMutation.isError ? projectErrorMessage(updateMutation.error) : ''}
+          onSubmit={(input) => updateMutation.mutate(input)}
+        />
+      </Paper>
       <Paper className={styles.sdkCard} withBorder radius="md">
         <div className={styles.sdkHeading}>
           <Text className={styles.label}>浏览器接入</Text>
@@ -94,7 +136,7 @@ function PageHeading() {
     <div className={styles.heading}>
       <p>PROJECT SETTINGS</p>
       <h1>项目设置</h1>
-      <span>查看当前项目身份与浏览器 SDK 接入配置。</span>
+      <span>管理项目名称、SDK 接入状态与浏览器初始化配置。</span>
     </div>
   )
 }
