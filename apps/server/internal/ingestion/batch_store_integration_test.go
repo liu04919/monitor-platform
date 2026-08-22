@@ -57,7 +57,7 @@ func TestBatchStoreWithPostgreSQLAndClickHouse(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	suffix := fmt.Sprintf("%d", now.UnixNano())
-	projectID := "batch-store-project-" + suffix
+	projectID := uuid.NewString()
 	owner := postgresstore.User{
 		ID:           uuid.NewString(),
 		Email:        "batch-store-" + suffix + "@example.com",

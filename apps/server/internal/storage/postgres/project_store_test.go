@@ -51,11 +51,12 @@ func TestProjectStoreListPreservesDatabaseFailure(t *testing.T) {
 }
 
 func TestProjectStoreCreatesProject(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
 	database, mock := newMockDatabase(t)
 	createdAt := time.Date(2026, 8, 20, 1, 2, 3, 0, time.UTC)
 	project := projectdomain.Project{
 		ProjectSummary: projectdomain.ProjectSummary{
-			ID:        "monitor-web",
+			ID:        projectID,
 			Name:      "Monitor Web",
 			Enabled:   true,
 			CreatedAt: createdAt,
@@ -75,11 +76,12 @@ func TestProjectStoreCreatesProject(t *testing.T) {
 }
 
 func TestProjectStoreMapsDuplicateID(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
 	database, mock := newMockDatabase(t)
 	createdAt := time.Date(2026, 8, 20, 1, 2, 3, 0, time.UTC)
 	project := projectdomain.Project{
 		ProjectSummary: projectdomain.ProjectSummary{
-			ID:        "monitor-web",
+			ID:        projectID,
 			Name:      "Monitor Web",
 			Enabled:   true,
 			CreatedAt: createdAt,
@@ -94,7 +96,7 @@ func TestProjectStoreMapsDuplicateID(t *testing.T) {
 	mock.ExpectRollback()
 
 	err := NewProjectStore(database).Create(context.Background(), project)
-	if !errors.Is(err, projectdomain.ErrProjectIDConflict) {
-		t.Fatalf("Create() error = %v, want %v", err, projectdomain.ErrProjectIDConflict)
+	if !errors.Is(err, projectdomain.ErrProjectIDCollision) {
+		t.Fatalf("Create() error = %v, want %v", err, projectdomain.ErrProjectIDCollision)
 	}
 }

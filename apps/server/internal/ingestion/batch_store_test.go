@@ -183,7 +183,7 @@ func persistentBatch() dto.TelemetryBatch {
 		SentAt:        1_700_000_000_000,
 		PublicKey:     "pk_monitor_web_demo",
 		App: dto.App{
-			ID:   "monitor-web",
+			ID:   "7b5d9a2f-3c61-4e88-9f42-2d6b81a530c7",
 			Name: "Monitor Web",
 		},
 		Events: []dto.TelemetryEvent{

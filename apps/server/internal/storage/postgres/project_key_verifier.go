@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/ingestion"
@@ -23,6 +24,10 @@ func NewProjectKeyVerifier(db *gorm.DB) *ProjectKeyVerifier {
 }
 
 func (v *ProjectKeyVerifier) Verify(ctx context.Context, appID, publicKey string) error {
+	if uuid.Validate(appID) != nil {
+		return ingestion.ErrInvalidPublicKey
+	}
+
 	var project Project
 
 	err := v.db.WithContext(ctx).

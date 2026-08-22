@@ -18,7 +18,7 @@ const (
 
 // IngestionBatch 是 PostgreSQL ingestion_batches 表对应的持久化模型。
 type IngestionBatch struct {
-	ProjectID   string    `gorm:"column:project_id;type:varchar(128);primaryKey"`
+	ProjectID   string    `gorm:"column:project_id;type:uuid;primaryKey"`
 	BatchID     string    `gorm:"column:batch_id;type:varchar(128);primaryKey"`
 	ContentHash string    `gorm:"column:content_hash;type:char(64);not null"`
 	Status      string    `gorm:"column:status;type:varchar(16);not null"`

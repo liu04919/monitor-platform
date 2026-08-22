@@ -44,7 +44,7 @@ func TestProjectKeyVerifierWithPostgreSQL(t *testing.T) {
 	})
 
 	project := projectstore.Project{
-		ID:          "integration-project",
+		ID:          uuid.NewString(),
 		OwnerUserID: uuid.NewString(),
 		Name:        "集成测试项目",
 		PublicKey:   "integration-public-key",

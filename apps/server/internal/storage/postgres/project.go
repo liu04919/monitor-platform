@@ -5,7 +5,7 @@ import "time"
 // Project 是 PostgreSQL projects 表对应的 GORM 持久化模型。
 // PublicKey 会暴露在浏览器中，只用于 SDK 上报接入控制。
 type Project struct {
-	ID          string    `gorm:"column:id;type:varchar(128);primaryKey"`
+	ID          string    `gorm:"column:id;type:uuid;primaryKey"`
 	OwnerUserID string    `gorm:"column:owner_user_id;type:uuid;not null;index"`
 	Name        string    `gorm:"column:name;type:varchar(128);not null"`
 	PublicKey   string    `gorm:"column:public_key;type:varchar(128);not null;uniqueIndex"`

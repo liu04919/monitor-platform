@@ -15,17 +15,18 @@ import (
 )
 
 const verifyProjectKeySQL = `SELECT "id" FROM "projects" WHERE id = $1 AND public_key = $2 AND enabled = $3 LIMIT $4`
+const verifierProjectID = "11111111-1111-4111-8111-111111111111"
 
 func TestProjectKeyVerifierAcceptsEnabledMatchingProject(t *testing.T) {
 	database, mock := newMockDatabase(t)
 	mock.ExpectQuery(regexp.QuoteMeta(verifyProjectKeySQL)).
-		WithArgs("monitor-web", "pk_monitor_web_demo", true, 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow("monitor-web"))
+		WithArgs(verifierProjectID, "pk_monitor_web_demo", true, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(verifierProjectID))
 
 	verifier := NewProjectKeyVerifier(database)
 	if err := verifier.Verify(
 		context.Background(),
-		"monitor-web",
+		verifierProjectID,
 		"pk_monitor_web_demo",
 	); err != nil {
 		t.Fatalf("verify project key: %v", err)
@@ -36,11 +37,11 @@ func TestProjectKeyVerifierAcceptsEnabledMatchingProject(t *testing.T) {
 func TestProjectKeyVerifierRejectsMissingDisabledOrMismatchedProject(t *testing.T) {
 	database, mock := newMockDatabase(t)
 	mock.ExpectQuery(regexp.QuoteMeta(verifyProjectKeySQL)).
-		WithArgs("monitor-web", "wrong-key", true, 1).
+		WithArgs(verifierProjectID, "wrong-key", true, 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 
 	verifier := NewProjectKeyVerifier(database)
-	err := verifier.Verify(context.Background(), "monitor-web", "wrong-key")
+	err := verifier.Verify(context.Background(), verifierProjectID, "wrong-key")
 	if !errors.Is(err, ingestion.ErrInvalidPublicKey) {
 		t.Fatalf("expected invalid public key error, got %v", err)
 	}
@@ -51,13 +52,13 @@ func TestProjectKeyVerifierPreservesDatabaseFailure(t *testing.T) {
 	database, mock := newMockDatabase(t)
 	databaseError := errors.New("database unavailable")
 	mock.ExpectQuery(regexp.QuoteMeta(verifyProjectKeySQL)).
-		WithArgs("monitor-web", "pk_monitor_web_demo", true, 1).
+		WithArgs(verifierProjectID, "pk_monitor_web_demo", true, 1).
 		WillReturnError(databaseError)
 
 	verifier := NewProjectKeyVerifier(database)
 	err := verifier.Verify(
 		context.Background(),
-		"monitor-web",
+		verifierProjectID,
 		"pk_monitor_web_demo",
 	)
 	if !errors.Is(err, databaseError) {
@@ -67,6 +68,14 @@ func TestProjectKeyVerifierPreservesDatabaseFailure(t *testing.T) {
 		t.Fatalf("database failure must not be reported as an invalid public key")
 	}
 
+}
+
+func TestProjectKeyVerifierRejectsInvalidProjectIDBeforeQuery(t *testing.T) {
+	database, _ := newMockDatabase(t)
+	err := NewProjectKeyVerifier(database).Verify(context.Background(), "caller-chosen-id", "pk_value")
+	if !errors.Is(err, ingestion.ErrInvalidPublicKey) {
+		t.Fatalf("Verify() error = %v, want %v", err, ingestion.ErrInvalidPublicKey)
+	}
 }
 
 func newMockDatabase(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {

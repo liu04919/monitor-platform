@@ -7,20 +7,22 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/google/uuid"
 )
 
-const maxProjectFieldLength = 128
+const (
+	maxProjectFieldLength       = 128
+	maxProjectIDGenerateRetries = 3
+)
 
 var (
-	ErrInvalidProjectID    = errors.New("invalid project ID")
 	ErrInvalidProjectName  = errors.New("invalid project name")
-	ErrProjectIDConflict   = errors.New("project ID already exists")
+	ErrProjectIDCollision  = errors.New("generated project ID collided")
 	ErrOwnerUserIDRequired = errors.New("owner user ID is required")
-	projectIDPattern       = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]{0,126}[a-z0-9])?$`)
 )
 
 // ProjectSummary 是管理端项目选择器需要的最小项目信息。
@@ -41,7 +43,6 @@ type Project struct {
 }
 
 type CreateRequest struct {
-	ID   string
 	Name string
 }
 
@@ -54,6 +55,7 @@ type Store interface {
 
 type Service struct {
 	store             Store
+	generateProjectID func() (string, error)
 	generatePublicKey func() (string, error)
 	now               func() time.Time
 }
@@ -61,6 +63,7 @@ type Service struct {
 func NewService(store Store) *Service {
 	return &Service{
 		store:             store,
+		generateProjectID: secureProjectID,
 		generatePublicKey: securePublicKey,
 		now:               time.Now,
 	}
@@ -86,11 +89,6 @@ func (s *Service) Create(ctx context.Context, ownerUserID string, request Create
 		return Project{}, ErrOwnerUserIDRequired
 	}
 
-	projectID := strings.TrimSpace(request.ID)
-	if utf8.RuneCountInString(projectID) > maxProjectFieldLength || !projectIDPattern.MatchString(projectID) {
-		return Project{}, ErrInvalidProjectID
-	}
-
 	projectName := strings.TrimSpace(request.Name)
 	if projectName == "" || utf8.RuneCountInString(projectName) > maxProjectFieldLength {
 		return Project{}, ErrInvalidProjectName
@@ -101,28 +99,37 @@ func (s *Service) Create(ctx context.Context, ownerUserID string, request Create
 		return Project{}, fmt.Errorf("生成项目 publicKey: %w", err)
 	}
 
-	project := Project{
-		ProjectSummary: ProjectSummary{
-			ID:        projectID,
-			Name:      projectName,
-			Enabled:   true,
-			CreatedAt: s.now().UTC(),
-		},
-		OwnerUserID: ownerUserID,
-		PublicKey:   publicKey,
-	}
-	if err := s.store.Create(ctx, project); err != nil {
-		return Project{}, fmt.Errorf("创建项目: %w", err)
+	for attempt := 0; attempt < maxProjectIDGenerateRetries; attempt++ {
+		projectID, err := s.generateProjectID()
+		if err != nil {
+			return Project{}, fmt.Errorf("生成项目 ID: %w", err)
+		}
+
+		project := Project{
+			ProjectSummary: ProjectSummary{
+				ID:        projectID,
+				Name:      projectName,
+				Enabled:   true,
+				CreatedAt: s.now().UTC(),
+			},
+			OwnerUserID: ownerUserID,
+			PublicKey:   publicKey,
+		}
+		if err := s.store.Create(ctx, project); err == nil {
+			return project, nil
+		} else if !errors.Is(err, ErrProjectIDCollision) {
+			return Project{}, fmt.Errorf("创建项目: %w", err)
+		}
 	}
 
-	return project, nil
+	return Project{}, fmt.Errorf("生成唯一项目 ID: %w", ErrProjectIDCollision)
 }
 
 // CanAccess 判断指定用户是否拥有项目，供管理端项目下资源统一授权。
 func (s *Service) CanAccess(ctx context.Context, ownerUserID, projectID string) (bool, error) {
 	ownerUserID = strings.TrimSpace(ownerUserID)
 	projectID = strings.TrimSpace(projectID)
-	if ownerUserID == "" || projectID == "" {
+	if ownerUserID == "" || uuid.Validate(projectID) != nil {
 		return false, nil
 	}
 
@@ -140,4 +147,12 @@ func securePublicKey() (string, error) {
 	}
 
 	return "pk_" + base64.RawURLEncoding.EncodeToString(bytes), nil
+}
+
+func secureProjectID() (string, error) {
+	projectID, err := uuid.NewRandom()
+	if err != nil {
+		return "", err
+	}
+	return projectID.String(), nil
 }

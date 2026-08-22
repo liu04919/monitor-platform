@@ -10,7 +10,6 @@ export interface ProjectListData {
 }
 
 export interface CreateProjectInput {
-  id: string
   name: string
 }
 

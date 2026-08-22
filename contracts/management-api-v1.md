@@ -37,7 +37,7 @@ GET /api/v1/projects
   "data": {
     "projects": [
       {
-        "id": "monitor-web",
+        "id": "7b5d9a2f-3c61-4e88-9f42-2d6b81a530c7",
         "name": "Monitor Web",
         "enabled": true,
         "createdAt": 1787068800000
@@ -58,21 +58,21 @@ Content-Type: application/json
 
 ```json
 {
-  "id": "monitor-web",
   "name": "Monitor Web"
 }
 ```
 
-`id` 是 SDK 的稳定 `appId`，创建后不可修改。它最长 128 个字符，只能包含小写字母、数字和
-中间连字符，并且必须以字母或数字开头、结尾。`name` 去除首尾空白后必须非空，最长 128 个
-Unicode 字符。请求体最多 4 KiB，且不能包含未知字段或多个 JSON 值。
+调用方只填写 `name`；它去除首尾空白后必须非空，最长 128 个 Unicode 字符。请求体最多
+4 KiB，且不能包含未知字段或多个 JSON 值。
 
-服务端使用系统安全随机源生成 256 位随机 `publicKey`。创建成功返回 `201 Created`：
+服务端生成不可变的 UUID v4 项目 ID，作为 SDK 的稳定 `appId`；同时使用系统安全随机源生成
+256 位随机 `publicKey`。项目名称允许重复，项目归属由登录用户和服务端生成的 ID 隔离。
+创建成功返回 `201 Created`：
 
 ```json
 {
   "data": {
-    "id": "monitor-web",
+    "id": "7b5d9a2f-3c61-4e88-9f42-2d6b81a530c7",
     "name": "Monitor Web",
     "enabled": true,
     "createdAt": 1787155200000,
@@ -82,8 +82,9 @@ Unicode 字符。请求体最多 4 KiB，且不能包含未知字段或多个 JS
 ```
 
 `publicKey` 会暴露在浏览器 SDK 中，不是管理端秘密。项目列表不会重复返回它；管理端应在创建
-成功后让用户立即复制 SDK 配置。ID 或名称非法返回 `422 INVALID_PROJECT`，ID 已存在返回
-`409 PROJECT_ID_CONFLICT`，数据库或随机源故障返回不暴露内部错误的 `500 INTERNAL_ERROR`。
+成功后让用户立即复制 SDK 配置。名称非法返回 `422 INVALID_PROJECT`；数据库或随机源故障返回
+不暴露内部错误的 `500 INTERNAL_ERROR`。调用方提交 `id` 等未知字段会返回
+`400 MALFORMED_JSON`。
 
 ## 事件列表
 
@@ -147,7 +148,7 @@ GET /api/v1/projects/{projectId}/events/{eventId}
 {
   "data": {
     "schemaVersion": 2,
-    "projectId": "monitor-web",
+    "projectId": "7b5d9a2f-3c61-4e88-9f42-2d6b81a530c7",
     "appName": "Monitor Web",
     "batchId": "batch-1",
     "sendType": "fetch",

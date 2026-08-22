@@ -64,7 +64,7 @@ func (s *ProjectStore) Create(ctx context.Context, project projectdomain.Project
 		if errors.As(err, &postgresError) &&
 			postgresError.Code == "23505" &&
 			postgresError.ConstraintName == projectPrimaryKeyConstraint {
-			return projectdomain.ErrProjectIDConflict
+			return projectdomain.ErrProjectIDCollision
 		}
 
 		return fmt.Errorf("insert project: %w", err)

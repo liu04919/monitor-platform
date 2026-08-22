@@ -58,7 +58,6 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 	}
 
 	createdProject, err := h.service.Create(c.Request.Context(), user.ID, project.CreateRequest{
-		ID:   request.ID,
 		Name: request.Name,
 	})
 	if err != nil {
@@ -79,14 +78,6 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 
 func writeProjectCreateError(c *gin.Context, err error) {
 	switch {
-	case errors.Is(err, project.ErrInvalidProjectID):
-		writeAPIError(
-			c,
-			http.StatusUnprocessableEntity,
-			"INVALID_PROJECT",
-			"id must use lowercase letters, numbers, and interior hyphens, with at most 128 characters",
-			&errorDetails{Field: "id"},
-		)
 	case errors.Is(err, project.ErrInvalidProjectName):
 		writeAPIError(
 			c,
@@ -94,14 +85,6 @@ func writeProjectCreateError(c *gin.Context, err error) {
 			"INVALID_PROJECT",
 			"name is required and must not exceed 128 characters",
 			&errorDetails{Field: "name"},
-		)
-	case errors.Is(err, project.ErrProjectIDConflict):
-		writeAPIError(
-			c,
-			http.StatusConflict,
-			"PROJECT_ID_CONFLICT",
-			"project id already exists",
-			&errorDetails{Field: "id"},
 		)
 	default:
 		writeAPIError(
@@ -140,7 +123,6 @@ func decodeCreateProjectRequest(c *gin.Context, request *createProjectRequest) e
 }
 
 type createProjectRequest struct {
-	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 

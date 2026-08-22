@@ -22,9 +22,13 @@ const eventSummary = {
   receivedAt: 1_787_068_800_100,
 } as const
 
+const primaryProjectId = '11111111-1111-4111-8111-111111111111'
+const secondProjectId = '22222222-2222-4222-8222-222222222222'
+const createdProjectId = '33333333-3333-4333-8333-333333333333'
+
 function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
   const url = String(input)
-  const projectId = url.includes('/projects/project-two/') ? 'project-two' : 'monitor-local'
+  const projectId = url.includes(`/projects/${secondProjectId}/`) ? secondProjectId : primaryProjectId
   if (init?.method === 'DELETE' && url.endsWith('/auth/logout')) {
     return Promise.resolve({ ok: true, status: 204 } as Response)
   }
@@ -33,7 +37,7 @@ function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
     ? { id: 'user-1', email: 'user@example.com', createdAt: 1_787_068_600_000 }
     : init?.method === 'POST' && url.endsWith('/projects')
     ? {
-        id: 'created-project',
+        id: createdProjectId,
         name: 'Created Project',
         enabled: true,
         createdAt: 1_787_068_900_000,
@@ -42,8 +46,8 @@ function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
     : url.endsWith('/projects')
     ? {
         projects: [
-          { id: 'monitor-local', name: 'Monitor Local', enabled: true, createdAt: 1_787_068_700_000 },
-          { id: 'project-two', name: 'Project Two', enabled: true, createdAt: 1_787_068_800_000 },
+          { id: primaryProjectId, name: 'Monitor Local', enabled: true, createdAt: 1_787_068_700_000 },
+          { id: secondProjectId, name: 'Project Two', enabled: true, createdAt: 1_787_068_800_000 },
         ],
       }
     : url.endsWith('/events/event-1')
@@ -76,7 +80,7 @@ function renderRoute(path: string) {
 
 describe('admin event routes', () => {
   beforeEach(() => {
-    useAdminStore.setState({ projectId: 'monitor-local' })
+    useAdminStore.setState({ projectId: primaryProjectId })
     vi.restoreAllMocks()
   })
 
@@ -122,9 +126,9 @@ describe('admin event routes', () => {
     await user.click(await screen.findByRole('option', { name: 'Project Two' }))
 
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/projects/project-two/events?'))).toBe(true)
+      expect(fetchMock.mock.calls.some(([input]) => String(input).includes(`/projects/${secondProjectId}/events?`))).toBe(true)
     })
-    expect(useAdminStore.getState().projectId).toBe('project-two')
+    expect(useAdminStore.getState().projectId).toBe(secondProjectId)
   })
 
   it('创建项目后更新项目缓存、自动切换并展示 SDK 配置', async () => {
@@ -135,35 +139,31 @@ describe('admin event routes', () => {
 
     await user.click(await screen.findByRole('button', { name: '新建项目' }))
     await user.type(await screen.findByLabelText('项目名称'), 'Created Project')
-    await user.type(await screen.findByLabelText('项目 ID'), 'created-project')
     await user.click(screen.getByRole('button', { name: '创建项目' }))
 
     expect(await screen.findByRole('heading', { name: '项目已创建' })).toBeInTheDocument()
     expect(screen.getByText(/publicKey: 'pk_created'/)).toBeInTheDocument()
-    expect(useAdminStore.getState().projectId).toBe('created-project')
+    expect(useAdminStore.getState().projectId).toBe(createdProjectId)
 
     const createCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
     expect(JSON.parse(String(createCall?.[1]?.body))).toEqual({
-      id: 'created-project',
       name: 'Created Project',
     })
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/projects/created-project/events?'))).toBe(true)
+      expect(fetchMock.mock.calls.some(([input]) => String(input).includes(`/projects/${createdProjectId}/events?`))).toBe(true)
     })
   })
 
-  it('创建项目时由 Zod 在请求前校验字段', async () => {
+  it('创建项目时由 Zod 在请求前校验名称', async () => {
     const user = userEvent.setup()
     const fetchMock = vi.fn(successfulFetch)
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/events')
 
     await user.click(await screen.findByRole('button', { name: '新建项目' }))
-    await user.type(await screen.findByLabelText('项目名称'), 'Monitor')
-    await user.type(await screen.findByLabelText('项目 ID'), 'Monitor_Web')
     await user.click(screen.getByRole('button', { name: '创建项目' }))
 
-    expect(await screen.findByText('只能使用小写字母、数字和中间连字符')).toBeInTheDocument()
+    expect(await screen.findByText('请输入项目名称')).toBeInTheDocument()
     expect(fetchMock.mock.calls.every(([, init]) => init?.method !== 'POST')).toBe(true)
   })
 

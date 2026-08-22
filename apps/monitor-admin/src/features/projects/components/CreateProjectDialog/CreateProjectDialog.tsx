@@ -25,7 +25,7 @@ export function CreateProjectDialog({
 }: CreateProjectDialogProps) {
   const form = useForm<CreateProjectFormValues>({
     resolver: zodResolver(createProjectSchema),
-    defaultValues: { id: '', name: '' },
+    defaultValues: { name: '' },
     mode: 'onBlur',
   })
   const sdkConfig = createdProject ? buildSDKConfig(createdProject) : ''
@@ -74,7 +74,7 @@ export function CreateProjectDialog({
         </Stack>
       ) : (
         <form className={styles.form} onSubmit={submit} noValidate>
-          <Text className={styles.description}>项目 ID 会成为 SDK 的 appId，创建后不可修改。</Text>
+          <Text className={styles.description}>只需要填写名称，项目 ID 和 SDK publicKey 由服务端安全生成。</Text>
           <TextInput
             label="项目名称"
             placeholder="例如 Monitor Web"
@@ -82,14 +82,6 @@ export function CreateProjectDialog({
             maxLength={128}
             error={form.formState.errors.name?.message}
             {...form.register('name')}
-          />
-          <TextInput
-            label="项目 ID"
-            description="仅小写字母、数字和中间连字符。"
-            placeholder="例如 monitor-web"
-            maxLength={128}
-            error={form.formState.errors.id?.message}
-            {...form.register('id')}
           />
           {errorMessage ? (
             <Alert color="red" title="创建失败" role="alert">

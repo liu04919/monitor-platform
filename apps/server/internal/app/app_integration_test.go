@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/app"
@@ -68,7 +69,7 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	suffix := fmt.Sprintf("%d", now.UnixNano())
-	projectID := "app-http-project-" + suffix
+	var projectID string
 	projectName := "应用 HTTP 集成测试"
 	userEmail := "app-http-" + suffix + "@example.com"
 	otherUserEmail := "app-http-other-" + suffix + "@example.com"
@@ -108,7 +109,6 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 		t,
 		server.URL,
 		nil,
-		projectID,
 		projectName,
 	)
 	if status != http.StatusUnauthorized || createdProject.Error.Code != "UNAUTHENTICATED" {
@@ -119,30 +119,19 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 		t,
 		server.URL,
 		sessionCookie,
-		projectID,
 		projectName,
 	)
 	if status != http.StatusCreated {
 		t.Fatalf("创建项目状态码 = %d, want %d, code = %q", status, http.StatusCreated, createdProject.Error.Code)
 	}
-	if createdProject.Data.ID != projectID || createdProject.Data.Name != projectName || !createdProject.Data.Enabled {
+	if uuid.Validate(createdProject.Data.ID) != nil || createdProject.Data.Name != projectName || !createdProject.Data.Enabled {
 		t.Fatalf("创建项目响应 = %#v", createdProject.Data)
 	}
+	projectID = createdProject.Data.ID
 	if !strings.HasPrefix(createdProject.Data.PublicKey, "pk_") {
 		t.Fatalf("创建项目 publicKey = %q", createdProject.Data.PublicKey)
 	}
 	publicKey := createdProject.Data.PublicKey
-
-	status, duplicateProject := postApplicationProject(
-		t,
-		server.URL,
-		sessionCookie,
-		projectID,
-		projectName,
-	)
-	if status != http.StatusConflict || duplicateProject.Error.Code != "PROJECT_ID_CONFLICT" {
-		t.Fatalf("重复项目 ID 结果 = status %d, code %q", status, duplicateProject.Error.Code)
-	}
 
 	status, projectList := getApplicationProjects(t, server.URL, nil)
 	if status != http.StatusUnauthorized || projectList.Error.Code != "UNAUTHENTICATED" {
@@ -645,13 +634,11 @@ func postApplicationProject(
 	t *testing.T,
 	serverURL string,
 	sessionCookie *http.Cookie,
-	projectID string,
 	projectName string,
 ) (int, applicationProjectCreateResponse) {
 	t.Helper()
 
 	body, err := json.Marshal(map[string]string{
-		"id":   projectID,
 		"name": projectName,
 	})
 	if err != nil {
@@ -845,6 +832,9 @@ func cleanupApplicationData(
 	projectID string,
 ) {
 	t.Helper()
+	if projectID == "" {
+		return
+	}
 
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

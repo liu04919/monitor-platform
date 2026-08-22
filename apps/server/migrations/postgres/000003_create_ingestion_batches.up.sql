@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS ingestion_batches (
-    project_id VARCHAR(128) NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     batch_id VARCHAR(128) NOT NULL,
     content_hash CHAR(64) NOT NULL,
     status VARCHAR(16) NOT NULL CHECK (status IN ('pending', 'completed')),

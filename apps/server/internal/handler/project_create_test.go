@@ -18,11 +18,12 @@ import (
 )
 
 func TestProjectHandlerCreatesProject(t *testing.T) {
+	const projectID = "11111111-1111-4111-8111-111111111111"
 	createdAt := time.Date(2026, 8, 20, 1, 2, 3, 0, time.UTC)
 	service := &stubProjectService{
 		created: project.Project{
 			ProjectSummary: project.ProjectSummary{
-				ID:        "monitor-web",
+				ID:        projectID,
 				Name:      "Monitor Web",
 				Enabled:   true,
 				CreatedAt: createdAt,
@@ -32,14 +33,14 @@ func TestProjectHandlerCreatesProject(t *testing.T) {
 	}
 	recorder := performProjectCreateRequest(
 		NewProjectHandler(service),
-		`{"id":"monitor-web","name":"Monitor Web"}`,
+		`{"name":"Monitor Web"}`,
 		"application/json; charset=utf-8",
 	)
 
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d, body = %s", recorder.Code, http.StatusCreated, recorder.Body.String())
 	}
-	if service.createCalls != 1 || service.createRequest.ID != "monitor-web" || service.createRequest.Name != "Monitor Web" {
+	if service.createCalls != 1 || service.createRequest.Name != "Monitor Web" {
 		t.Fatalf("service create = calls %d, request %#v", service.createCalls, service.createRequest)
 	}
 
@@ -47,7 +48,7 @@ func TestProjectHandlerCreatesProject(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if response.Data.ID != "monitor-web" || response.Data.PublicKey != "pk_generated" {
+	if response.Data.ID != projectID || response.Data.PublicKey != "pk_generated" {
 		t.Fatalf("response = %#v", response.Data)
 	}
 }
@@ -62,9 +63,10 @@ func TestProjectHandlerRejectsInvalidRequestBody(t *testing.T) {
 	}{
 		{name: "missing content type", body: `{}`, wantStatus: http.StatusUnsupportedMediaType, wantCode: "UNSUPPORTED_MEDIA_TYPE"},
 		{name: "malformed JSON", body: `{`, contentType: "application/json", wantStatus: http.StatusBadRequest, wantCode: "MALFORMED_JSON"},
-		{name: "unknown field", body: `{"id":"monitor","name":"Monitor","extra":true}`, contentType: "application/json", wantStatus: http.StatusBadRequest, wantCode: "MALFORMED_JSON"},
+		{name: "caller supplied id", body: `{"id":"monitor","name":"Monitor"}`, contentType: "application/json", wantStatus: http.StatusBadRequest, wantCode: "MALFORMED_JSON"},
+		{name: "unknown field", body: `{"name":"Monitor","extra":true}`, contentType: "application/json", wantStatus: http.StatusBadRequest, wantCode: "MALFORMED_JSON"},
 		{name: "multiple JSON values", body: `{} {}`, contentType: "application/json", wantStatus: http.StatusBadRequest, wantCode: "MALFORMED_JSON"},
-		{name: "body too large", body: `{"id":"monitor","name":"` + strings.Repeat("a", int(maxProjectBodyBytes)) + `"}`, contentType: "application/json", wantStatus: http.StatusRequestEntityTooLarge, wantCode: "PAYLOAD_TOO_LARGE"},
+		{name: "body too large", body: `{"name":"` + strings.Repeat("a", int(maxProjectBodyBytes)) + `"}`, contentType: "application/json", wantStatus: http.StatusRequestEntityTooLarge, wantCode: "PAYLOAD_TOO_LARGE"},
 	}
 
 	for _, test := range tests {
@@ -96,9 +98,8 @@ func TestProjectHandlerMapsCreateErrors(t *testing.T) {
 		wantCode   string
 		wantField  string
 	}{
-		{name: "invalid id", err: project.ErrInvalidProjectID, wantStatus: http.StatusUnprocessableEntity, wantCode: "INVALID_PROJECT", wantField: "id"},
 		{name: "invalid name", err: project.ErrInvalidProjectName, wantStatus: http.StatusUnprocessableEntity, wantCode: "INVALID_PROJECT", wantField: "name"},
-		{name: "duplicate id", err: project.ErrProjectIDConflict, wantStatus: http.StatusConflict, wantCode: "PROJECT_ID_CONFLICT", wantField: "id"},
+		{name: "generated id collision", err: project.ErrProjectIDCollision, wantStatus: http.StatusInternalServerError, wantCode: "INTERNAL_ERROR"},
 		{name: "internal", err: errors.New("postgres password leaked"), wantStatus: http.StatusInternalServerError, wantCode: "INTERNAL_ERROR"},
 	}
 
@@ -107,7 +108,7 @@ func TestProjectHandlerMapsCreateErrors(t *testing.T) {
 			service := &stubProjectService{createErr: test.err}
 			recorder := performProjectCreateRequest(
 				NewProjectHandler(service),
-				`{"id":"monitor-web","name":"Monitor Web"}`,
+				`{"name":"Monitor Web"}`,
 				"application/json",
 			)
 			if recorder.Code != test.wantStatus {
