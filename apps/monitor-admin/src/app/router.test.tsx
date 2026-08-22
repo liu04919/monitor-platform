@@ -22,6 +22,19 @@ const eventSummary = {
   receivedAt: 1_787_068_800_100,
 } as const
 
+const issueSummary = {
+  id: 'issue-1',
+  title: 'Cannot read profile',
+  eventType: 'js_error',
+  exceptionType: 'TypeError',
+  eventCount: 3,
+  affectedUsers: 2,
+  firstSeen: 1_787_068_700_000,
+  lastSeen: 1_787_068_800_000,
+  latestEventId: 'event-1',
+  latestPageUrl: 'https://example.com/profile',
+} as const
+
 const primaryProjectId = '11111111-1111-4111-8111-111111111111'
 const secondProjectId = '22222222-2222-4222-8222-222222222222'
 const createdProjectId = '33333333-3333-4333-8333-333333333333'
@@ -88,6 +101,8 @@ function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
         replayData: null,
         payload: { message: 'Cannot read profile' },
       }
+    : url.includes('/issues?')
+    ? { issues: [issueSummary], nextCursor: '' }
     : { events: [eventSummary], nextCursor: '' }
 
   return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ data }) } as Response)
@@ -109,6 +124,18 @@ describe('admin event routes', () => {
   beforeEach(() => {
     useAdminStore.setState({ projectId: primaryProjectId })
     vi.restoreAllMocks()
+  })
+
+  it('展示按根因聚合的问题并进入最近事件', async () => {
+    vi.stubGlobal('fetch', vi.fn(successfulFetch))
+    renderRoute('/issues')
+
+    expect(await screen.findByRole('heading', { name: '问题' })).toBeInTheDocument()
+    expect(await screen.findByText('3')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('link', { name: 'Cannot read profile' }))
+    expect(await screen.findByRole('heading', { name: 'Cannot read profile' })).toBeInTheDocument()
   })
 
   it('从事件列表进入由 React Router 管理的详情页', async () => {
@@ -177,7 +204,7 @@ describe('admin event routes', () => {
       name: 'Created Project',
     })
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some(([input]) => String(input).includes(`/projects/${createdProjectId}/events?`))).toBe(true)
+      expect(fetchMock.mock.calls.some(([input]) => String(input).includes(`/projects/${createdProjectId}/issues?`))).toBe(true)
     })
   })
 
@@ -289,7 +316,7 @@ describe('admin event routes', () => {
     await user.type(screen.getByLabelText('密码'), 'password123')
     await user.click(screen.getByRole('button', { name: '登录' }))
 
-    expect(await screen.findByRole('heading', { name: '事件流' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '问题' })).toBeInTheDocument()
     const loginCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/auth/login'))
     expect(loginCall?.[1]).toMatchObject({ method: 'POST', credentials: 'same-origin' })
   })

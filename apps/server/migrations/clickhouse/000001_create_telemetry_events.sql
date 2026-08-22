@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS monitor_platform.telemetry_events
     breadcrumbs_json String,
     replay_data Nullable(String),
     payload_json String,
+    issue_fingerprint String,
     received_at DateTime64(3, 'UTC') DEFAULT now64(3)
 )
 ENGINE = MergeTree

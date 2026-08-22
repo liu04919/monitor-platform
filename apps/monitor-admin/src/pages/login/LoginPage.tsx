@@ -22,7 +22,7 @@ export function LoginPage() {
     mutationFn: login,
     onSuccess: (user) => {
       queryClient.setQueryData<AuthUser>(currentUserQueryKey, user)
-      const from = (location.state as { from?: string } | null)?.from || '/events'
+      const from = (location.state as { from?: string } | null)?.from || '/issues'
       navigate(from, { replace: true })
     },
   })

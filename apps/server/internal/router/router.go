@@ -19,6 +19,10 @@ type EventQueryHandler interface {
 	Detail(c *gin.Context)
 }
 
+type IssueQueryHandler interface {
+	List(c *gin.Context)
+}
+
 type ProjectHandler interface {
 	List(c *gin.Context)
 	Detail(c *gin.Context)
@@ -39,6 +43,7 @@ func New(
 	telemetryHandler TelemetryBatchHandler,
 	projectHandler ProjectHandler,
 	eventQueryHandler EventQueryHandler,
+	issueQueryHandler IssueQueryHandler,
 	authHandler AuthHandler,
 	sessionAuthenticator middleware.SessionAuthenticator,
 ) *gin.Engine {
@@ -67,6 +72,7 @@ func New(
 	projects.GET("/:projectId", projectHandler.Detail)
 	projects.PATCH("/:projectId", projectHandler.Update)
 	projects.POST("/:projectId/public-key/rotate", projectHandler.RotatePublicKey)
+	projects.GET("/:projectId/issues", issueQueryHandler.List)
 	projects.GET("/:projectId/events", eventQueryHandler.List)
 	projects.GET("/:projectId/events/:eventId", eventQueryHandler.Detail)
 

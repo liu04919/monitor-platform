@@ -52,17 +52,18 @@ type App struct {
 }
 
 type TelemetryEvent struct {
-	SchemaVersion int             `json:"schemaVersion"`
-	EventID       string          `json:"eventId"`
-	Category      EventCategory   `json:"category"`
-	EventType     string          `json:"eventType"`
-	Timestamp     int64           `json:"timestamp"`
-	PageURL       string          `json:"pageUrl"`
-	UserID        *string         `json:"userId"`
-	Level         *EventLevel     `json:"level"`
-	Breadcrumbs   []Breadcrumb    `json:"breadcrumbs"`
-	ReplayData    *string         `json:"replayData"`
-	Payload       json.RawMessage `json:"payload"`
+	SchemaVersion    int             `json:"schemaVersion"`
+	EventID          string          `json:"eventId"`
+	Category         EventCategory   `json:"category"`
+	EventType        string          `json:"eventType"`
+	Timestamp        int64           `json:"timestamp"`
+	PageURL          string          `json:"pageUrl"`
+	UserID           *string         `json:"userId"`
+	Level            *EventLevel     `json:"level"`
+	Breadcrumbs      []Breadcrumb    `json:"breadcrumbs"`
+	ReplayData       *string         `json:"replayData"`
+	Payload          json.RawMessage `json:"payload"`
+	IssueFingerprint string          `json:"-"`
 }
 
 type Breadcrumb struct {

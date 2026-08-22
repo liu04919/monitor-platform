@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
+	"github.com/liu04919/monitor-platform/apps/server/internal/issuefingerprint"
 )
 
 // BatchReservation 描述 PostgreSQL 批次账本需要持久化的业务身份。
@@ -51,6 +52,15 @@ func (s *persistentBatchStore) Save(
 	ctx context.Context,
 	batch dto.TelemetryBatch,
 ) (BatchStoreResult, error) {
+	batch.Events = append([]dto.TelemetryEvent(nil), batch.Events...)
+	for index := range batch.Events {
+		fingerprint, err := issuefingerprint.Compute(batch.Events[index])
+		if err != nil {
+			return BatchStoreResult{}, fmt.Errorf("计算事件 %d Issue 指纹: %w", index, err)
+		}
+		batch.Events[index].IssueFingerprint = fingerprint
+	}
+
 	contentHash, err := batchContentHash(batch)
 	if err != nil {
 		return BatchStoreResult{}, fmt.Errorf("计算批次内容哈希: %w", err)

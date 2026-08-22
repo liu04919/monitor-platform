@@ -43,7 +43,7 @@ func TestClickHouseTelemetryEventsTable(t *testing.T) {
 		(
 			schema_version, project_id, app_name, batch_id, send_type, sent_at,
 			event_id, category, event_type, event_timestamp, page_url,
-			user_id, level, breadcrumbs_json, replay_data, payload_json
+			user_id, level, breadcrumbs_json, replay_data, payload_json, issue_fingerprint
 		)
 	`)
 	if err != nil {
@@ -67,6 +67,7 @@ func TestClickHouseTelemetryEventsTable(t *testing.T) {
 		"[]",
 		nil,
 		`{"exception":{"name":"Error","message":"集成测试"}}`,
+		"integration-fingerprint",
 	); err != nil {
 		t.Fatalf("追加测试事件失败: %v", err)
 	}

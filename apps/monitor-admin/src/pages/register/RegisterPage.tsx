@@ -34,7 +34,7 @@ export function RegisterPage() {
     },
     onSuccess: (user) => {
       queryClient.setQueryData<AuthUser>(currentUserQueryKey, user)
-      navigate('/events', { replace: true })
+      navigate('/issues', { replace: true })
     },
   })
 

@@ -11,7 +11,7 @@ import { CreateProjectDialog } from '@/features/projects/components/CreateProjec
 import { ProjectSwitcher } from '@/features/projects/components/ProjectSwitcher/ProjectSwitcher'
 import { projectsQueryKey, projectsQueryOptions } from '@/features/projects/model/projectQueries'
 import type { CreatedProject, ProjectListData } from '@/features/projects/model/projectTypes'
-import { ChevronIcon, EventsIcon, PulseIcon, SettingsIcon } from '@/shared/ui/icons/Icons'
+import { AlertIcon, ChevronIcon, EventsIcon, PulseIcon, SettingsIcon } from '@/shared/ui/icons/Icons'
 import { useAdminStore } from '@/store/adminStore'
 import styles from './AppShell.module.css'
 
@@ -27,6 +27,8 @@ export function AppShell() {
   const projectsQuery = useQuery(projectsQueryOptions())
   const projects = useMemo(() => projectsQuery.data?.projects || [], [projectsQuery.data?.projects])
   const selectedProject = projects.find((project) => project.id === projectId)
+  const issuesMatch = useMatch('/issues')
+  const eventsMatch = useMatch('/events')
   const detailMatch = useMatch('/events/:eventId')
   const settingsMatch = useMatch('/projects/:projectId/settings')
   const navigate = useNavigate()
@@ -41,7 +43,7 @@ export function AppShell() {
       }))
       setCreatedProject(project)
       setProjectId(project.id)
-      navigate('/events')
+      navigate('/issues')
     },
   })
   const logoutMutation = useMutation({
@@ -65,7 +67,7 @@ export function AppShell() {
   const switchProject = (nextProjectId: string) => {
     if (nextProjectId === projectId) return
     setProjectId(nextProjectId)
-    navigate('/events')
+    navigate(eventsMatch || detailMatch ? '/events' : '/issues')
   }
 
   const openCreateDialog = () => {
@@ -99,6 +101,10 @@ export function AppShell() {
           onCreate={openCreateDialog}
         />
         <nav aria-label="管理端导航">
+          <NavLink to="/issues" className={({ isActive }) => (isActive ? styles.active : undefined)} end>
+            <AlertIcon />
+            <span>问题</span>
+          </NavLink>
           <NavLink to="/events" className={({ isActive }) => (isActive ? styles.active : undefined)} end>
             <EventsIcon />
             <span>事件流</span>
@@ -132,9 +138,10 @@ export function AppShell() {
             <strong>Monitor</strong>
           </div>
           <nav aria-label="面包屑">
-            <NavLink to="/events">事件流</NavLink>
-            {detailMatch ? <><ChevronIcon /><span>事件详情</span></> : null}
-            {settingsMatch ? <><ChevronIcon /><span>项目设置</span></> : null}
+            {issuesMatch ? <span>问题</span> : null}
+            {eventsMatch ? <span>事件流</span> : null}
+            {detailMatch ? <><NavLink to="/events">事件流</NavLink><ChevronIcon /><span>事件详情</span></> : null}
+            {settingsMatch ? <><NavLink to="/issues">问题</NavLink><ChevronIcon /><span>项目设置</span></> : null}
           </nav>
           {isMobile ? (
             <div className={styles.mobileProjectActions}>
@@ -169,6 +176,10 @@ export function AppShell() {
         </header>
         {isMobile ? (
           <nav className={styles.mobileNav} aria-label="移动端管理导航">
+            <NavLink to="/issues" className={({ isActive }) => (isActive ? styles.mobileActive : undefined)} end>
+              <AlertIcon />
+              <span>问题</span>
+            </NavLink>
             <NavLink to="/events" className={({ isActive }) => (isActive ? styles.mobileActive : undefined)} end>
               <EventsIcon />
               <span>事件流</span>

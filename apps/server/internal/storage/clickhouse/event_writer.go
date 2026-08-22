@@ -19,7 +19,7 @@ const insertTelemetryEventsSQL = `
 	(
 		schema_version, project_id, app_name, batch_id, send_type, sent_at,
 		event_id, category, event_type, event_timestamp, page_url,
-		user_id, level, breadcrumbs_json, replay_data, payload_json
+		user_id, level, breadcrumbs_json, replay_data, payload_json, issue_fingerprint
 	)
 `
 
@@ -75,6 +75,7 @@ func (w *EventWriter) Write(
 			string(breadcrumbsJSON),
 			nullableString(event.ReplayData),
 			string(event.Payload),
+			event.IssueFingerprint,
 		); err != nil {
 			return fmt.Errorf("追加事件 %d: %w", index, err)
 		}

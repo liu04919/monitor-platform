@@ -28,6 +28,12 @@ func TestBatchStoreWritesAndCompletesNewBatch(t *testing.T) {
 	if writer.calls != 1 || writer.token == "" {
 		t.Fatalf("writer calls = %d, token = %q", writer.calls, writer.token)
 	}
+	if writer.batch.Events[0].IssueFingerprint == "" {
+		t.Fatal("error event was written without an Issue fingerprint")
+	}
+	if batch.Events[0].IssueFingerprint != "" {
+		t.Fatal("Save() mutated the caller's event slice")
+	}
 	if receipts.reservation.ContentHash == "" || receipts.reservation.EventCount != len(batch.Events) {
 		t.Fatalf("unexpected reservation: %#v", receipts.reservation)
 	}
@@ -112,6 +118,8 @@ func TestBatchContentHashIgnoresAuthenticationAndTransportMetadata(t *testing.T)
 	second := first
 	second.PublicKey = "rotated-public-key"
 	second.SendType = dto.SendTypeBeacon
+	second.Events = append([]dto.TelemetryEvent(nil), second.Events...)
+	second.Events[0].IssueFingerprint = "internal-only"
 
 	firstHash, err := batchContentHash(first)
 	if err != nil {
@@ -191,12 +199,15 @@ func persistentBatch() dto.TelemetryBatch {
 				SchemaVersion: 2,
 				EventID:       "event-1",
 				Category:      dto.EventCategoryError,
-				EventType:     "exception",
+				EventType:     "js_error",
 				Timestamp:     1_700_000_000_000,
 				PageURL:       "https://example.com",
 				Level:         &level,
 				Breadcrumbs:   []dto.Breadcrumb{},
-				Payload:       json.RawMessage(`{"message":"boom"}`),
+				Payload: json.RawMessage(
+					`{"exception":{"name":"Error","message":"boom","stack":[]},` +
+						`"mechanism":{"type":"window.onerror","handled":false}}`,
+				),
 			},
 		},
 		SendType: dto.SendTypeFetch,

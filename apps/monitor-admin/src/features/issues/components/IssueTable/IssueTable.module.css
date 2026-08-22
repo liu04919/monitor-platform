@@ -1,0 +1,195 @@
+.row {
+  min-width: 850px;
+  display: grid;
+  grid-template-columns: minmax(300px, 2.4fr) 90px 90px 130px 130px 32px;
+  align-items: center;
+  column-gap: 14px;
+}
+
+.header {
+  min-height: 46px;
+  padding: 0 18px;
+  color: #7f8b9c;
+  background: #fafbfc;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.item {
+  min-height: 94px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #edf0f4;
+  transition: background-color 0.15s ease;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 94px;
+}
+
+.item:hover {
+  background: #fafcff;
+}
+
+.identity {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.identity > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.severity {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  color: #e3384d;
+  background: #fff0f2;
+  border-radius: 50%;
+}
+
+.severity svg {
+  width: 15px;
+  height: 15px;
+}
+
+.identity a {
+  overflow: hidden;
+  color: #202a3a;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 720;
+}
+
+.identity a:hover {
+  color: var(--blue);
+}
+
+.identity > div > span {
+  overflow: hidden;
+  color: #7f8b9c;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.tags {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tags code {
+  color: #5f6c80;
+  font-size: 10px;
+}
+
+.count {
+  color: #273247;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.users,
+.item time {
+  color: #5f6c80;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.latestLink {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: #7f8b9c;
+  border-radius: 8px;
+}
+
+.latestLink:hover {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.latestLink svg {
+  width: 16px;
+  height: 16px;
+}
+
+.footer {
+  min-width: 850px;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  color: #7f8b9c;
+  background: #fcfcfd;
+  font-size: 11px;
+}
+
+.footer strong {
+  color: #354156;
+}
+
+.footer button svg {
+  width: 12px;
+  height: 12px;
+  transform: rotate(90deg);
+}
+
+@container (max-width: 849px) {
+  .header {
+    display: none;
+  }
+
+  .row {
+    min-width: 0;
+  }
+
+  .item {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    row-gap: 12px;
+  }
+
+  .identity {
+    grid-column: 1 / -1;
+  }
+
+  .count::before {
+    content: "事件 ";
+    color: #8a95a5;
+    font-size: 10px;
+    font-weight: 500;
+  }
+
+  .users::before {
+    content: "用户 ";
+    color: #8a95a5;
+    font-size: 10px;
+  }
+
+  .item time:first-of-type {
+    display: none;
+  }
+
+  .item time:last-of-type {
+    grid-column: 3;
+  }
+
+  .latestLink {
+    display: none;
+  }
+
+  .footer {
+    min-width: 0;
+  }
+}

@@ -97,6 +97,7 @@ func TestAuthRoutes(t *testing.T) {
 		&stubTelemetryHandler{},
 		&stubProjectHandler{},
 		&stubEventHandler{},
+		&stubIssueHandler{},
 		authHandler,
 		stubSessionAuthenticator{},
 	)
@@ -312,6 +313,7 @@ func newTestRouter(
 		telemetryHandler,
 		projectHandler,
 		eventQueryHandler,
+		&stubIssueHandler{},
 		&stubAuthHandler{},
 		stubSessionAuthenticator{},
 	)
@@ -338,6 +340,10 @@ func (h *stubTelemetryHandler) Batch(c *gin.Context) {
 type stubEventHandler struct {
 	calls       int
 	detailCalls int
+}
+
+type stubIssueHandler struct {
+	calls int
 }
 
 type stubProjectHandler struct {
@@ -406,6 +412,11 @@ func (h *stubEventHandler) Detail(c *gin.Context) {
 }
 
 func (h *stubEventHandler) List(c *gin.Context) {
+	h.calls++
+	c.Status(http.StatusOK)
+}
+
+func (h *stubIssueHandler) List(c *gin.Context) {
 	h.calls++
 	c.Status(http.StatusOK)
 }

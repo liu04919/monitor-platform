@@ -18,9 +18,11 @@ import (
 	"github.com/liu04919/monitor-platform/apps/server/internal/eventquery"
 	authhandler "github.com/liu04919/monitor-platform/apps/server/internal/handler/auth"
 	eventhandler "github.com/liu04919/monitor-platform/apps/server/internal/handler/event"
+	issuehandler "github.com/liu04919/monitor-platform/apps/server/internal/handler/issue"
 	projecthandler "github.com/liu04919/monitor-platform/apps/server/internal/handler/project"
 	telemetryhandler "github.com/liu04919/monitor-platform/apps/server/internal/handler/telemetry"
 	"github.com/liu04919/monitor-platform/apps/server/internal/ingestion"
+	"github.com/liu04919/monitor-platform/apps/server/internal/issuequery"
 	"github.com/liu04919/monitor-platform/apps/server/internal/project"
 	"github.com/liu04919/monitor-platform/apps/server/internal/router"
 	clickhousestore "github.com/liu04919/monitor-platform/apps/server/internal/storage/clickhouse"
@@ -78,6 +80,7 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	batchReceipts := postgresstore.NewBatchReceiptStore(postgresDB)    // PostgreSQL 存储：记录接入批次状态
 	eventWriter := clickhousestore.NewEventWriter(clickHouseConn)      // ClickHouse 存储：写入遥测事件
 	eventReader := clickhousestore.NewEventReader(clickHouseConn)      // ClickHouse 存储：查询遥测事件
+	issueReader := clickhousestore.NewIssueReader(clickHouseConn)      // ClickHouse 存储：聚合错误 Issue
 	projectStore := postgresstore.NewProjectStore(postgresDB)          // PostgreSQL 存储：读写项目
 	userStore := postgresstore.NewUserStore(postgresDB)                // PostgreSQL 存储：读写用户
 	sessionStore := redisstore.NewSessionStore(redisClient)            // Redis 存储：读写登录 Session
@@ -88,6 +91,8 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	projectHandler := projecthandler.NewHandler(projectService)        // HTTP Handler：项目查询与创建接口
 	eventService := eventquery.NewService(eventReader, projectService) // 事件查询业务：项目授权、列表与详情查询
 	eventHandler := eventhandler.NewHandler(eventService)              // HTTP Handler：事件列表与详情接口
+	issueService := issuequery.NewService(issueReader, projectService) // Issue 查询业务：项目授权、聚合列表与游标分页
+	issueHandler := issuehandler.NewHandler(issueService)              // HTTP Handler：Issue 聚合列表接口
 	authService := auth.NewService(
 		userStore,
 		sessionStore,
@@ -106,6 +111,7 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 			telemetryHandler,
 			projectHandler,
 			eventHandler,
+			issueHandler,
 			authHandler,
 			authService,
 		),

@@ -1,6 +1,6 @@
 # monitor-platform
 
-本地链路为：浏览器 SDK → Go ingestion API → PostgreSQL 控制面与批次账本 → ClickHouse 遥测事件。PostgreSQL 保存用户和归属项目，Redis 只保存可过期的登录 Session。
+本地链路为：浏览器 SDK → Go ingestion API → PostgreSQL 控制面与批次账本 → ClickHouse 遥测事件。Go 在错误事件入库前生成稳定的 Issue 指纹，管理端再从 ClickHouse 聚合 Issue。PostgreSQL 保存用户和归属项目，Redis 只保存可过期的登录 Session。
 
 ## 启动后端
 
@@ -26,7 +26,7 @@ GET    /api/v1/auth/me
 DELETE /api/v1/auth/logout
 ```
 
-注册只创建用户；登录才写入 `HttpOnly`、`SameSite=Lax` 的 `monitor_session` Cookie。项目列表、项目创建和事件读取都要求该 Cookie，并且只能访问当前用户拥有的项目。SDK `publicKey` 只允许上报，不能读取管理数据。
+注册只创建用户；登录才写入 `HttpOnly`、`SameSite=Lax` 的 `monitor_session` Cookie。项目、Issue 和事件读取都要求该 Cookie，并且只能访问当前用户拥有的项目。SDK `publicKey` 只允许上报，不能读取管理数据。
 
 ## 启动管理端
 

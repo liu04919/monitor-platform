@@ -1,7 +1,7 @@
 # Management API v1
 
-本文档描述当前已实现的管理端项目创建/发现、事件列表和详情接口。它在 PostgreSQL 管理用户和
-归属项目，从 ClickHouse 读取事件，Redis 保存登录 Session。尚不包含项目编辑或删除。
+本文档描述当前已实现的管理端项目、Issue 聚合、事件列表和事件详情接口。PostgreSQL 管理用户
+与项目，ClickHouse 保存遥测事件并提供 Issue 聚合数据，Redis 保存登录 Session。
 
 ## 鉴权边界
 
@@ -18,9 +18,9 @@ DELETE /api/v1/auth/logout
 缺少、过期或错误的 Session 返回 `401 UNAUTHENTICATED`；Redis 暂时不可用返回
 `503 SESSION_UNAVAILABLE`。浏览器 SDK 的 `publicKey` 只能用于事件上报，不能读取管理数据。
 
-每个项目都有非空 `owner_user_id`。列表只返回当前用户的项目；创建项目自动绑定当前用户；事件
-列表和详情会先验证项目归属。访问不存在或不属于自己的项目统一返回 `404 PROJECT_NOT_FOUND`，
-不泄露其他用户的项目是否存在。
+每个项目都有非空 `owner_user_id`。列表只返回当前用户的项目；创建项目自动绑定当前用户；项目、
+Issue 和事件接口都会先验证项目归属。访问不存在或不属于自己的项目统一返回
+`404 PROJECT_NOT_FOUND`，不泄露其他用户的项目是否存在。
 
 ## 项目列表
 
@@ -111,6 +111,46 @@ GET /api/v1/projects/{projectId}
 `publicKey` 是浏览器 SDK 的公开接入凭据，不是管理端 Session 或读取凭据。项目列表继续不返回
 该字段，详情接口则允许已登录的项目所有者随时重新复制 SDK 配置。数据库故障返回不暴露内部
 错误的 `500 INTERNAL_ERROR`。
+
+## Issue 列表
+
+```http
+GET /api/v1/projects/{projectId}/issues
+```
+
+Issue 只聚合 `category=error` 的事件。Go 在事件写入 ClickHouse 前根据错误类型、异常类型和错误
+位置生成稳定的 `issue_fingerprint`；ClickHouse 只按这个字段分组，不在查询时重新计算指纹。
+
+查询参数：
+
+- `limit`：可选，默认 `30`，范围 `1..100`
+- `cursor`：可选，上一页返回的不透明游标
+
+```json
+{
+  "data": {
+    "issues": [
+      {
+        "id": "e75e42d8fa4b92e739f3365d687b854a",
+        "title": "Cannot read properties of undefined",
+        "eventType": "js_error",
+        "exceptionType": "TypeError",
+        "eventCount": 3,
+        "affectedUsers": 2,
+        "firstSeen": 1787328000000,
+        "lastSeen": 1787328060000,
+        "latestEventId": "evt_latest",
+        "latestPageUrl": "https://example.com/profile"
+      }
+    ],
+    "nextCursor": "opaque_cursor_or_empty_string"
+  }
+}
+```
+
+结果按 `(lastSeen DESC, id DESC)` 稳定排序。项目不存在或不属于当前用户返回
+`404 PROJECT_NOT_FOUND`；非法 `limit` 或 `cursor` 返回 `400 INVALID_QUERY`；ClickHouse 故障
+返回不暴露内部错误的 `500 INTERNAL_ERROR`。
 
 ## 事件列表
 
