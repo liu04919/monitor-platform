@@ -12,12 +12,11 @@
   padding-top: 4px;
 }
 
-.eyebrow {
-  margin-bottom: 5px;
-  color: var(--blue);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
+.title {
+  color: #101725;
+  font-size: 28px;
+  font-weight: 740;
+  letter-spacing: -0.035em;
 }
 
 .description {

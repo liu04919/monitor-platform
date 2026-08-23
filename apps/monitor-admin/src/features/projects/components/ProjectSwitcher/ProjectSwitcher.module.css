@@ -8,12 +8,30 @@
 }
 
 .label {
-  margin-bottom: 8px;
+  margin: 0 0 8px;
   color: #a8b3c0;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+
+.emptyProject {
+  min-height: 68px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 14px;
+  color: #d9e2ec;
+  background: #161e27;
+  border: 1px dashed #3a4653;
+  border-radius: 8px;
+}
+
+.emptyProject strong {
+  font-size: 13px;
+  font-weight: 720;
 }
 
 .input {

@@ -23,9 +23,6 @@ export function ProjectSDKConfig({ project }: ProjectSDKConfigProps) {
         </CopyButton>
       </Group>
       <pre className={styles.config}><code>{sdkConfig}</code></pre>
-      <Text className={styles.boundary}>
-        publicKey 会出现在浏览器中，只能用于事件上报，不能读取管理数据。
-      </Text>
     </Stack>
   )
 }

@@ -200,9 +200,16 @@
   padding: 30px;
   text-align: center;
 }
-.firstProject p { margin: 0 0 10px; color: var(--blue); font-size: 10px; font-weight: 750; letter-spacing: 0.14em; }
 .firstProject h1 { margin: 0; font-size: 24px; }
-.firstProject span { max-width: 460px; margin: 10px 0 22px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.firstProjectButton {
+  --button-bg: #2f70e8;
+  --button-hover: #205fcf;
+  --button-color: #fff;
+  min-height: 42px;
+  margin-top: 22px;
+  padding-inline: 20px;
+  font-weight: 750;
+}
 
 @media (max-width: 1080px) {
   .shell {

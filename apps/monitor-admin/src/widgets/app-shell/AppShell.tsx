@@ -159,15 +159,17 @@ export function AppShell() {
                   <option key={project.id} value={project.id}>{project.name}</option>
                 ))}
               </select>
-              <button
-                className={styles.mobileCreateButton}
-                type="button"
-                aria-label="新建项目"
-                onClick={openCreateDialog}
-                disabled={projectsQuery.isPending}
-              >
-                ＋
-              </button>
+              {!hasNoProjects ? (
+                <button
+                  className={styles.mobileCreateButton}
+                  type="button"
+                  aria-label="新建项目"
+                  onClick={openCreateDialog}
+                  disabled={projectsQuery.isPending}
+                >
+                  ＋
+                </button>
+              ) : null}
             </div>
           ) : (
             <div className={styles.projectChip} title={projectId}>
@@ -202,11 +204,11 @@ export function AppShell() {
         ) : null}
         <main id="main-content" tabIndex={-1}>
           {hasNoProjects ? (
-            <section className={styles.firstProject}>
-              <p>GET STARTED</p>
-              <h1>创建你的第一个项目</h1>
-              <span>项目创建后会生成专属 publicKey，用于浏览器 SDK 上报。</span>
-              <Button onClick={openCreateDialog}>新建项目</Button>
+            <section className={styles.firstProject} aria-labelledby="first-project-title">
+              <h1 id="first-project-title">创建你的第一个项目</h1>
+              <Button className={styles.firstProjectButton} onClick={openCreateDialog}>
+                创建第一个项目
+              </Button>
             </section>
           ) : <Outlet />}
         </main>

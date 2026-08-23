@@ -8,7 +8,6 @@
   margin-bottom: 26px;
 }
 
-.heading p,
 .label {
   margin: 0 0 7px;
   color: var(--blue);
@@ -24,16 +23,6 @@
   font-size: 30px;
   font-weight: 740;
   letter-spacing: -0.035em;
-}
-
-.heading span,
-.settingsHeading p,
-.sdkHeading p {
-  display: block;
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.65;
 }
 
 .projectCard,
@@ -90,11 +79,6 @@
 .settingsHeading,
 .sdkHeading {
   margin-bottom: 22px;
-}
-
-.settingsHeading p,
-.sdkHeading p {
-  margin-bottom: 0;
 }
 
 @media (max-width: 760px) {

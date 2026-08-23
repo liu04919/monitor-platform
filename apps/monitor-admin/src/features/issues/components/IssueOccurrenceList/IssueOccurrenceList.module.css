@@ -17,14 +17,6 @@
   border-bottom: 1px solid #edf0f4;
 }
 
-.heading p {
-  margin: 0 0 3px;
-  color: var(--blue);
-  font-size: 9px;
-  font-weight: 850;
-  letter-spacing: .12em;
-}
-
 .heading h2 {
   margin: 0;
   color: #263247;

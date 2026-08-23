@@ -30,7 +30,6 @@ export function LoginPage() {
   return (
     <AuthLayout
       title="登录管理端"
-      description="使用账号访问自己的项目和遥测事件。"
       footer={<>还没有账号？ <Link to="/register">创建账号</Link></>}
     >
       <form onSubmit={form.handleSubmit((value) => mutation.mutate(value))} noValidate>

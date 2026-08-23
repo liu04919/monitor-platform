@@ -16,7 +16,6 @@ export function IssueOverview({ issue }: IssueOverviewProps) {
     <section className={styles.card} aria-labelledby="issue-overview-title">
       <div className={styles.header}>
         <div>
-          <p>ISSUE OVERVIEW</p>
           <h2 id="issue-overview-title">问题概览</h2>
         </div>
         <Button

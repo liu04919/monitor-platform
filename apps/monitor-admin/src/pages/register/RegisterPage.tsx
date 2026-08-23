@@ -41,7 +41,6 @@ export function RegisterPage() {
   return (
     <AuthLayout
       title="创建账号"
-      description="账号创建成功后会自动登录，然后你可以创建第一个监控项目。"
       footer={<>已经有账号？ <Link to="/login">返回登录</Link></>}
     >
       <form onSubmit={form.handleSubmit((value) => mutation.mutate(value))} noValidate>

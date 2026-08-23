@@ -110,7 +110,6 @@ export function ProjectSettingsPage() {
         <div className={styles.settingsHeading}>
           <Text className={styles.label}>常规设置</Text>
           <h2>名称与接入状态</h2>
-          <p>停用项目只会阻止新事件上报，不会删除已有数据。</p>
         </div>
         <ProjectSettingsForm
           project={project}
@@ -123,8 +122,7 @@ export function ProjectSettingsPage() {
       <Paper className={styles.sdkCard} withBorder radius="md">
         <div className={styles.sdkHeading}>
           <Text className={styles.label}>浏览器接入</Text>
-          <h2>重新获取 SDK 初始化配置</h2>
-          <p>配置来自当前项目详情，可以随时回来复制，不需要重新创建项目。</p>
+          <h2>SDK 初始化配置</h2>
         </div>
         <ProjectSDKConfig project={project} />
         <ProjectKeyRotation projectId={project.id} />
@@ -136,9 +134,7 @@ export function ProjectSettingsPage() {
 function PageHeading() {
   return (
     <div className={styles.heading}>
-      <p>PROJECT SETTINGS</p>
       <h1>项目设置</h1>
-      <span>管理项目名称、SDK 接入状态与浏览器初始化配置。</span>
     </div>
   )
 }

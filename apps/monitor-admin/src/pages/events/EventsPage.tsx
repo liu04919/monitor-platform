@@ -55,9 +55,7 @@ export function EventsPage() {
     <section className={styles.page}>
       <div className={styles.heading}>
         <div>
-          <p className={styles.eyebrow}>TELEMETRY EXPLORER</p>
           <h1>事件流</h1>
-          <p>浏览由浏览器 SDK 上报并写入 ClickHouse 的原始事件。</p>
         </div>
         <ActionIcon
           className={styles.refreshButton}

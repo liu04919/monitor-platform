@@ -5,12 +5,11 @@ import styles from './AuthLayout.module.css'
 
 interface AuthLayoutProps {
   title: string
-  description: string
   footer: ReactNode
   children: ReactNode
 }
 
-export function AuthLayout({ title, description, footer, children }: AuthLayoutProps) {
+export function AuthLayout({ title, footer, children }: AuthLayoutProps) {
   return (
     <main className={styles.page}>
       <section className={styles.card}>
@@ -20,7 +19,6 @@ export function AuthLayout({ title, description, footer, children }: AuthLayoutP
         </Link>
         <div className={styles.heading}>
           <h1>{title}</h1>
-          <p>{description}</p>
         </div>
         {children}
         <div className={styles.footer}>{footer}</div>

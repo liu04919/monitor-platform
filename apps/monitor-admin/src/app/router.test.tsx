@@ -154,6 +154,23 @@ describe('admin event routes', () => {
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes(`/issues/${issueSummary.id}?`))).toBe(true)
   })
 
+  it('问题为空时只展示当前状态', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('/issues?')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ data: { issues: [], nextCursor: '' } }),
+        } as Response)
+      }
+      return successfulFetch(input, init)
+    }))
+    renderRoute('/issues')
+
+    expect(await screen.findByRole('heading', { name: '暂无问题' })).toBeInTheDocument()
+    expect(screen.queryByText(/自动聚合|异常位置/)).not.toBeInTheDocument()
+  })
+
   it('从事件列表进入由 React Router 管理的详情页', async () => {
     vi.stubGlobal('fetch', vi.fn(successfulFetch))
     renderRoute('/events')
@@ -163,6 +180,23 @@ describe('admin event routes', () => {
     expect(await screen.findByRole('heading', { name: 'Cannot read profile' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Payload' })).toBeInTheDocument()
     expect(fetch).toHaveBeenCalledTimes(4)
+  })
+
+  it('事件为空时不展示测试环境或存储实现', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).includes('/events?')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ data: { events: [], nextCursor: '' } }),
+        } as Response)
+      }
+      return successfulFetch(input, init)
+    }))
+    renderRoute('/events')
+
+    expect(await screen.findByRole('heading', { name: '暂无事件' })).toBeInTheDocument()
+    expect(screen.queryByText(/monitor-demo|ClickHouse/)).not.toBeInTheDocument()
   })
 
   it('把筛选条件交给 URL 和 TanStack Query', async () => {
@@ -224,17 +258,23 @@ describe('admin event routes', () => {
     })
   })
 
-  it('创建项目时由 Zod 在请求前校验名称', async () => {
+  it('创建项目时由 Zod 校验名称并在输入时清除错误', async () => {
     const user = userEvent.setup()
     const fetchMock = vi.fn(successfulFetch)
     vi.stubGlobal('fetch', fetchMock)
     renderRoute('/events')
 
     await user.click(await screen.findByRole('button', { name: '新建项目' }))
+    const nameInput = screen.getByRole('textbox', { name: '项目名称' })
     await user.click(screen.getByRole('button', { name: '创建项目' }))
 
     expect(await screen.findByText('请输入项目名称')).toBeInTheDocument()
     expect(fetchMock.mock.calls.every(([, init]) => init?.method !== 'POST')).toBe(true)
+
+    await user.type(nameInput, 'test')
+
+    expect(nameInput).toHaveFocus()
+    await waitFor(() => expect(screen.queryByText('请输入项目名称')).not.toBeInTheDocument())
   })
 
   it('通过受保护的项目详情重新展示 SDK 配置', async () => {
@@ -275,7 +315,7 @@ describe('admin event routes', () => {
     expect(screen.getByText('设置已保存')).toBeInTheDocument()
   })
 
-  it('项目设置由 Zod 在请求前校验名称', async () => {
+  it('项目设置由 Zod 校验名称并在输入时清除错误', async () => {
     const user = userEvent.setup()
     const fetchMock = vi.fn(successfulFetch)
     vi.stubGlobal('fetch', fetchMock)
@@ -287,6 +327,11 @@ describe('admin event routes', () => {
 
     expect(await screen.findByText('请输入项目名称')).toBeInTheDocument()
     expect(fetchMock.mock.calls.every(([, init]) => init?.method !== 'PATCH')).toBe(true)
+
+    await user.type(nameInput, 'Renamed Project')
+
+    expect(nameInput).toHaveFocus()
+    await waitFor(() => expect(screen.queryByText('请输入项目名称')).not.toBeInTheDocument())
   })
 
   it('确认后轮换 publicKey 并直接更新 SDK 配置缓存', async () => {
@@ -358,6 +403,26 @@ describe('admin event routes', () => {
       .map(([input]) => String(input))
       .filter((url) => url.endsWith('/auth/register') || url.endsWith('/auth/login'))
     expect(authCalls.map((url) => url.split('/').at(-1))).toEqual(['register', 'login'])
+  })
+
+  it('无项目时只保留一个明确的创建入口', async () => {
+    const user = userEvent.setup()
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/projects') && init?.method !== 'POST') {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ data: { projects: [] } }) } as Response)
+      }
+      return successfulFetch(input, init)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/issues')
+
+    expect(await screen.findByText('暂无项目')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: '当前项目' })).not.toBeInTheDocument()
+    const createButton = screen.getByRole('button', { name: '创建第一个项目' })
+    expect(screen.getAllByRole('button', { name: /新建项目|创建第一个项目/ })).toHaveLength(1)
+
+    await user.click(createButton)
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
   })
 
   it('注册成功但 Redis 不可用时明确提示账号已经创建', async () => {

@@ -11,27 +11,12 @@
   margin-bottom: 26px;
 }
 
-.eyebrow {
-  margin: 0 0 8px !important;
-  color: var(--blue) !important;
-  font-size: 11px !important;
-  font-weight: 850 !important;
-  letter-spacing: 0.12em;
-}
-
 .heading h1 {
   margin: 0;
   color: #101725;
   font-size: 30px;
   font-weight: 740;
   letter-spacing: -0.035em;
-}
-
-.heading > div > p:last-child {
-  margin: 8px 0 0;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.6;
 }
 
 .refreshButton {
@@ -81,11 +66,6 @@
   font-size: 16px;
 }
 
-.empty p {
-  color: #7f8b9c;
-  font-size: 12px;
-}
-
 .error {
   min-height: 230px;
   display: grid;
@@ -109,7 +89,4 @@
     font-size: 26px;
   }
 
-  .heading > div > p:last-child {
-    max-width: 270px;
-  }
 }

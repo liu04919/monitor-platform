@@ -27,8 +27,8 @@ export function EmptyState({ filtered }: { filtered: boolean }) {
   return (
     <Stack className={styles.emptyState} align="center" gap="xs">
       <ThemeIcon variant="light" color="gray" size={52} radius="md"><EmptyIcon /></ThemeIcon>
-      <Title order={2}>{filtered ? '没有匹配的事件' : '还没有遥测事件'}</Title>
-      <Text>{filtered ? '调整分类或事件类型后再试。' : '从 monitor-demo 触发场景后，事件会出现在这里。'}</Text>
+      <Title order={2}>{filtered ? '没有符合条件的事件' : '暂无事件'}</Title>
+      {filtered ? <Text>请调整或清除筛选条件。</Text> : null}
     </Stack>
   )
 }

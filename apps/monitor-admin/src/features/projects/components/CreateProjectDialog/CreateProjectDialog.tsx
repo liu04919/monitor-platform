@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Alert, Button, Group, Modal, Stack, Text, TextInput, Title } from '@mantine/core'
+import { Alert, Button, Group, Modal, Stack, Text, TextInput } from '@mantine/core'
 import { useForm } from 'react-hook-form'
 import { ProjectSDKConfig } from '@/features/projects/components/ProjectSDKConfig/ProjectSDKConfig'
 import {
@@ -27,7 +27,8 @@ export function CreateProjectDialog({
   const form = useForm<CreateProjectFormValues>({
     resolver: zodResolver(createProjectSchema),
     defaultValues: { name: '' },
-    mode: 'onBlur',
+    mode: 'onSubmit',
+    reValidateMode: 'onChange',
   })
   const submit = form.handleSubmit((values) => onSubmit(values))
 
@@ -43,25 +44,24 @@ export function CreateProjectDialog({
       radius="lg"
       padding="xl"
       overlayProps={{ backgroundOpacity: 0.58, blur: 4 }}
-      classNames={{ content: styles.dialog, header: styles.header, body: styles.body }}
-      title={(
-        <div>
-          <Text className={styles.eyebrow}>{createdProject ? 'PROJECT READY' : 'NEW PROJECT'}</Text>
-          <Title order={2}>{createdProject ? '项目已创建' : '创建项目'}</Title>
-        </div>
-      )}
+      classNames={{
+        content: styles.dialog,
+        header: styles.header,
+        title: styles.title,
+        body: styles.body,
+      }}
+      title={createdProject ? '项目已创建' : '创建项目'}
     >
       {createdProject ? (
         <Stack gap="md">
           <Text className={styles.description}>
-            项目已自动切换。把下面配置放进浏览器 SDK 初始化代码即可开始上报。
+            复制以下配置并用于 SDK 初始化。
           </Text>
           <ProjectSDKConfig project={createdProject} />
           <Button onClick={onClose}>完成</Button>
         </Stack>
       ) : (
         <form className={styles.form} onSubmit={submit} noValidate>
-          <Text className={styles.description}>只需要填写名称，项目 ID 和 SDK publicKey 由服务端安全生成。</Text>
           <TextInput
             label="项目名称"
             placeholder="例如 Monitor Web"

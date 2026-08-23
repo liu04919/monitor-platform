@@ -40,7 +40,6 @@
 
 .heading { margin: 28px 0 22px; }
 .heading h1 { margin: 0; font-size: 28px; letter-spacing: -0.03em; text-wrap: balance; }
-.heading p { margin: 8px 0 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
 
 .footer {
   margin-top: 22px;

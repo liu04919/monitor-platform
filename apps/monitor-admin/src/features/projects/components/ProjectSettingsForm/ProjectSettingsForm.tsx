@@ -27,7 +27,8 @@ export function ProjectSettingsForm({
   const form = useForm<ProjectSettingsFormValues>({
     resolver: zodResolver(projectSettingsSchema),
     defaultValues: { name: project.name, enabled: project.enabled },
-    mode: 'onBlur',
+    mode: 'onSubmit',
+    reValidateMode: 'onChange',
   })
   const { reset } = form
   const enabled = useWatch({ control: form.control, name: 'enabled' })
@@ -45,7 +46,7 @@ export function ProjectSettingsForm({
       <Stack gap="lg">
         <TextInput
           label="项目名称"
-          description="用于管理端展示，不影响项目 ID 和 SDK 配置。"
+          description="修改名称不会改变项目 ID。"
           maxLength={128}
           error={form.formState.errors.name?.message}
           {...form.register('name')}
@@ -56,7 +57,7 @@ export function ProjectSettingsForm({
           render={({ field }) => (
             <Switch
               label="允许 SDK 上报"
-              description="关闭后，当前项目的上报请求会被拒绝；历史事件仍可查询。"
+              description="关闭后停止接收新事件。"
               checked={field.value}
               onChange={(event) => field.onChange(event.currentTarget.checked)}
               onBlur={field.onBlur}
@@ -67,7 +68,7 @@ export function ProjectSettingsForm({
         />
         {!enabled ? (
           <Alert color="yellow" title="项目将停止接收新事件" role="status">
-            已经保存的事件不会删除，重新启用后可继续使用原 SDK 配置上报。
+            已有事件不受影响。
           </Alert>
         ) : null}
         {errorMessage ? (

@@ -18,9 +18,7 @@ export function IssuesPage() {
     <section className={styles.page}>
       <div className={styles.heading}>
         <div>
-          <p className={styles.eyebrow}>ISSUE EXPLORER</p>
           <h1>问题</h1>
-          <p>将相同根因的错误事件聚合，优先查看重复发生和影响用户更多的问题。</p>
         </div>
         <ActionIcon
           className={styles.refreshButton}
@@ -49,8 +47,7 @@ export function IssuesPage() {
         {!query.isPending && !query.isError && issues.length === 0 ? (
           <Stack className={styles.empty} align="center" gap="xs">
             <ThemeIcon variant="light" color="gray" size={52} radius="md"><EmptyIcon /></ThemeIcon>
-            <Title order={2}>还没有错误问题</Title>
-            <Text>错误类事件上报后，会按异常位置自动聚合到这里。</Text>
+            <Title order={2}>暂无问题</Title>
           </Stack>
         ) : null}
         {issues.length > 0 ? (

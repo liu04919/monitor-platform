@@ -22,7 +22,6 @@ export function IssueOccurrenceList({
     <section className={styles.panel} aria-labelledby="occurrence-list-title">
       <header className={styles.heading}>
         <div>
-          <p>OCCURRENCES</p>
           <h2 id="occurrence-list-title">发生记录</h2>
         </div>
         <span>已加载 {occurrences.length} 条</span>
