@@ -23,7 +23,7 @@ const eventSummary = {
 } as const
 
 const issueSummary = {
-  id: 'issue-1',
+  id: '0123456789abcdef0123456789abcdef',
   title: 'Cannot read profile',
   eventType: 'js_error',
   exceptionType: 'TypeError',
@@ -33,6 +33,16 @@ const issueSummary = {
   lastSeen: 1_787_068_800_000,
   latestEventId: 'event-1',
   latestPageUrl: 'https://example.com/profile',
+} as const
+
+const issueOccurrence = {
+  eventId: 'event-1',
+  eventType: 'js_error',
+  timestamp: 1_787_068_800_000,
+  pageUrl: 'https://example.com/profile',
+  userId: 'user-1',
+  message: 'Cannot read profile',
+  receivedAt: 1_787_068_800_100,
 } as const
 
 const primaryProjectId = '11111111-1111-4111-8111-111111111111'
@@ -101,6 +111,8 @@ function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
         replayData: null,
         payload: { message: 'Cannot read profile' },
       }
+    : url.includes(`/issues/${issueSummary.id}?`)
+    ? { issue: issueSummary, occurrences: [issueOccurrence], nextCursor: '' }
     : url.includes('/issues?')
     ? { issues: [issueSummary], nextCursor: '' }
     : { events: [eventSummary], nextCursor: '' }
@@ -126,8 +138,9 @@ describe('admin event routes', () => {
     vi.restoreAllMocks()
   })
 
-  it('展示按根因聚合的问题并进入最近事件', async () => {
-    vi.stubGlobal('fetch', vi.fn(successfulFetch))
+  it('展示按根因聚合的问题并进入发生记录详情', async () => {
+    const fetchMock = vi.fn(successfulFetch)
+    vi.stubGlobal('fetch', fetchMock)
     renderRoute('/issues')
 
     expect(await screen.findByRole('heading', { name: '问题' })).toBeInTheDocument()
@@ -136,6 +149,9 @@ describe('admin event routes', () => {
 
     fireEvent.click(screen.getByRole('link', { name: 'Cannot read profile' }))
     expect(await screen.findByRole('heading', { name: 'Cannot read profile' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '发生记录' })).toBeInTheDocument()
+    expect(screen.getByText('累计事件').nextElementSibling).toHaveTextContent('3')
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes(`/issues/${issueSummary.id}?`))).toBe(true)
   })
 
   it('从事件列表进入由 React Router 管理的详情页', async () => {

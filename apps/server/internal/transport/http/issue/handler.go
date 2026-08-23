@@ -8,6 +8,7 @@ import (
 
 type Service interface {
 	List(ctx context.Context, request issuedomain.ListRequest) (issuedomain.ListPage, error)
+	Detail(ctx context.Context, request issuedomain.DetailRequest) (issuedomain.DetailPage, error)
 }
 
 type Handler struct {

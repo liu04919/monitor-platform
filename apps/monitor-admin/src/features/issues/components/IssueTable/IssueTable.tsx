@@ -35,7 +35,7 @@ export function IssueTable({
           <div className={styles.identity}>
             <span className={styles.severity}><AlertIcon /></span>
             <div>
-              <Link to={`/events/${encodeURIComponent(issue.latestEventId)}`}>{issue.title}</Link>
+              <Link to={`/issues/${encodeURIComponent(issue.id)}`}>{issue.title}</Link>
               <div className={styles.tags}>
                 {issue.exceptionType ? <Badge color="red" variant="light" size="xs">{issue.exceptionType}</Badge> : null}
                 <code>{issue.eventType}</code>
@@ -49,8 +49,8 @@ export function IssueTable({
           <time dateTime={new Date(issue.lastSeen).toISOString()}>{formatTime(issue.lastSeen)}</time>
           <Link
             className={styles.latestLink}
-            to={`/events/${encodeURIComponent(issue.latestEventId)}`}
-            aria-label={`查看 ${issue.title} 的最近事件`}
+            to={`/issues/${encodeURIComponent(issue.id)}`}
+            aria-label={`查看问题 ${issue.title}`}
           >
             <ChevronIcon />
           </Link>

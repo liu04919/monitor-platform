@@ -1,6 +1,6 @@
 # monitor-admin
 
-管理端实现账号注册、登录、退出，当前用户的项目创建/切换与 SDK 配置查看，以及原始事件列表和详情。暂不模拟 Workspace、事件聚合状态、环境筛选、项目编辑或删除。
+管理端实现账号注册、登录、退出，当前用户的项目创建/切换与 SDK 配置查看，Issue 聚合列表与发生记录详情，以及原始事件列表和详情。暂不模拟 Workspace、Issue 状态流转、环境筛选或项目删除。
 
 ## 本地启动
 
@@ -22,15 +22,15 @@ pnpm dev
 ```text
 src/
 ├─ app/       # Router、QueryClient 和全局 Provider
-├─ pages/     # 登录、注册、项目设置、事件列表与详情路由页
-├─ features/  # auth、projects、events 领域的 API、模型和组件
+├─ pages/     # 登录、注册、项目设置、Issue 与事件路由页
+├─ features/  # auth、projects、issues、events 领域的 API、模型和组件
 ├─ widgets/   # AppShell 等跨页面布局
 ├─ shared/    # API 客户端、工具和基础 UI
 └─ store/     # 仅保存当前 projectId 等客户端状态
 ```
 
 - React Router 的守卫负责受保护路由和登录回跳。
-- TanStack Query 是当前用户、项目和事件等服务端状态的唯一缓存。
+- TanStack Query 是当前用户、项目、Issue 和事件等服务端状态的唯一缓存。
 - Zustand 只保存当前 `projectId`，不复制用户或事件数据。
 - Mantine 提供通用控件，React Hook Form + Zod 管理表单与前端校验，CSS Modules 负责产品布局与视觉。
 - 注册成功后再登录是有意的串行流程；若 Redis 暂时不可用，页面会明确提示账号已创建，避免用户重复注册。

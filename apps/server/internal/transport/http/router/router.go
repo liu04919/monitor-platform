@@ -21,6 +21,7 @@ type EventQueryHandler interface {
 
 type IssueQueryHandler interface {
 	List(c *gin.Context)
+	Detail(c *gin.Context)
 }
 
 type ProjectHandler interface {
@@ -73,6 +74,7 @@ func New(
 	projects.PATCH("/:projectId", projectHandler.Update)
 	projects.POST("/:projectId/public-key/rotate", projectHandler.RotatePublicKey)
 	projects.GET("/:projectId/issues", issueQueryHandler.List)
+	projects.GET("/:projectId/issues/:issueId", issueQueryHandler.Detail)
 	projects.GET("/:projectId/events", eventQueryHandler.List)
 	projects.GET("/:projectId/events/:eventId", eventQueryHandler.Detail)
 

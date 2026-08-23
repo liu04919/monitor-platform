@@ -38,18 +38,7 @@ func (h *Handler) List(c *gin.Context) {
 
 	issues := make([]listItem, 0, len(page.Issues))
 	for _, item := range page.Issues {
-		issues = append(issues, listItem{
-			ID:            item.ID,
-			Title:         item.Title,
-			EventType:     item.EventType,
-			ExceptionType: item.ExceptionType,
-			EventCount:    item.EventCount,
-			AffectedUsers: item.AffectedUsers,
-			FirstSeen:     item.FirstSeen.UnixMilli(),
-			LastSeen:      item.LastSeen.UnixMilli(),
-			LatestEventID: item.LatestEventID,
-			LatestPageURL: item.LatestPageURL,
-		})
+		issues = append(issues, summaryItem(item))
 	}
 
 	c.JSON(http.StatusOK, listEnvelope{Data: listData{

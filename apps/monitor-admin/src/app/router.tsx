@@ -3,6 +3,7 @@ import { AuthGuard } from '@/features/auth/components/AuthGuard/AuthGuard'
 import { EventDetailPage } from '@/pages/event-detail/EventDetailPage'
 import { EventsPage } from '@/pages/events/EventsPage'
 import { LoginPage } from '@/pages/login/LoginPage'
+import { IssueDetailPage } from '@/pages/issue-detail/IssueDetailPage'
 import { IssuesPage } from '@/pages/issues/IssuesPage'
 import { ProjectSettingsPage } from '@/pages/project-settings/ProjectSettingsPage'
 import { RegisterPage } from '@/pages/register/RegisterPage'
@@ -25,6 +26,7 @@ export const appRoutes: RouteObject[] = [
         children: [
           { index: true, element: <Navigate to="/issues" replace /> },
           { path: 'issues', element: <IssuesPage /> },
+          { path: 'issues/:issueId', element: <IssueDetailPage /> },
           { path: 'events', element: <EventsPage /> },
           { path: 'events/:eventId', element: <EventDetailPage /> },
           { path: 'projects/:projectId/settings', element: <ProjectSettingsPage /> },

@@ -42,6 +42,20 @@ const listIssuesSQL = `
 	GROUP BY issue_fingerprint
 `
 
+const listIssueOccurrencesSQL = `
+	SELECT
+		event_id,
+		event_type,
+		event_timestamp,
+		page_url,
+		user_id,
+		` + eventMessageExpression + ` AS message,
+		received_at
+	FROM telemetry_events
+	WHERE project_id = ?
+		AND issue_fingerprint = ?
+`
+
 // IssueReader 从 ClickHouse 的错误事件中读取按稳定指纹聚合的 Issue。
 type IssueReader struct {
 	conn driver.Conn
@@ -99,4 +113,87 @@ func (r *IssueReader) ListIssues(
 	}
 
 	return issues, nil
+}
+
+func (r *IssueReader) GetIssue(
+	ctx context.Context,
+	projectID string,
+	issueID string,
+) (issue.Summary, bool, error) {
+	query := listIssuesSQL + "\tHAVING issue_fingerprint = ?\n\tLIMIT 1"
+	rows, err := r.conn.Query(ctx, query, projectID, issueID)
+	if err != nil {
+		return issue.Summary{}, false, fmt.Errorf("执行 ClickHouse Issue 详情查询: %w", err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return issue.Summary{}, false, fmt.Errorf("遍历 ClickHouse Issue 详情: %w", err)
+		}
+		return issue.Summary{}, false, nil
+	}
+
+	var summary issue.Summary
+	if err := rows.Scan(
+		&summary.ID,
+		&summary.Title,
+		&summary.EventType,
+		&summary.ExceptionType,
+		&summary.EventCount,
+		&summary.AffectedUsers,
+		&summary.FirstSeen,
+		&summary.LastSeen,
+		&summary.LatestEventID,
+		&summary.LatestPageURL,
+	); err != nil {
+		return issue.Summary{}, false, fmt.Errorf("扫描 ClickHouse Issue 详情: %w", err)
+	}
+
+	return summary, true, nil
+}
+
+func (r *IssueReader) ListOccurrences(
+	ctx context.Context,
+	filter issue.OccurrenceFilter,
+) ([]issue.Occurrence, error) {
+	query := strings.Builder{}
+	query.WriteString(listIssueOccurrencesSQL)
+	arguments := []any{filter.ProjectID, filter.IssueID}
+
+	if filter.Before != nil {
+		query.WriteString("\tAND (event_timestamp, event_id) < (fromUnixTimestamp64Milli(?), ?)\n")
+		arguments = append(arguments, filter.Before.Timestamp.UnixMilli(), filter.Before.EventID)
+	}
+
+	query.WriteString("\tORDER BY event_timestamp DESC, event_id DESC\n\tLIMIT ?")
+	arguments = append(arguments, filter.Limit)
+
+	rows, err := r.conn.Query(ctx, query.String(), arguments...)
+	if err != nil {
+		return nil, fmt.Errorf("执行 ClickHouse Issue 发生记录查询: %w", err)
+	}
+	defer rows.Close()
+
+	occurrences := make([]issue.Occurrence, 0, filter.Limit)
+	for rows.Next() {
+		var occurrence issue.Occurrence
+		if err := rows.Scan(
+			&occurrence.EventID,
+			&occurrence.EventType,
+			&occurrence.Timestamp,
+			&occurrence.PageURL,
+			&occurrence.UserID,
+			&occurrence.Message,
+			&occurrence.ReceivedAt,
+		); err != nil {
+			return nil, fmt.Errorf("扫描 ClickHouse Issue 发生记录: %w", err)
+		}
+		occurrences = append(occurrences, occurrence)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("遍历 ClickHouse Issue 发生记录: %w", err)
+	}
+
+	return occurrences, nil
 }

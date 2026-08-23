@@ -28,6 +28,7 @@ func TestIssueReaderAggregatesMatchingFingerprints(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = conn.Close() })
 	projectID := uuid.NewString()
+	issueID := "0123456789abcdef0123456789abcdef"
 	now := time.Now().UTC().Truncate(time.Millisecond)
 	payload := `{"exception":{"name":"TypeError","message":"profile failed","stack":[{"filename":"https://example.com/app.js","functionName":"renderProfile","line":42,"column":7}]}}`
 	insertSQL := `
@@ -45,7 +46,7 @@ func TestIssueReaderAggregatesMatchingFingerprints(t *testing.T) {
 			insertSQL,
 			uint16(2), projectID, "IssueReader 测试", "batch-1", "fetch", now,
 			"event-"+userID, "error", "js_error", now.Add(time.Duration(index)*time.Millisecond),
-			"https://example.com/profile", userID, "error", "[]", nil, payload, "fingerprint-1",
+			"https://example.com/profile", userID, "error", "[]", nil, payload, issueID,
 		); err != nil {
 			t.Fatalf("写入测试事件失败: %v", err)
 		}
@@ -71,14 +72,48 @@ func TestIssueReaderAggregatesMatchingFingerprints(t *testing.T) {
 		t.Fatalf("ListIssues() error = %v", err)
 	}
 
-	for _, issue := range issues {
-		if issue.EventType == "js_error" && issue.Title == "profile failed" {
-			if issue.EventCount != 2 || issue.AffectedUsers != 2 {
-				t.Fatalf("aggregated issue = %#v", issue)
+	for _, summary := range issues {
+		if summary.EventType == "js_error" && summary.Title == "profile failed" {
+			if summary.EventCount != 2 || summary.AffectedUsers != 2 {
+				t.Fatalf("aggregated issue = %#v", summary)
 			}
-			return
+			break
 		}
 	}
 
-	t.Fatal("没有找到预期的 js_error 聚合结果")
+	summary, found, err := reader.GetIssue(ctx, projectID, issueID)
+	if err != nil {
+		t.Fatalf("GetIssue() error = %v", err)
+	}
+	if !found || summary.EventCount != 2 || summary.ID != issueID {
+		t.Fatalf("GetIssue() = %#v, found = %t", summary, found)
+	}
+
+	firstPage, err := reader.ListOccurrences(ctx, issue.OccurrenceFilter{
+		ProjectID: projectID,
+		IssueID:   issueID,
+		Limit:     1,
+	})
+	if err != nil {
+		t.Fatalf("ListOccurrences() first page error = %v", err)
+	}
+	if len(firstPage) != 1 || firstPage[0].EventID != "event-user-2" {
+		t.Fatalf("first occurrences page = %#v", firstPage)
+	}
+
+	secondPage, err := reader.ListOccurrences(ctx, issue.OccurrenceFilter{
+		ProjectID: projectID,
+		IssueID:   issueID,
+		Before: &issue.OccurrenceCursorKey{
+			Timestamp: firstPage[0].Timestamp,
+			EventID:   firstPage[0].EventID,
+		},
+		Limit: 1,
+	})
+	if err != nil {
+		t.Fatalf("ListOccurrences() second page error = %v", err)
+	}
+	if len(secondPage) != 1 || secondPage[0].EventID != "event-user-1" {
+		t.Fatalf("second occurrences page = %#v", secondPage)
+	}
 }

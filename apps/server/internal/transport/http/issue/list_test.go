@@ -106,12 +106,20 @@ func (stubAuthenticator) Authenticate(_ context.Context, _ string) (auth.User, e
 }
 
 type stubService struct {
-	page    issuedomain.ListPage
-	err     error
-	request issuedomain.ListRequest
+	page          issuedomain.ListPage
+	detailPage    issuedomain.DetailPage
+	err           error
+	detailErr     error
+	request       issuedomain.ListRequest
+	detailRequest issuedomain.DetailRequest
 }
 
 func (s *stubService) List(_ context.Context, request issuedomain.ListRequest) (issuedomain.ListPage, error) {
 	s.request = request
 	return s.page, s.err
+}
+
+func (s *stubService) Detail(_ context.Context, request issuedomain.DetailRequest) (issuedomain.DetailPage, error) {
+	s.detailRequest = request
+	return s.detailPage, s.detailErr
 }

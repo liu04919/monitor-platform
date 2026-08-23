@@ -173,6 +173,49 @@ func TestEventRoutesRequireSessionCookie(t *testing.T) {
 	}
 }
 
+func TestIssueRoutesRequireSessionCookie(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	issueHandler := &stubIssueHandler{}
+	engine := New(
+		&stubTelemetryHandler{},
+		&stubProjectHandler{},
+		&stubEventHandler{},
+		issueHandler,
+		&stubAuthHandler{},
+		stubSessionAuthenticator{},
+	)
+
+	unauthorized := httptest.NewRecorder()
+	engine.ServeHTTP(
+		unauthorized,
+		httptest.NewRequest(http.MethodGet, "/api/v1/projects/project-1/issues", nil),
+	)
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("unauthorized status = %d, want %d", unauthorized.Code, http.StatusUnauthorized)
+	}
+
+	listRequest := httptest.NewRequest(http.MethodGet, "/api/v1/projects/project-1/issues", nil)
+	listRequest.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: testSessionToken})
+	listRecorder := httptest.NewRecorder()
+	engine.ServeHTTP(listRecorder, listRequest)
+	if listRecorder.Code != http.StatusOK || issueHandler.calls != 1 {
+		t.Fatalf("list status = %d, calls = %d", listRecorder.Code, issueHandler.calls)
+	}
+
+	detailRequest := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/projects/project-1/issues/0123456789abcdef0123456789abcdef",
+		nil,
+	)
+	detailRequest.AddCookie(&http.Cookie{Name: auth.SessionCookieName, Value: testSessionToken})
+	detailRecorder := httptest.NewRecorder()
+	engine.ServeHTTP(detailRecorder, detailRequest)
+	if detailRecorder.Code != http.StatusOK || issueHandler.detailCalls != 1 {
+		t.Fatalf("detail status = %d, calls = %d", detailRecorder.Code, issueHandler.detailCalls)
+	}
+}
+
 func TestProjectRoutesRequireSessionCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -343,7 +386,8 @@ type stubEventHandler struct {
 }
 
 type stubIssueHandler struct {
-	calls int
+	calls       int
+	detailCalls int
 }
 
 type stubProjectHandler struct {
@@ -418,5 +462,10 @@ func (h *stubEventHandler) List(c *gin.Context) {
 
 func (h *stubIssueHandler) List(c *gin.Context) {
 	h.calls++
+	c.Status(http.StatusOK)
+}
+
+func (h *stubIssueHandler) Detail(c *gin.Context) {
+	h.detailCalls++
 	c.Status(http.StatusOK)
 }

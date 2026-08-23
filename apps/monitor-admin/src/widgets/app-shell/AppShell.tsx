@@ -28,6 +28,7 @@ export function AppShell() {
   const projects = useMemo(() => projectsQuery.data?.projects || [], [projectsQuery.data?.projects])
   const selectedProject = projects.find((project) => project.id === projectId)
   const issuesMatch = useMatch('/issues')
+  const issueDetailMatch = useMatch('/issues/:issueId')
   const eventsMatch = useMatch('/events')
   const detailMatch = useMatch('/events/:eventId')
   const settingsMatch = useMatch('/projects/:projectId/settings')
@@ -101,7 +102,7 @@ export function AppShell() {
           onCreate={openCreateDialog}
         />
         <nav aria-label="管理端导航">
-          <NavLink to="/issues" className={({ isActive }) => (isActive ? styles.active : undefined)} end>
+          <NavLink to="/issues" className={({ isActive }) => (isActive ? styles.active : undefined)}>
             <AlertIcon />
             <span>问题</span>
           </NavLink>
@@ -139,6 +140,7 @@ export function AppShell() {
           </div>
           <nav aria-label="面包屑">
             {issuesMatch ? <span>问题</span> : null}
+            {issueDetailMatch ? <><NavLink to="/issues">问题</NavLink><ChevronIcon /><span>问题详情</span></> : null}
             {eventsMatch ? <span>事件流</span> : null}
             {detailMatch ? <><NavLink to="/events">事件流</NavLink><ChevronIcon /><span>事件详情</span></> : null}
             {settingsMatch ? <><NavLink to="/issues">问题</NavLink><ChevronIcon /><span>项目设置</span></> : null}
@@ -176,7 +178,7 @@ export function AppShell() {
         </header>
         {isMobile ? (
           <nav className={styles.mobileNav} aria-label="移动端管理导航">
-            <NavLink to="/issues" className={({ isActive }) => (isActive ? styles.mobileActive : undefined)} end>
+            <NavLink to="/issues" className={({ isActive }) => (isActive ? styles.mobileActive : undefined)}>
               <AlertIcon />
               <span>问题</span>
             </NavLink>

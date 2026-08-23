@@ -1,0 +1,16 @@
+.root {
+  display: grid;
+  gap: 18px;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin: 7px 0 6px;
+}
+
+.heading > div:last-child {
+  min-width: 0;
+  flex: 1;
+}

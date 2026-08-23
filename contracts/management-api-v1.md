@@ -152,6 +152,54 @@ Issue 只聚合 `category=error` 的事件。Go 在事件写入 ClickHouse 前�
 `404 PROJECT_NOT_FOUND`；非法 `limit` 或 `cursor` 返回 `400 INVALID_QUERY`；ClickHouse 故障
 返回不暴露内部错误的 `500 INTERNAL_ERROR`。
 
+## Issue 详情
+
+```http
+GET /api/v1/projects/{projectId}/issues/{issueId}
+```
+
+`issueId` 是 Go 入库前生成的 32 位十六进制错误指纹。接口一次返回聚合摘要和该 Issue 下的一页
+发生记录，前端无需先查摘要再串行查询事件。
+
+查询参数：
+
+- `limit`：可选，发生记录每页数量，默认 `30`，范围 `1..100`
+- `cursor`：可选，上一页返回的不透明发生记录游标
+
+```json
+{
+  "data": {
+    "issue": {
+      "id": "e75e42d8fa4b92e739f3365d687b854a",
+      "title": "Cannot read properties of undefined",
+      "eventType": "js_error",
+      "exceptionType": "TypeError",
+      "eventCount": 3,
+      "affectedUsers": 2,
+      "firstSeen": 1787328000000,
+      "lastSeen": 1787328060000,
+      "latestEventId": "evt_latest",
+      "latestPageUrl": "https://example.com/profile"
+    },
+    "occurrences": [
+      {
+        "eventId": "evt_latest",
+        "eventType": "js_error",
+        "timestamp": 1787328060000,
+        "pageUrl": "https://example.com/profile",
+        "userId": "user-1",
+        "message": "Cannot read properties of undefined",
+        "receivedAt": 1787328060100
+      }
+    ],
+    "nextCursor": "opaque_cursor_or_empty_string"
+  }
+}
+```
+
+发生记录按 `(timestamp DESC, eventId DESC)` 键集分页。非法 `issueId` 返回 `400 INVALID_PATH`；
+Issue 不存在返回 `404 ISSUE_NOT_FOUND`；项目归属和内部错误遵循列表接口相同的边界。
+
 ## 事件列表
 
 ```http

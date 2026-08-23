@@ -15,3 +15,19 @@ export interface IssueListData {
   issues: IssueSummary[]
   nextCursor: string
 }
+
+export interface IssueOccurrence {
+  eventId: string
+  eventType: string
+  timestamp: number
+  pageUrl: string
+  userId: string | null
+  message: string
+  receivedAt: number
+}
+
+export interface IssueDetailData {
+  issue: IssueSummary
+  occurrences: IssueOccurrence[]
+  nextCursor: string
+}

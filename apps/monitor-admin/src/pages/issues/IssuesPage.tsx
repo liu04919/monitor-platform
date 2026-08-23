@@ -2,7 +2,7 @@ import { ActionIcon, Alert, Button, Skeleton, Stack, Text, ThemeIcon, Title } fr
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { IssueTable } from '@/features/issues/components/IssueTable/IssueTable'
 import { issuesQueryOptions } from '@/features/issues/model/issueQueries'
-import { eventErrorMessage } from '@/features/events/model/eventFormatters'
+import { issueErrorMessage } from '@/features/issues/model/issueFormatters'
 import { AlertIcon, EmptyIcon, RefreshIcon } from '@/shared/ui/icons/Icons'
 import { useAdminStore } from '@/store/adminStore'
 import styles from './IssuesPage.module.css'
@@ -42,7 +42,7 @@ export function IssuesPage() {
         ) : null}
         {query.isError && issues.length === 0 ? (
           <Alert className={styles.error} color="red" title="问题读取失败" icon={<AlertIcon />} role="alert">
-            <Text size="sm">{eventErrorMessage(query.error)}</Text>
+            <Text size="sm">{issueErrorMessage(query.error)}</Text>
             <Button variant="default" size="compact-sm" mt="sm" onClick={() => void query.refetch()}>重新加载</Button>
           </Alert>
         ) : null}
