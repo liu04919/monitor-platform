@@ -23,9 +23,9 @@ import (
 	"github.com/liu04919/monitor-platform/apps/server/internal/app"
 	"github.com/liu04919/monitor-platform/apps/server/internal/config"
 	"github.com/liu04919/monitor-platform/apps/server/internal/database"
-	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
 	"github.com/liu04919/monitor-platform/apps/server/internal/migration"
 	postgresstore "github.com/liu04919/monitor-platform/apps/server/internal/storage/postgres"
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
 func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
@@ -290,7 +290,7 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	}
 
 	conflictBatch := batch
-	conflictBatch.Events = append([]dto.TelemetryEvent(nil), batch.Events...)
+	conflictBatch.Events = append([]telemetry.Event(nil), batch.Events...)
 	conflictBatch.Events[0].Payload = json.RawMessage(`{"data":{"action":"different"}}`)
 	status, response = postTelemetryBatch(t, server.URL, conflictBatch)
 	if status != http.StatusConflict || response.Error.Code != "BATCH_ID_CONFLICT" {
@@ -432,7 +432,7 @@ func assertTelemetryPreflight(t *testing.T, serverURL string) {
 func postTelemetryBatch(
 	t *testing.T,
 	serverURL string,
-	batch dto.TelemetryBatch,
+	batch telemetry.Batch,
 ) (int, applicationHTTPResponse) {
 	t.Helper()
 
@@ -672,10 +672,10 @@ type applicationProjectResponse struct {
 type applicationEventListResponse struct {
 	Data struct {
 		Events []struct {
-			EventID   string            `json:"eventId"`
-			Category  dto.EventCategory `json:"category"`
-			EventType string            `json:"eventType"`
-			Timestamp int64             `json:"timestamp"`
+			EventID   string             `json:"eventId"`
+			Category  telemetry.Category `json:"category"`
+			EventType string             `json:"eventType"`
+			Timestamp int64              `json:"timestamp"`
 		} `json:"events"`
 		NextCursor string `json:"nextCursor"`
 	} `json:"data"`
@@ -947,21 +947,21 @@ func applicationBatch(
 	publicKey string,
 	batchID string,
 	timestamp time.Time,
-) dto.TelemetryBatch {
-	return dto.TelemetryBatch{
+) telemetry.Batch {
+	return telemetry.Batch{
 		SchemaVersion: 2,
 		BatchID:       batchID,
 		SentAt:        timestamp.UnixMilli(),
 		PublicKey:     publicKey,
-		App: dto.App{
+		App: telemetry.App{
 			ID:   projectID,
 			Name: "应用 HTTP 集成测试",
 		},
-		Events: []dto.TelemetryEvent{
+		Events: []telemetry.Event{
 			{
 				SchemaVersion: 2,
 				EventID:       batchID + "-event-1",
-				Category:      dto.EventCategoryBehavior,
+				Category:      telemetry.CategoryBehavior,
 				EventType:     "custom",
 				Timestamp:     timestamp.UnixMilli(),
 				PageURL:       "http://localhost:5173/test",
@@ -970,7 +970,7 @@ func applicationBatch(
 			{
 				SchemaVersion: 2,
 				EventID:       batchID + "-event-2",
-				Category:      dto.EventCategoryPerformance,
+				Category:      telemetry.CategoryPerformance,
 				EventType:     "web_vital",
 				Timestamp:     timestamp.Add(time.Millisecond).UnixMilli(),
 				PageURL:       "http://localhost:5173/test",
@@ -979,7 +979,7 @@ func applicationBatch(
 				),
 			},
 		},
-		SendType: dto.SendTypeFetch,
+		SendType: telemetry.SendTypeFetch,
 	}
 }
 

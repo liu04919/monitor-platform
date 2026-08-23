@@ -15,19 +15,19 @@ import (
 	"github.com/liu04919/monitor-platform/apps/server/internal/auth"
 	"github.com/liu04919/monitor-platform/apps/server/internal/config"
 	"github.com/liu04919/monitor-platform/apps/server/internal/database"
-	"github.com/liu04919/monitor-platform/apps/server/internal/eventquery"
-	authhandler "github.com/liu04919/monitor-platform/apps/server/internal/handler/auth"
-	eventhandler "github.com/liu04919/monitor-platform/apps/server/internal/handler/event"
-	issuehandler "github.com/liu04919/monitor-platform/apps/server/internal/handler/issue"
-	projecthandler "github.com/liu04919/monitor-platform/apps/server/internal/handler/project"
-	telemetryhandler "github.com/liu04919/monitor-platform/apps/server/internal/handler/telemetry"
+	"github.com/liu04919/monitor-platform/apps/server/internal/event"
 	"github.com/liu04919/monitor-platform/apps/server/internal/ingestion"
-	"github.com/liu04919/monitor-platform/apps/server/internal/issuequery"
+	"github.com/liu04919/monitor-platform/apps/server/internal/issue"
 	"github.com/liu04919/monitor-platform/apps/server/internal/project"
-	"github.com/liu04919/monitor-platform/apps/server/internal/router"
 	clickhousestore "github.com/liu04919/monitor-platform/apps/server/internal/storage/clickhouse"
 	postgresstore "github.com/liu04919/monitor-platform/apps/server/internal/storage/postgres"
 	redisstore "github.com/liu04919/monitor-platform/apps/server/internal/storage/redis"
+	authhttp "github.com/liu04919/monitor-platform/apps/server/internal/transport/http/auth"
+	eventhttp "github.com/liu04919/monitor-platform/apps/server/internal/transport/http/event"
+	ingesthttp "github.com/liu04919/monitor-platform/apps/server/internal/transport/http/ingest"
+	issuehttp "github.com/liu04919/monitor-platform/apps/server/internal/transport/http/issue"
+	projecthttp "github.com/liu04919/monitor-platform/apps/server/internal/transport/http/project"
+	"github.com/liu04919/monitor-platform/apps/server/internal/transport/http/router"
 )
 
 // App 持有已经组装完成的 HTTP Handler 和由应用负责关闭的数据库连接。
@@ -76,23 +76,23 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		)
 	}
 
-	keyVerifier := postgresstore.NewProjectKeyVerifier(postgresDB)     // PostgreSQL 存储：校验项目 publicKey
-	batchReceipts := postgresstore.NewBatchReceiptStore(postgresDB)    // PostgreSQL 存储：记录接入批次状态
-	eventWriter := clickhousestore.NewEventWriter(clickHouseConn)      // ClickHouse 存储：写入遥测事件
-	eventReader := clickhousestore.NewEventReader(clickHouseConn)      // ClickHouse 存储：查询遥测事件
-	issueReader := clickhousestore.NewIssueReader(clickHouseConn)      // ClickHouse 存储：聚合错误 Issue
-	projectStore := postgresstore.NewProjectStore(postgresDB)          // PostgreSQL 存储：读写项目
-	userStore := postgresstore.NewUserStore(postgresDB)                // PostgreSQL 存储：读写用户
-	sessionStore := redisstore.NewSessionStore(redisClient)            // Redis 存储：读写登录 Session
-	batchStore := ingestion.NewBatchStore(batchReceipts, eventWriter)  // 接入业务：协调批次账本与事件写入
-	ingestor := ingestion.NewService(keyVerifier, batchStore)          // 接入业务：校验并接收 SDK 上报
-	telemetryHandler := telemetryhandler.NewHandler(ingestor)          // HTTP Handler：SDK 批量上报接口
-	projectService := project.NewService(projectStore)                 // 项目业务：项目查询与创建
-	projectHandler := projecthandler.NewHandler(projectService)        // HTTP Handler：项目查询与创建接口
-	eventService := eventquery.NewService(eventReader, projectService) // 事件查询业务：项目授权、列表与详情查询
-	eventHandler := eventhandler.NewHandler(eventService)              // HTTP Handler：事件列表与详情接口
-	issueService := issuequery.NewService(issueReader, projectService) // Issue 查询业务：项目授权、聚合列表与游标分页
-	issueHandler := issuehandler.NewHandler(issueService)              // HTTP Handler：Issue 聚合列表接口
+	keyVerifier := postgresstore.NewProjectKeyVerifier(postgresDB)    // PostgreSQL 存储：校验项目 publicKey
+	batchReceipts := postgresstore.NewBatchReceiptStore(postgresDB)   // PostgreSQL 存储：记录接入批次状态
+	eventWriter := clickhousestore.NewEventWriter(clickHouseConn)     // ClickHouse 存储：写入遥测事件
+	eventReader := clickhousestore.NewEventReader(clickHouseConn)     // ClickHouse 存储：查询遥测事件
+	issueReader := clickhousestore.NewIssueReader(clickHouseConn)     // ClickHouse 存储：聚合错误 Issue
+	projectStore := postgresstore.NewProjectStore(postgresDB)         // PostgreSQL 存储：读写项目
+	userStore := postgresstore.NewUserStore(postgresDB)               // PostgreSQL 存储：读写用户
+	sessionStore := redisstore.NewSessionStore(redisClient)           // Redis 存储：读写登录 Session
+	batchStore := ingestion.NewBatchStore(batchReceipts, eventWriter) // 接入业务：协调批次账本与事件写入
+	ingestor := ingestion.NewService(keyVerifier, batchStore)         // 接入业务：校验并接收 SDK 上报
+	ingestHandler := ingesthttp.NewHandler(ingestor)                  // HTTP Handler：SDK 批量上报接口
+	projectService := project.NewService(projectStore)                // 项目业务：项目查询与创建
+	projectHandler := projecthttp.NewHandler(projectService)          // HTTP Handler：项目查询与创建接口
+	eventService := event.NewService(eventReader, projectService)     // 事件查询业务：项目授权、列表与详情查询
+	eventHandler := eventhttp.NewHandler(eventService)                // HTTP Handler：事件列表与详情接口
+	issueService := issue.NewService(issueReader, projectService)     // Issue 查询业务：项目授权、聚合列表与游标分页
+	issueHandler := issuehttp.NewHandler(issueService)                // HTTP Handler：Issue 聚合列表接口
 	authService := auth.NewService(
 		userStore,
 		sessionStore,
@@ -100,7 +100,7 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		auth.SecureTokenGenerator{},
 		cfg.SessionTTL,
 	) // 认证业务：注册、登录与 Session 生命周期
-	authHandler := authhandler.NewHandler(
+	authHandler := authhttp.NewHandler(
 		authService,
 		cfg.SessionTTL,
 		cfg.SessionCookieSecure,
@@ -108,7 +108,7 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 
 	return &App{
 		Handler: router.New(
-			telemetryHandler,
+			ingestHandler,
 			projectHandler,
 			eventHandler,
 			issueHandler,

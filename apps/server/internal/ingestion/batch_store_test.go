@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
 func TestBatchStoreWritesAndCompletesNewBatch(t *testing.T) {
@@ -117,8 +117,8 @@ func TestBatchContentHashIgnoresAuthenticationAndTransportMetadata(t *testing.T)
 	first := persistentBatch()
 	second := first
 	second.PublicKey = "rotated-public-key"
-	second.SendType = dto.SendTypeBeacon
-	second.Events = append([]dto.TelemetryEvent(nil), second.Events...)
+	second.SendType = telemetry.SendTypeBeacon
+	second.Events = append([]telemetry.Event(nil), second.Events...)
 	second.Events[0].IssueFingerprint = "internal-only"
 
 	firstHash, err := batchContentHash(first)
@@ -166,13 +166,13 @@ func (s *stubBatchReceiptStore) Complete(
 type stubEventWriter struct {
 	err   error
 	calls int
-	batch dto.TelemetryBatch
+	batch telemetry.Batch
 	token string
 }
 
 func (s *stubEventWriter) Write(
 	_ context.Context,
-	batch dto.TelemetryBatch,
+	batch telemetry.Batch,
 	token string,
 ) error {
 	s.calls++
@@ -182,34 +182,34 @@ func (s *stubEventWriter) Write(
 	return s.err
 }
 
-func persistentBatch() dto.TelemetryBatch {
-	level := dto.EventLevelError
+func persistentBatch() telemetry.Batch {
+	level := telemetry.LevelError
 
-	return dto.TelemetryBatch{
+	return telemetry.Batch{
 		SchemaVersion: 2,
 		BatchID:       "batch-1",
 		SentAt:        1_700_000_000_000,
 		PublicKey:     "pk_monitor_web_demo",
-		App: dto.App{
+		App: telemetry.App{
 			ID:   "7b5d9a2f-3c61-4e88-9f42-2d6b81a530c7",
 			Name: "Monitor Web",
 		},
-		Events: []dto.TelemetryEvent{
+		Events: []telemetry.Event{
 			{
 				SchemaVersion: 2,
 				EventID:       "event-1",
-				Category:      dto.EventCategoryError,
+				Category:      telemetry.CategoryError,
 				EventType:     "js_error",
 				Timestamp:     1_700_000_000_000,
 				PageURL:       "https://example.com",
 				Level:         &level,
-				Breadcrumbs:   []dto.Breadcrumb{},
+				Breadcrumbs:   []telemetry.Breadcrumb{},
 				Payload: json.RawMessage(
 					`{"exception":{"name":"Error","message":"boom","stack":[]},` +
 						`"mechanism":{"type":"window.onerror","handled":false}}`,
 				),
 			},
 		},
-		SendType: dto.SendTypeFetch,
+		SendType: telemetry.SendTypeFetch,
 	}
 }

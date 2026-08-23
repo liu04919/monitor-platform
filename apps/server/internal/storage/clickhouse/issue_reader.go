@@ -7,7 +7,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
-	"github.com/liu04919/monitor-platform/apps/server/internal/issuequery"
+	"github.com/liu04919/monitor-platform/apps/server/internal/issue"
 )
 
 const listIssuesSQL = `
@@ -47,7 +47,7 @@ type IssueReader struct {
 	conn driver.Conn
 }
 
-var _ issuequery.Store = (*IssueReader)(nil)
+var _ issue.Store = (*IssueReader)(nil)
 
 func NewIssueReader(conn driver.Conn) *IssueReader {
 	return &IssueReader{conn: conn}
@@ -55,8 +55,8 @@ func NewIssueReader(conn driver.Conn) *IssueReader {
 
 func (r *IssueReader) ListIssues(
 	ctx context.Context,
-	filter issuequery.ListFilter,
-) ([]issuequery.Summary, error) {
+	filter issue.ListFilter,
+) ([]issue.Summary, error) {
 	query := strings.Builder{}
 	query.WriteString(listIssuesSQL)
 	arguments := []any{filter.ProjectID}
@@ -75,9 +75,9 @@ func (r *IssueReader) ListIssues(
 	}
 	defer rows.Close()
 
-	issues := make([]issuequery.Summary, 0, filter.Limit)
+	issues := make([]issue.Summary, 0, filter.Limit)
 	for rows.Next() {
-		var issue issuequery.Summary
+		var issue issue.Summary
 		if err := rows.Scan(
 			&issue.ID,
 			&issue.Title,

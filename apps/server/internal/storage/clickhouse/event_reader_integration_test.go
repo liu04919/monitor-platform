@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/database"
-	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
-	"github.com/liu04919/monitor-platform/apps/server/internal/eventquery"
+	"github.com/liu04919/monitor-platform/apps/server/internal/event"
 	clickhousestore "github.com/liu04919/monitor-platform/apps/server/internal/storage/clickhouse"
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
 func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
@@ -59,8 +59,8 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 		t.Fatalf("写入其他项目测试事件失败: %v", err)
 	}
 
-	service := eventquery.NewService(clickhousestore.NewEventReader(conn), allowAllProjects{})
-	firstPage, err := service.List(ctx, eventquery.ListRequest{UserID: "user-1", ProjectID: projectID, Limit: 2})
+	service := event.NewService(clickhousestore.NewEventReader(conn), allowAllProjects{})
+	firstPage, err := service.List(ctx, event.ListRequest{UserID: "user-1", ProjectID: projectID, Limit: 2})
 	if err != nil {
 		t.Fatalf("查询第一页失败: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 		t.Fatalf("第一页首条 Message = %q", firstPage.Events[0].Message)
 	}
 
-	secondPage, err := service.List(ctx, eventquery.ListRequest{
+	secondPage, err := service.List(ctx, event.ListRequest{
 		UserID:    "user-1",
 		ProjectID: projectID,
 		Limit:     2,
@@ -86,24 +86,24 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 		t.Fatalf("第二页 NextCursor = %q, want empty", secondPage.NextCursor)
 	}
 
-	errorPage, err := service.List(ctx, eventquery.ListRequest{
+	errorPage, err := service.List(ctx, event.ListRequest{
 		UserID:    "user-1",
 		ProjectID: projectID,
-		Category:  dto.EventCategoryError,
+		Category:  telemetry.CategoryError,
 		EventType: "js_error",
 	})
 	if err != nil {
 		t.Fatalf("按错误类型筛选失败: %v", err)
 	}
 	assertEventIDs(t, errorPage.Events, "event-c-"+suffix, "event-a-"+suffix)
-	if errorPage.Events[0].Level == nil || *errorPage.Events[0].Level != dto.EventLevelError {
+	if errorPage.Events[0].Level == nil || *errorPage.Events[0].Level != telemetry.LevelError {
 		t.Fatalf("错误事件 Level = %#v", errorPage.Events[0].Level)
 	}
 	if errorPage.Events[0].Message != "middle error" || errorPage.Events[1].Message != "oldest error" {
 		t.Fatalf("异常错误事件 Message = %q, %q", errorPage.Events[0].Message, errorPage.Events[1].Message)
 	}
 
-	detail, err := service.Detail(ctx, eventquery.DetailRequest{
+	detail, err := service.Detail(ctx, event.DetailRequest{
 		UserID:    "user-1",
 		ProjectID: projectID,
 		EventID:   "event-a-" + suffix,
@@ -114,7 +114,7 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 	if detail.ProjectID != projectID || detail.BatchID != "batch-"+suffix || detail.AppName != "EventReader 集成测试" {
 		t.Fatalf("事件详情身份字段 = %#v", detail)
 	}
-	if detail.UserID == nil || *detail.UserID != "event-reader-user" || detail.Level == nil || *detail.Level != dto.EventLevelError {
+	if detail.UserID == nil || *detail.UserID != "event-reader-user" || detail.Level == nil || *detail.Level != telemetry.LevelError {
 		t.Fatalf("事件详情可空字段 = %#v", detail)
 	}
 	if detail.ReplayData == nil || *detail.ReplayData != "event-reader-replay" {
@@ -132,18 +132,18 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 	if err := json.Unmarshal(detail.Payload, &payload); err != nil || payload.Exception.Message != "oldest error" {
 		t.Fatalf("事件详情 Payload = %s, error = %v", detail.Payload, err)
 	}
-	var breadcrumbs []dto.Breadcrumb
+	var breadcrumbs []telemetry.Breadcrumb
 	if err := json.Unmarshal(detail.Breadcrumbs, &breadcrumbs); err != nil || len(breadcrumbs) != 1 {
 		t.Fatalf("事件详情 Breadcrumbs = %s, error = %v", detail.Breadcrumbs, err)
 	}
 
-	_, err = service.Detail(ctx, eventquery.DetailRequest{
+	_, err = service.Detail(ctx, event.DetailRequest{
 		UserID:    "user-1",
 		ProjectID: otherProjectID,
 		EventID:   "event-a-" + suffix,
 	})
-	if !errors.Is(err, eventquery.ErrEventNotFound) {
-		t.Fatalf("跨项目详情查询错误 = %v, want %v", err, eventquery.ErrEventNotFound)
+	if !errors.Is(err, event.ErrEventNotFound) {
+		t.Fatalf("跨项目详情查询错误 = %v, want %v", err, event.ErrEventNotFound)
 	}
 }
 
@@ -153,9 +153,9 @@ func (allowAllProjects) CanAccess(_ context.Context, _, _ string) (bool, error) 
 	return true, nil
 }
 
-func queryBatch(projectID, batchID string, timestamp time.Time) dto.TelemetryBatch {
+func queryBatch(projectID, batchID string, timestamp time.Time) telemetry.Batch {
 	userID := "event-reader-user"
-	level := dto.EventLevelError
+	level := telemetry.LevelError
 	replayData := "event-reader-replay"
 	breadcrumbMessage := "clicked test button"
 	suffix := batchID
@@ -163,26 +163,26 @@ func queryBatch(projectID, batchID string, timestamp time.Time) dto.TelemetryBat
 		suffix = batchID[len("batch-"):]
 	}
 
-	return dto.TelemetryBatch{
+	return telemetry.Batch{
 		SchemaVersion: 2,
 		BatchID:       batchID,
 		SentAt:        timestamp.UnixMilli(),
-		App:           dto.App{ID: projectID, Name: "EventReader 集成测试"},
-		SendType:      dto.SendTypeFetch,
-		Events: []dto.TelemetryEvent{
+		App:           telemetry.App{ID: projectID, Name: "EventReader 集成测试"},
+		SendType:      telemetry.SendTypeFetch,
+		Events: []telemetry.Event{
 			{
 				SchemaVersion: 2,
 				EventID:       "event-a-" + suffix,
-				Category:      dto.EventCategoryError,
+				Category:      telemetry.CategoryError,
 				EventType:     "js_error",
 				Timestamp:     timestamp.UnixMilli(),
 				PageURL:       "https://example.com/oldest",
 				UserID:        &userID,
 				Level:         &level,
-				Breadcrumbs: []dto.Breadcrumb{
+				Breadcrumbs: []telemetry.Breadcrumb{
 					{
 						Timestamp: timestamp.UnixMilli(),
-						Category:  dto.BreadcrumbCategoryClick,
+						Category:  telemetry.BreadcrumbCategoryClick,
 						Message:   &breadcrumbMessage,
 						Data:      json.RawMessage(`{"target":"button"}`),
 					},
@@ -195,22 +195,22 @@ func queryBatch(projectID, batchID string, timestamp time.Time) dto.TelemetryBat
 			{
 				SchemaVersion: 2,
 				EventID:       "event-b-" + suffix,
-				Category:      dto.EventCategoryBehavior,
+				Category:      telemetry.CategoryBehavior,
 				EventType:     "custom",
 				Timestamp:     timestamp.Add(time.Millisecond).UnixMilli(),
 				PageURL:       "https://example.com/middle-b",
-				Breadcrumbs:   []dto.Breadcrumb{},
+				Breadcrumbs:   []telemetry.Breadcrumb{},
 				Payload:       json.RawMessage(`{"message":"middle behavior"}`),
 			},
 			{
 				SchemaVersion: 2,
 				EventID:       "event-c-" + suffix,
-				Category:      dto.EventCategoryError,
+				Category:      telemetry.CategoryError,
 				EventType:     "js_error",
 				Timestamp:     timestamp.Add(time.Millisecond).UnixMilli(),
 				PageURL:       "https://example.com/middle-c",
 				Level:         &level,
-				Breadcrumbs:   []dto.Breadcrumb{},
+				Breadcrumbs:   []telemetry.Breadcrumb{},
 				Payload: json.RawMessage(
 					`{"exception":{"name":"TypeError","message":"middle error","stack":[]},"mechanism":{"type":"window.onerror","handled":false}}`,
 				),
@@ -218,18 +218,18 @@ func queryBatch(projectID, batchID string, timestamp time.Time) dto.TelemetryBat
 			{
 				SchemaVersion: 2,
 				EventID:       "event-d-" + suffix,
-				Category:      dto.EventCategoryPerformance,
+				Category:      telemetry.CategoryPerformance,
 				EventType:     "page_load",
 				Timestamp:     timestamp.Add(2 * time.Millisecond).UnixMilli(),
 				PageURL:       "https://example.com/latest",
-				Breadcrumbs:   []dto.Breadcrumb{},
+				Breadcrumbs:   []telemetry.Breadcrumb{},
 				Payload:       json.RawMessage(`{"message":"latest performance"}`),
 			},
 		},
 	}
 }
 
-func assertEventIDs(t *testing.T, events []eventquery.EventSummary, want ...string) {
+func assertEventIDs(t *testing.T, events []event.EventSummary, want ...string) {
 	t.Helper()
 
 	if len(events) != len(want) {

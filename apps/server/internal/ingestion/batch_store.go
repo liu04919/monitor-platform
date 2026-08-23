@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
-	"github.com/liu04919/monitor-platform/apps/server/internal/issuefingerprint"
+	"github.com/liu04919/monitor-platform/apps/server/internal/issue"
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
 // BatchReservation 描述 PostgreSQL 批次账本需要持久化的业务身份。
@@ -32,7 +32,7 @@ type BatchReceiptStore interface {
 
 // EventWriter 负责把一个已经校验过的批次写入 ClickHouse。
 type EventWriter interface {
-	Write(ctx context.Context, batch dto.TelemetryBatch, deduplicationToken string) error
+	Write(ctx context.Context, batch telemetry.Batch, deduplicationToken string) error
 }
 
 type persistentBatchStore struct {
@@ -50,11 +50,11 @@ func NewBatchStore(receipts BatchReceiptStore, writer EventWriter) BatchStore {
 
 func (s *persistentBatchStore) Save(
 	ctx context.Context,
-	batch dto.TelemetryBatch,
+	batch telemetry.Batch,
 ) (BatchStoreResult, error) {
-	batch.Events = append([]dto.TelemetryEvent(nil), batch.Events...)
+	batch.Events = append([]telemetry.Event(nil), batch.Events...)
 	for index := range batch.Events {
-		fingerprint, err := issuefingerprint.Compute(batch.Events[index])
+		fingerprint, err := issue.Fingerprint(batch.Events[index])
 		if err != nil {
 			return BatchStoreResult{}, fmt.Errorf("计算事件 %d Issue 指纹: %w", index, err)
 		}
@@ -93,14 +93,14 @@ func (s *persistentBatchStore) Save(
 	return BatchStoreResult{}, nil
 }
 
-func batchContentHash(batch dto.TelemetryBatch) (string, error) {
+func batchContentHash(batch telemetry.Batch) (string, error) {
 	// publicKey 和 sendType 分别属于鉴权与传输元数据，不应改变同一批次的业务内容身份。
 	content := struct {
-		SchemaVersion int                  `json:"schemaVersion"`
-		BatchID       string               `json:"batchId"`
-		SentAt        int64                `json:"sentAt"`
-		App           dto.App              `json:"app"`
-		Events        []dto.TelemetryEvent `json:"events"`
+		SchemaVersion int               `json:"schemaVersion"`
+		BatchID       string            `json:"batchId"`
+		SentAt        int64             `json:"sentAt"`
+		App           telemetry.App     `json:"app"`
+		Events        []telemetry.Event `json:"events"`
 	}{
 		SchemaVersion: batch.SchemaVersion,
 		BatchID:       batch.BatchID,

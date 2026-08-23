@@ -11,7 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/database"
-	"github.com/liu04919/monitor-platform/apps/server/internal/issuequery"
+	"github.com/liu04919/monitor-platform/apps/server/internal/issue"
 	clickhousestore "github.com/liu04919/monitor-platform/apps/server/internal/storage/clickhouse"
 )
 
@@ -63,7 +63,7 @@ func TestIssueReaderAggregatesMatchingFingerprints(t *testing.T) {
 	})
 
 	reader := clickhousestore.NewIssueReader(conn)
-	issues, err := reader.ListIssues(ctx, issuequery.ListFilter{
+	issues, err := reader.ListIssues(ctx, issue.ListFilter{
 		ProjectID: projectID,
 		Limit:     30,
 	})

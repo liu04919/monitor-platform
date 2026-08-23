@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
 func TestServiceIngestsNewBatchAfterKeyVerification(t *testing.T) {
@@ -138,13 +138,13 @@ type stubBatchStore struct {
 	result BatchStoreResult
 	err    error
 	calls  int
-	batch  dto.TelemetryBatch
+	batch  telemetry.Batch
 	order  *[]string
 }
 
 func (s *stubBatchStore) Save(
 	_ context.Context,
-	batch dto.TelemetryBatch,
+	batch telemetry.Batch,
 ) (BatchStoreResult, error) {
 	s.calls++
 	s.batch = batch
@@ -154,13 +154,13 @@ func (s *stubBatchStore) Save(
 	return s.result, s.err
 }
 
-func ingestionBatch() dto.TelemetryBatch {
-	return dto.TelemetryBatch{
+func ingestionBatch() telemetry.Batch {
+	return telemetry.Batch{
 		BatchID:   "batch-1",
 		PublicKey: "pk_monitor_web_demo",
-		App: dto.App{
+		App: telemetry.App{
 			ID: "7b5d9a2f-3c61-4e88-9f42-2d6b81a530c7",
 		},
-		Events: make([]dto.TelemetryEvent, 2),
+		Events: make([]telemetry.Event, 2),
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
 var (
@@ -22,7 +22,7 @@ type Result struct {
 
 // Service 负责 HTTP 请求完成解码和结构校验之后的业务流程。
 type Service interface {
-	Ingest(ctx context.Context, batch dto.TelemetryBatch) (Result, error)
+	Ingest(ctx context.Context, batch telemetry.Batch) (Result, error)
 }
 
 // ProjectKeyVerifier 判断浏览器可见的 publicKey 是否允许向指定项目上报。
@@ -38,7 +38,7 @@ type BatchStoreResult struct {
 // BatchStore 负责批次的持久化和幂等判断。
 // 相同 appID 和 batchID 对应不同请求内容时，实现应返回 ErrBatchIDConflict。
 type BatchStore interface {
-	Save(ctx context.Context, batch dto.TelemetryBatch) (BatchStoreResult, error)
+	Save(ctx context.Context, batch telemetry.Batch) (BatchStoreResult, error)
 }
 
 type service struct {
@@ -53,7 +53,7 @@ func NewService(keyVerifier ProjectKeyVerifier, batchStore BatchStore) Service {
 	}
 }
 
-func (s *service) Ingest(ctx context.Context, batch dto.TelemetryBatch) (Result, error) {
+func (s *service) Ingest(ctx context.Context, batch telemetry.Batch) (Result, error) {
 	if err := s.keyVerifier.Verify(ctx, batch.App.ID, batch.PublicKey); err != nil {
 		return Result{}, fmt.Errorf("verify project key: %w", err)
 	}

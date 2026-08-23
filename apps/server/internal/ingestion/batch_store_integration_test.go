@@ -16,11 +16,11 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/database"
-	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
 	"github.com/liu04919/monitor-platform/apps/server/internal/ingestion"
 	"github.com/liu04919/monitor-platform/apps/server/internal/migration"
 	clickhousestore "github.com/liu04919/monitor-platform/apps/server/internal/storage/clickhouse"
 	postgresstore "github.com/liu04919/monitor-platform/apps/server/internal/storage/postgres"
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
 func TestBatchStoreWithPostgreSQLAndClickHouse(t *testing.T) {
@@ -138,7 +138,7 @@ func TestBatchStoreWithPostgreSQLAndClickHouse(t *testing.T) {
 		assertClickHouseEventCount(t, ctx, clickHouseConn, projectID, batch.BatchID, uint64(len(batch.Events)))
 
 		conflict := batch
-		conflict.Events = append([]dto.TelemetryEvent(nil), batch.Events...)
+		conflict.Events = append([]telemetry.Event(nil), batch.Events...)
 		conflict.Events[0].Payload = json.RawMessage(`{"message":"different content"}`)
 		_, err = store.Save(ctx, conflict)
 		if !errors.Is(err, ingestion.ErrBatchIDConflict) {
@@ -184,7 +184,7 @@ type errorAfterWriteEventWriter struct {
 
 func (w *errorAfterWriteEventWriter) Write(
 	ctx context.Context,
-	batch dto.TelemetryBatch,
+	batch telemetry.Batch,
 	deduplicationToken string,
 ) error {
 	if err := w.writer.Write(ctx, batch, deduplicationToken); err != nil {
@@ -240,43 +240,43 @@ func assertClickHouseEventCount(
 	}
 }
 
-func integrationBatch(projectID, batchID string, timestamp time.Time) dto.TelemetryBatch {
+func integrationBatch(projectID, batchID string, timestamp time.Time) telemetry.Batch {
 	userID := "integration-user"
-	level := dto.EventLevelError
+	level := telemetry.LevelError
 
-	return dto.TelemetryBatch{
+	return telemetry.Batch{
 		SchemaVersion: 2,
 		BatchID:       batchID,
 		SentAt:        timestamp.UnixMilli(),
 		PublicKey:     "integration-public-key",
-		App: dto.App{
+		App: telemetry.App{
 			ID:   projectID,
 			Name: "BatchStore 集成测试",
 		},
-		Events: []dto.TelemetryEvent{
+		Events: []telemetry.Event{
 			{
 				SchemaVersion: 2,
 				EventID:       batchID + "-event-1",
-				Category:      dto.EventCategoryError,
+				Category:      telemetry.CategoryError,
 				EventType:     "exception",
 				Timestamp:     timestamp.UnixMilli(),
 				PageURL:       "https://example.com/error",
 				UserID:        &userID,
 				Level:         &level,
-				Breadcrumbs:   []dto.Breadcrumb{},
+				Breadcrumbs:   []telemetry.Breadcrumb{},
 				Payload:       json.RawMessage(`{"message":"integration error"}`),
 			},
 			{
 				SchemaVersion: 2,
 				EventID:       batchID + "-event-2",
-				Category:      dto.EventCategoryPerformance,
+				Category:      telemetry.CategoryPerformance,
 				EventType:     "metric",
 				Timestamp:     timestamp.Add(time.Millisecond).UnixMilli(),
 				PageURL:       "https://example.com/performance",
-				Breadcrumbs:   []dto.Breadcrumb{},
+				Breadcrumbs:   []telemetry.Breadcrumb{},
 				Payload:       json.RawMessage(`{"name":"fcp","value":120,"unit":"ms","attributes":{}}`),
 			},
 		},
-		SendType: dto.SendTypeFetch,
+		SendType: telemetry.SendTypeFetch,
 	}
 }

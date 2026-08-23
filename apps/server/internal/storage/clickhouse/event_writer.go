@@ -10,8 +10,8 @@ import (
 	clickhouseclient "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
-	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
 	"github.com/liu04919/monitor-platform/apps/server/internal/ingestion"
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
 const insertTelemetryEventsSQL = `
@@ -36,7 +36,7 @@ func NewEventWriter(conn driver.Conn) *EventWriter {
 
 func (w *EventWriter) Write(
 	ctx context.Context,
-	batch dto.TelemetryBatch,
+	batch telemetry.Batch,
 	deduplicationToken string,
 ) error {
 	insertContext := clickhouseclient.Context(
@@ -96,7 +96,7 @@ func nullableString(value *string) any {
 	return *value
 }
 
-func nullableEventLevel(value *dto.EventLevel) any {
+func nullableEventLevel(value *telemetry.Level) any {
 	if value == nil {
 		return nil
 	}

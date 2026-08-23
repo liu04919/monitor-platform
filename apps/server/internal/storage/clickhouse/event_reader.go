@@ -10,8 +10,8 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
-	"github.com/liu04919/monitor-platform/apps/server/internal/dto"
-	"github.com/liu04919/monitor-platform/apps/server/internal/eventquery"
+	"github.com/liu04919/monitor-platform/apps/server/internal/event"
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
 const eventMessageExpression = `coalesce(
@@ -67,7 +67,7 @@ type EventReader struct {
 	conn driver.Conn
 }
 
-var _ eventquery.Store = (*EventReader)(nil)
+var _ event.Store = (*EventReader)(nil)
 
 func NewEventReader(conn driver.Conn) *EventReader {
 	return &EventReader{conn: conn}
@@ -75,8 +75,8 @@ func NewEventReader(conn driver.Conn) *EventReader {
 
 func (r *EventReader) List(
 	ctx context.Context,
-	filter eventquery.ListFilter,
-) ([]eventquery.EventSummary, error) {
+	filter event.ListFilter,
+) ([]event.EventSummary, error) {
 	query := strings.Builder{}
 	query.WriteString(listTelemetryEventsSQL)
 	arguments := []any{filter.ProjectID}
@@ -104,10 +104,10 @@ func (r *EventReader) List(
 	}
 	defer rows.Close()
 
-	events := make([]eventquery.EventSummary, 0, filter.Limit)
+	events := make([]event.EventSummary, 0, filter.Limit)
 	for rows.Next() {
 		var (
-			event    eventquery.EventSummary
+			event    event.EventSummary
 			sendType string
 			category string
 			level    *string
@@ -129,10 +129,10 @@ func (r *EventReader) List(
 			return nil, fmt.Errorf("扫描 ClickHouse 事件列表: %w", err)
 		}
 
-		event.SendType = dto.SendType(sendType)
-		event.Category = dto.EventCategory(category)
+		event.SendType = telemetry.SendType(sendType)
+		event.Category = telemetry.Category(category)
 		if level != nil {
-			eventLevel := dto.EventLevel(*level)
+			eventLevel := telemetry.Level(*level)
 			event.Level = &eventLevel
 		}
 		events = append(events, event)
@@ -148,22 +148,22 @@ func (r *EventReader) Get(
 	ctx context.Context,
 	projectID string,
 	eventID string,
-) (eventquery.EventDetail, bool, error) {
+) (event.EventDetail, bool, error) {
 	rows, err := r.conn.Query(ctx, getTelemetryEventSQL, projectID, eventID)
 	if err != nil {
-		return eventquery.EventDetail{}, false, fmt.Errorf("执行 ClickHouse 事件详情查询: %w", err)
+		return event.EventDetail{}, false, fmt.Errorf("执行 ClickHouse 事件详情查询: %w", err)
 	}
 	defer rows.Close()
 
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
-			return eventquery.EventDetail{}, false, fmt.Errorf("遍历 ClickHouse 事件详情: %w", err)
+			return event.EventDetail{}, false, fmt.Errorf("遍历 ClickHouse 事件详情: %w", err)
 		}
-		return eventquery.EventDetail{}, false, nil
+		return event.EventDetail{}, false, nil
 	}
 
 	var (
-		event           eventquery.EventDetail
+		detail          event.EventDetail
 		schemaVersion   uint16
 		sendType        string
 		category        string
@@ -173,47 +173,47 @@ func (r *EventReader) Get(
 	)
 	if err := rows.Scan(
 		&schemaVersion,
-		&event.ProjectID,
-		&event.AppName,
-		&event.BatchID,
+		&detail.ProjectID,
+		&detail.AppName,
+		&detail.BatchID,
 		&sendType,
-		&event.SentAt,
-		&event.EventID,
+		&detail.SentAt,
+		&detail.EventID,
 		&category,
-		&event.EventType,
-		&event.Timestamp,
-		&event.PageURL,
-		&event.UserID,
+		&detail.EventType,
+		&detail.Timestamp,
+		&detail.PageURL,
+		&detail.UserID,
 		&level,
-		&event.Message,
+		&detail.Message,
 		&breadcrumbsJSON,
-		&event.ReplayData,
+		&detail.ReplayData,
 		&payloadJSON,
-		&event.ReceivedAt,
+		&detail.ReceivedAt,
 	); err != nil {
-		return eventquery.EventDetail{}, false, fmt.Errorf("扫描 ClickHouse 事件详情: %w", err)
+		return event.EventDetail{}, false, fmt.Errorf("扫描 ClickHouse 事件详情: %w", err)
 	}
 
 	breadcrumbs, err := storedJSONArray(breadcrumbsJSON)
 	if err != nil {
-		return eventquery.EventDetail{}, false, fmt.Errorf("解析 ClickHouse breadcrumbs_json: %w", err)
+		return event.EventDetail{}, false, fmt.Errorf("解析 ClickHouse breadcrumbs_json: %w", err)
 	}
 	payload, err := storedJSONObject(payloadJSON)
 	if err != nil {
-		return eventquery.EventDetail{}, false, fmt.Errorf("解析 ClickHouse payload_json: %w", err)
+		return event.EventDetail{}, false, fmt.Errorf("解析 ClickHouse payload_json: %w", err)
 	}
 
-	event.SchemaVersion = int(schemaVersion)
-	event.SendType = dto.SendType(sendType)
-	event.Category = dto.EventCategory(category)
-	event.Breadcrumbs = breadcrumbs
-	event.Payload = payload
+	detail.SchemaVersion = int(schemaVersion)
+	detail.SendType = telemetry.SendType(sendType)
+	detail.Category = telemetry.Category(category)
+	detail.Breadcrumbs = breadcrumbs
+	detail.Payload = payload
 	if level != nil {
-		eventLevel := dto.EventLevel(*level)
-		event.Level = &eventLevel
+		eventLevel := telemetry.Level(*level)
+		detail.Level = &eventLevel
 	}
 
-	return event, true, nil
+	return detail, true, nil
 }
 
 func storedJSONObject(value string) (json.RawMessage, error) {
