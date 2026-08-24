@@ -65,3 +65,9 @@ docker compose stop postgres clickhouse redis
 ```
 
 只有明确要重建本项目数据时才执行 `docker compose down -v`。
+
+## 生产部署
+
+后端生产环境采用单机 Docker Compose：Caddy 负责 HTTPS，Go、PostgreSQL、ClickHouse 和 Redis 只通过容器内部网络通信。数据库端口不会暴露到公网，迁移也不会随服务启动自动执行。
+
+完整步骤见[后端生产部署指南](docs/backend-production-deployment.md)。生产配置使用 `compose.production.yaml` 和 `.env.production`，不要用本地开发的 `compose.yaml` 或 `.env` 直接上线。
