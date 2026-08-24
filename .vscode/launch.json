@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "后端：数据库迁移",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/apps/server/cmd/migrate",
+      "cwd": "${workspaceFolder}/apps/server"
+    },
+    {
+      "name": "后端：启动服务",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/apps/server/cmd/server",
+      "cwd": "${workspaceFolder}/apps/server"
+    }
+  ]
+}

@@ -33,6 +33,10 @@ func main() {
 }
 
 func run() (runErr error) {
+	if err := config.LoadDotEnv(); err != nil {
+		return fmt.Errorf("load .env: %w", err)
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)

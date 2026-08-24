@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/liu04919/monitor-platform/apps/server/internal/config"
 	"github.com/liu04919/monitor-platform/apps/server/internal/database"
 	"github.com/liu04919/monitor-platform/apps/server/internal/migration"
 )
@@ -22,6 +23,10 @@ func main() {
 }
 
 func run() error {
+	if err := config.LoadDotEnv(); err != nil {
+		return fmt.Errorf("读取本地环境配置: %w", err)
+	}
+
 	postgresDSN := strings.TrimSpace(os.Getenv("DATABASE_URL"))
 	if postgresDSN == "" {
 		return fmt.Errorf("DATABASE_URL 不能为空")
