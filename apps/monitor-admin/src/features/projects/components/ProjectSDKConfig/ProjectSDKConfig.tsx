@@ -1,4 +1,4 @@
-import { Button, CopyButton, Group, Stack, Text } from '@mantine/core'
+import { Button, CopyButton, Group, Stack } from '@mantine/core'
 import { buildSDKConfig } from '@/features/projects/model/buildSDKConfig'
 import type { ProjectDetail } from '@/features/projects/model/projectTypes'
 import styles from './ProjectSDKConfig.module.css'
@@ -12,8 +12,7 @@ export function ProjectSDKConfig({ project }: ProjectSDKConfigProps) {
 
   return (
     <Stack gap="md">
-      <Group justify="space-between">
-        <Text fw={700} size="sm">SDK 配置</Text>
+      <Group justify="flex-end">
         <CopyButton value={sdkConfig} timeout={1_600}>
           {({ copied, copy }) => (
             <Button variant="default" size="compact-sm" onClick={copy}>

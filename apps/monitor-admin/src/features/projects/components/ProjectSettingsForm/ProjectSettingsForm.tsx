@@ -47,6 +47,7 @@ export function ProjectSettingsForm({
         <TextInput
           label="项目名称"
           description="修改名称不会改变项目 ID。"
+          autoComplete="off"
           maxLength={128}
           error={form.formState.errors.name?.message}
           {...form.register('name')}

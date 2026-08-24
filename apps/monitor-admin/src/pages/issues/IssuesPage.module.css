@@ -15,7 +15,7 @@
   margin: 0;
   color: #101725;
   font-size: 30px;
-  font-weight: 740;
+  font-weight: 700;
   letter-spacing: -0.035em;
 }
 
@@ -52,7 +52,6 @@
 
 .empty {
   min-height: 370px;
-  justify-content: center;
   text-align: center;
 }
 

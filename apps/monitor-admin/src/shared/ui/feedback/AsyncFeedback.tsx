@@ -25,7 +25,7 @@ export function LoadingRows() {
 
 export function EmptyState({ filtered }: { filtered: boolean }) {
   return (
-    <Stack className={styles.emptyState} align="center" gap="xs">
+    <Stack className={styles.emptyState} align="center" justify="center" gap="xs">
       <ThemeIcon variant="light" color="gray" size={52} radius="md"><EmptyIcon /></ThemeIcon>
       <Title order={2}>{filtered ? '没有符合条件的事件' : '暂无事件'}</Title>
       {filtered ? <Text>请调整或清除筛选条件。</Text> : null}

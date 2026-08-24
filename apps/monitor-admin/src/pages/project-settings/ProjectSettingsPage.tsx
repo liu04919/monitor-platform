@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Alert, Badge, Button, CopyButton, Group, Paper, Skeleton, Text } from '@mantine/core'
+import { Alert, Badge, Button, CopyButton, Paper, Skeleton, Text } from '@mantine/core'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 import { updateProject } from '@/features/projects/api/projectsApi'
@@ -20,6 +20,11 @@ import type {
 import { AlertIcon, CopyIcon } from '@/shared/ui/icons/Icons'
 import { useAdminStore } from '@/store/adminStore'
 import styles from './ProjectSettingsPage.module.css'
+
+const projectDateFormatter = new Intl.DateTimeFormat('zh-CN', {
+  dateStyle: 'medium',
+  timeStyle: 'short',
+})
 
 export function ProjectSettingsPage() {
   const { projectId = '' } = useParams()
@@ -78,53 +83,90 @@ export function ProjectSettingsPage() {
   return (
     <section className={styles.page}>
       <PageHeading />
-      <Paper className={styles.projectCard} withBorder radius="md">
-        <Group className={styles.cardHeading} justify="space-between" align="flex-start">
-          <div>
-            <Text className={styles.label}>项目名称</Text>
-            <h2>{project.name}</h2>
-          </div>
+      <Paper
+        component="section"
+        className={styles.projectCard}
+        withBorder
+        radius="md"
+        aria-labelledby="project-summary-title"
+      >
+        <div className={styles.summaryHeading}>
+          <h2 id="project-summary-title">{project.name}</h2>
           <Badge color={project.enabled ? 'green' : 'gray'} variant="light">
             {project.enabled ? '接入中' : '已停用'}
           </Badge>
-        </Group>
-        <div className={styles.metadata}>
+        </div>
+        <dl className={styles.metadata}>
           <div>
-            <Text className={styles.label}>项目 ID / SDK appId</Text>
-            <code>{project.id}</code>
+            <dt>项目 ID（SDK appId）</dt>
+            <dd className={styles.projectId}>
+              <code translate="no">{project.id}</code>
+              <CopyButton value={project.id} timeout={1_600}>
+                {({ copied, copy }) => (
+                  <Button
+                    variant="default"
+                    size="compact-sm"
+                    leftSection={<CopyIcon />}
+                    onClick={copy}
+                  >
+                    {copied ? '已复制' : '复制 ID'}
+                  </Button>
+                )}
+              </CopyButton>
+            </dd>
           </div>
-          <CopyButton value={project.id} timeout={1_600}>
-            {({ copied, copy }) => (
-              <Button variant="default" size="compact-sm" leftSection={<CopyIcon />} onClick={copy}>
-                {copied ? '已复制' : '复制 ID'}
-              </Button>
-            )}
-          </CopyButton>
           <div>
-            <Text className={styles.label}>创建时间</Text>
-            <Text size="sm">{new Date(project.createdAt).toLocaleString('zh-CN')}</Text>
+            <dt>创建时间</dt>
+            <dd>
+              <time dateTime={new Date(project.createdAt).toISOString()}>
+                {projectDateFormatter.format(project.createdAt)}
+              </time>
+            </dd>
           </div>
+        </dl>
+      </Paper>
+      <Paper
+        component="section"
+        className={styles.settingsCard}
+        withBorder
+        radius="md"
+        aria-labelledby="general-settings-title"
+      >
+        <div className={styles.settingsLayout}>
+          <h2 id="general-settings-title" className={styles.sectionTitle}>
+            常规设置
+          </h2>
+          <ProjectSettingsForm
+            project={project}
+            isPending={updateMutation.isPending}
+            isSuccess={updateMutation.isSuccess}
+            errorMessage={updateMutation.isError ? projectErrorMessage(updateMutation.error) : ''}
+            onSubmit={(input) => updateMutation.mutate(input)}
+          />
         </div>
       </Paper>
-      <Paper className={styles.settingsCard} withBorder radius="md">
-        <div className={styles.settingsHeading}>
-          <Text className={styles.label}>常规设置</Text>
-          <h2>名称与接入状态</h2>
-        </div>
-        <ProjectSettingsForm
-          project={project}
-          isPending={updateMutation.isPending}
-          isSuccess={updateMutation.isSuccess}
-          errorMessage={updateMutation.isError ? projectErrorMessage(updateMutation.error) : ''}
-          onSubmit={(input) => updateMutation.mutate(input)}
-        />
-      </Paper>
-      <Paper className={styles.sdkCard} withBorder radius="md">
-        <div className={styles.sdkHeading}>
-          <Text className={styles.label}>浏览器接入</Text>
-          <h2>SDK 初始化配置</h2>
-        </div>
+      <Paper
+        component="section"
+        className={styles.sdkCard}
+        withBorder
+        radius="md"
+        aria-labelledby="sdk-config-title"
+      >
+        <h2 id="sdk-config-title" className={styles.sectionTitle}>
+          SDK 初始化配置
+        </h2>
         <ProjectSDKConfig project={project} />
+      </Paper>
+      <Paper
+        component="section"
+        className={styles.dangerCard}
+        withBorder
+        radius="md"
+        aria-labelledby="danger-zone-title"
+      >
+        <h2 id="danger-zone-title" className={styles.dangerTitle}>
+          危险操作
+        </h2>
         <ProjectKeyRotation projectId={project.id} />
       </Paper>
     </section>

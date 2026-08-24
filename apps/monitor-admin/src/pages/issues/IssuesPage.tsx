@@ -45,7 +45,7 @@ export function IssuesPage() {
           </Alert>
         ) : null}
         {!query.isPending && !query.isError && issues.length === 0 ? (
-          <Stack className={styles.empty} align="center" gap="xs">
+          <Stack className={styles.empty} align="center" justify="center" gap="xs">
             <ThemeIcon variant="light" color="gray" size={52} radius="md"><EmptyIcon /></ThemeIcon>
             <Title order={2}>暂无问题</Title>
           </Stack>

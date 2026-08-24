@@ -81,7 +81,7 @@
   border-radius: 9px;
   text-decoration: none;
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 600;
 }
 .sidebar nav a svg {
   width: 19px;
@@ -159,7 +159,7 @@
 }
 .topbar nav span {
   color: var(--ink);
-  font-weight: 650;
+  font-weight: 600;
 }
 .projectChip {
   display: inline-flex;
@@ -172,7 +172,7 @@
   border: 1px solid var(--line);
   border-radius: 8px;
   font-size: 11px;
-  font-weight: 650;
+  font-weight: 600;
 }
 .projectChip span {
   width: 6px;
@@ -208,7 +208,7 @@
   min-height: 42px;
   margin-top: 22px;
   padding-inline: 20px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 @media (max-width: 1080px) {
@@ -271,7 +271,7 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 12px;
-    font-weight: 650;
+    font-weight: 600;
   }
   .mobileCreateButton {
     width: 34px;
@@ -317,7 +317,7 @@
     text-decoration: none;
     cursor: pointer;
     font-size: 12px;
-    font-weight: 650;
+    font-weight: 600;
   }
   .mobileNav a {
     flex: 1;

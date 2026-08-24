@@ -1,10 +1,10 @@
 .row { min-width: 880px; display: grid; grid-template-columns: minmax(270px, 2.3fr) minmax(96px, .75fr) minmax(108px, .9fr) minmax(84px, .7fr) minmax(128px, .9fr) minmax(90px, .6fr); align-items: center; column-gap: 12px; }
-.header { min-height: 46px; padding: 0 18px; color: #7f8b9c; background: #fafbfc; border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 750; letter-spacing: .035em; }
+.header { min-height: 46px; padding: 0 18px; color: #7f8b9c; background: #fafbfc; border-bottom: 1px solid var(--line); font-size: 11px; font-weight: 700; letter-spacing: .035em; }
 .item { min-height: 78px; padding: 11px 18px; border-bottom: 1px solid #edf0f4; transition: background-color .15s ease; }
 .item:hover { background: #fafcff; }
 .identity { min-width: 0; display: flex; align-items: center; gap: 12px; }
 .identity > div { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-.identity a { overflow: hidden; color: #202a3a; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 710; }
+.identity a { overflow: hidden; color: #202a3a; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 700; }
 .identity a:hover { color: var(--blue); }
 .identity > div > span { overflow: hidden; color: #7f8b9c; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .severity { width: 27px; height: 27px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; }

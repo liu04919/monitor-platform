@@ -1,5 +1,5 @@
 .page {
-  width: min(1040px, calc(100% - clamp(36px, 6vw, 88px)));
+  width: min(960px, calc(100% - clamp(36px, 6vw, 88px)));
   margin: 0 auto;
   padding: 38px 0 64px;
 }
@@ -8,77 +8,128 @@
   margin-bottom: 26px;
 }
 
-.label {
-  margin: 0 0 7px;
-  color: var(--blue);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-}
-
 .heading h1 {
   margin: 0;
   color: #101725;
-  font-size: 30px;
-  font-weight: 740;
-  letter-spacing: -0.035em;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-wrap: balance;
 }
 
 .projectCard,
 .settingsCard,
-.sdkCard {
+.sdkCard,
+.dangerCard {
   padding: 24px;
   background: white;
-  box-shadow: 0 6px 24px rgb(28 41 60 / 3%);
+  box-shadow: 0 4px 18px rgb(28 41 60 / 3%);
 }
 
 .settingsCard,
-.sdkCard {
-  margin-top: 18px;
+.sdkCard,
+.dangerCard {
+  margin-top: 16px;
 }
 
-.cardHeading {
+.settingsLayout {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  align-items: start;
+  gap: 32px;
+}
+
+.settingsLayout .sectionTitle {
+  margin-bottom: 0;
+}
+
+.dangerCard {
+  border-color: #f0c9c9;
+  background: #fffafa;
+}
+
+.summaryHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   padding-bottom: 20px;
   border-bottom: 1px solid var(--line);
 }
 
-.cardHeading h2,
-.settingsHeading h2,
-.sdkHeading h2 {
+.summaryHeading h2,
+.sectionTitle,
+.dangerTitle {
   margin: 0;
   color: #182235;
   font-size: 18px;
   font-weight: 700;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+
+.summaryHeading h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 22px;
+}
+
+.dangerTitle {
+  color: #b42318;
 }
 
 .metadata {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 20px;
+  grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr);
+  gap: 28px;
+  margin: 0;
   padding-top: 20px;
 }
 
-.metadata > div:last-child {
-  grid-column: 1 / -1;
+.metadata > div {
+  min-width: 0;
 }
 
-.metadata code {
-  display: block;
+.metadata dt {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.metadata dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.projectId {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.projectId code {
+  min-width: 0;
   overflow-wrap: anywhere;
   color: #4d5b70;
-  font: 13px/1.6 "Cascadia Code", Consolas, monospace;
+  font: 12px/1.6 var(--font-mono);
 }
 
-.metadata button svg {
+.projectId button {
+  flex: 0 0 auto;
+}
+
+.projectId button svg {
   width: 14px;
   height: 14px;
 }
 
-.settingsHeading,
-.sdkHeading {
-  margin-bottom: 22px;
+.sectionTitle,
+.dangerTitle {
+  margin-bottom: 20px;
 }
 
 @media (max-width: 760px) {
@@ -89,21 +140,29 @@
 
   .projectCard,
   .settingsCard,
-  .sdkCard {
+  .sdkCard,
+  .dangerCard {
     padding: 18px;
+  }
+
+  .settingsLayout {
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
 }
 
-@media (max-width: 520px) {
+@media (max-width: 640px) {
   .metadata {
     grid-template-columns: 1fr;
+    gap: 18px;
   }
 
-  .metadata > div:last-child {
-    grid-column: auto;
+  .projectId {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
-  .metadata button {
+  .projectId button {
     width: fit-content;
   }
 }

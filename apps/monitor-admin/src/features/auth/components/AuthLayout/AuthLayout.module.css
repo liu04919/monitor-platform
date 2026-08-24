@@ -48,7 +48,7 @@
   text-align: center;
 }
 
-.footer a { color: var(--blue); font-weight: 650; text-decoration: none; }
+.footer a { color: var(--blue); font-weight: 600; text-decoration: none; }
 
 @media (max-width: 520px) {
   .card { padding: 26px 22px; }

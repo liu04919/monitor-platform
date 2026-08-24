@@ -20,7 +20,7 @@
   margin: 0;
   color: #263247;
   font-size: 14px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .metrics {
@@ -43,7 +43,7 @@
   margin-bottom: 8px;
   color: #8a95a5;
   font-size: 10px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .metrics dd {
@@ -51,7 +51,7 @@
   overflow-wrap: anywhere;
   color: #202a3a;
   font-size: 14px;
-  font-weight: 720;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
@@ -71,7 +71,7 @@
 
 .location > span {
   color: #8a95a5;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .location a,

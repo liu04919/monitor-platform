@@ -1,6 +1,6 @@
 .page { width: min(1420px, calc(100% - clamp(36px, 6vw, 88px))); margin: 0 auto; padding: 38px 0 64px; }
 .heading { display: flex; justify-content: space-between; align-items: end; margin-bottom: 26px; }
-.heading h1 { margin: 0; color: #101725; font-size: 30px; font-weight: 740; letter-spacing: -.035em; }
+.heading h1 { margin: 0; color: #101725; font-size: 30px; font-weight: 700; letter-spacing: -.035em; }
 .refreshButton { color: #526073; box-shadow: 0 1px 2px rgb(19 32 52 / 3%); }
 .refreshButton:hover { color: var(--blue); border-color: #c3d2ee; }
 .refreshButton svg { width: 17px; height: 17px; }
