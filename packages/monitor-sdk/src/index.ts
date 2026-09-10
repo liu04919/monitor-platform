@@ -14,8 +14,9 @@ export type {
   ResourceErrorEvent,
   StabilityEvent,
   StackFrame,
+  TransportOptions,
+  ReportDrop,
 } from './types'
 export { unzipRecordscreen } from './common/utils'
-export { flushOfflineQueue, initReportTransport } from './common/report'
 
 export { createMonitor as default } from './core'

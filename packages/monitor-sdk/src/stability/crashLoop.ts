@@ -29,7 +29,7 @@ export default function crashLoop(ctx: MonitorContext): () => void {
    *
    * - ctx
    * - createEventBase
-   * - lazyReportBatch
+     * - 实例的 ReportTransport
    *
    * 因此它需要自己创建 Event 和 Batch，
    * 并通过 fetch 直接发送给后端。

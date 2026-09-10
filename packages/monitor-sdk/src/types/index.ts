@@ -1,4 +1,7 @@
 import type { Breadcrumb, MonitorEvent } from './events'
+import type { ReportDrop, TransportOptions } from '../transport/types'
+
+export type { ReportDrop, TransportOptions } from '../transport/types'
 
 export * from './events'
 
@@ -47,10 +50,12 @@ export type ConfigType = {
   isAjax: boolean
   containerElements: string[]
   skeletonElements: string[]
-  reportBefore?: any
-  reportAfter?: any
-  reportSuccess?: any
-  reportFail?: any
+  transport?: Partial<TransportOptions>
+  reportBefore?: (events: MonitorEvent[]) => unknown
+  reportAfter?: (events: MonitorEvent[]) => unknown
+  reportSuccess?: (events: MonitorEvent[]) => unknown
+  reportFail?: (events: MonitorEvent[]) => unknown
+  reportDrop?: (info: ReportDrop) => unknown
   plugins?: MonitorPlugin[]
   [key: string]: string | boolean | number | string[] | any
 }

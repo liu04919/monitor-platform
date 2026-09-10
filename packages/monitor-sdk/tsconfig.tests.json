@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "types": ["node"] },
+  "include": ["src", "tests/**/*.ts", "vitest.config.ts"],
+  "exclude": ["tests/browser-entry.ts"]
+}

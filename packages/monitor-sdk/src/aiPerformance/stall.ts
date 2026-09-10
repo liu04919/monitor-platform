@@ -1,4 +1,5 @@
 import { createEventBase } from '../common/event'
+import { safely } from '../common/safe'
 import type { MonitorContext, MonitorPlugin, StabilityEvent } from '../types'
 import type { StallPluginOptions } from './types'
 
@@ -58,7 +59,7 @@ function initLongTaskObserver(
   const observer = new PerformanceObserver((list) => {
     const now = performance.now()
 
-    if (now - lastReportTime < reportInterval) {
+    if (document.hidden || now - lastReportTime < reportInterval) {
       return
     }
 
@@ -69,7 +70,7 @@ function initLongTaskObserver(
     }
 
     lastReportTime = now
-    reportStall(ctx, 'longtask', entry.duration, threshold, entry.startTime)
+    safely(() => reportStall(ctx, 'longtask', entry.duration, threshold, entry.startTime))
   })
 
   observer.observe({
@@ -83,9 +84,18 @@ function initLongTaskObserver(
 }
 
 function initRafGapLoop(ctx: MonitorContext, threshold: number, reportInterval: number): void {
-  let lastFrameTime = performance.now()
+  let lastFrameTime: number | undefined
   let lastReportTime = 0
   let isRunning = true
+  let frameId: number
+
+  const reset = (): void => {
+    lastFrameTime = undefined
+  }
+  // 后台 rAF 可能完全不执行，不能依赖 loop 内的 document.hidden 分支重置时钟。
+  ctx.on(document, 'visibilitychange', reset)
+  ctx.on(window, 'pageshow', reset)
+  ctx.on(window, 'pagehide', reset)
 
   const loop = (timestamp: number): void => {
     if (!isRunning) {
@@ -93,27 +103,29 @@ function initRafGapLoop(ctx: MonitorContext, threshold: number, reportInterval: 
     }
 
     if (document.hidden) {
-      lastFrameTime = timestamp
-      requestAnimationFrame(loop)
+      lastFrameTime = undefined
+      frameId = requestAnimationFrame(loop)
       return
     }
 
-    const gap = timestamp - lastFrameTime
+    const previousFrame = lastFrameTime
+    const gap = previousFrame === undefined ? 0 : timestamp - previousFrame
     const canReport = gap >= threshold && timestamp - lastReportTime >= reportInterval
 
     if (canReport) {
       lastReportTime = timestamp
-      reportStall(ctx, 'raf_gap', gap, threshold, lastFrameTime)
+      safely(() => reportStall(ctx, 'raf_gap', gap, threshold, previousFrame!))
     }
 
     lastFrameTime = timestamp
-    requestAnimationFrame(loop)
+    frameId = requestAnimationFrame(loop)
   }
 
-  requestAnimationFrame(loop)
+  frameId = requestAnimationFrame(loop)
 
   ctx.addDispose(() => {
     isRunning = false
+    cancelAnimationFrame(frameId)
   })
 }
 

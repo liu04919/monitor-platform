@@ -16,6 +16,10 @@ export default defineConfig([
   },
   tseslint.configs.recommended,
   {
+    files: ['tests/**/*.mjs'],
+    languageOptions: { globals: globals.node },
+  },
+  {
     files: ['**/*.{ts,mts,cts}'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',

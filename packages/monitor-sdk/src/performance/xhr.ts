@@ -1,4 +1,5 @@
 import { createEventBase } from '../common/event'
+import { safely } from '../common/safe'
 import { urlToJson } from '../common/utils'
 import type { MonitorContext, PerformanceEvent } from '../types'
 
@@ -52,6 +53,8 @@ export default function xhr(ctx: MonitorContext): () => void {
   const originalProto = XMLHttpRequest.prototype
   const originalSend = originalProto.send
   const originalOpen = originalProto.open
+  let active = true
+  const listeners = new Set<() => void>()
 
   function newOpen(
     this: XMLHttpRequest,
@@ -70,50 +73,68 @@ export default function xhr(ctx: MonitorContext): () => void {
   }
 
   function newSend(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
+    if (!active) return originalSend.call(this, body)
     const startTime = performance.now()
 
     const onLoaded = () => {
-      const endTime = performance.now()
-      const duration = endTime - startTime
-      const url = this.url || ''
-      const method = this.method || 'GET'
-      const params = body != null ? serializeBody(body) : urlToJson(url)
+      remove()
+      safely(() => {
+        if (!active) return
+        const endTime = performance.now()
+        const duration = endTime - startTime
+        const url = this.url || ''
+        const method = this.method || 'GET'
+        const params = body != null ? serializeBody(body) : urlToJson(url)
 
-      const reportData: PerformanceEvent = {
-        ...createEventBase(ctx),
+        const reportData: PerformanceEvent = {
+          ...createEventBase(ctx),
 
-        category: 'performance',
-        eventType: 'http_request',
+          category: 'performance',
+          eventType: 'http_request',
 
-        payload: {
-          name: 'xhr',
-          value: duration,
-          unit: 'ms',
+          payload: {
+            name: 'xhr',
+            value: duration,
+            unit: 'ms',
 
-          attributes: {
-            url,
-            method: method.toUpperCase(),
-            status: this.status,
-            success: this.status >= 200 && this.status < 300,
-            params,
-            startTime,
-            endTime,
+            attributes: {
+              url,
+              method: method.toUpperCase(),
+              status: this.status,
+              success: this.status >= 200 && this.status < 300,
+              params,
+              startTime,
+              endTime,
+            },
           },
-        },
-      }
+        }
 
-      ctx.report(reportData)
+        ctx.report(reportData)
+      })
+    }
+
+    const remove = () => {
+      this.removeEventListener('loadend', onLoaded)
+      listeners.delete(remove)
     }
 
     this.addEventListener('loadend', onLoaded, { once: true })
+    listeners.add(remove)
 
-    return originalSend.apply(this, [body])
+    try {
+      return originalSend.call(this, body)
+    } catch (error) {
+      remove()
+      throw error
+    }
   }
 
   originalProto.open = newOpen
   originalProto.send = newSend
 
   return () => {
+    active = false
+    listeners.forEach((remove) => remove())
     if (originalProto.open === newOpen) {
       originalProto.open = originalOpen
     }

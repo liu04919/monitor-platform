@@ -1,5 +1,6 @@
-import { getConfig, setConfig } from '../common/config'
-import { initReportTransport, lazyReportBatch } from '../common/report'
+import { createConfig } from '../common/config'
+import { safely } from '../common/safe'
+import { ReportTransport } from '../transport'
 import {
   Breadcrumb,
   ConfigType,
@@ -18,27 +19,25 @@ export class Monitor {
 
   private eventHandlers = new Map<string, Set<MonitorEventHandler>>()
 
-  private reportTransportDispose?: MonitorDispose
+  private readonly config: ConfigType
+  private readonly transport: ReportTransport
+  private destroyed = false
 
   constructor(options?: Partial<ConfigType>) {
-    this.init(options)
-  }
-
-  init(options?: Partial<ConfigType>): this {
-    setConfig(options)
-
-    if (!this.reportTransportDispose) {
-      this.reportTransportDispose = initReportTransport()
+    this.config = createConfig(options)
+    this.transport = new ReportTransport(this.config)
+    try {
+      options?.plugins?.forEach((plugin) => {
+        this.use(plugin)
+      })
+    } catch (error) {
+      this.destroy()
+      throw error
     }
-
-    options?.plugins?.forEach((plugin) => {
-      this.use(plugin)
-    })
-
-    return this
   }
 
   use(plugin: MonitorPlugin | MonitorPlugin[]): this {
+    if (this.destroyed) return this
     if (Array.isArray(plugin)) {
       plugin.forEach((item) => {
         this.use(item)
@@ -59,22 +58,26 @@ export class Monitor {
     this.plugins.set(plugin.name, plugin)
 
     const cleanups: MonitorDispose[] = []
+    let disposed = false
+    const disposeAll = (): void => {
+      if (disposed) return
+      disposed = true
+      this.runCleanups(cleanups)
+    }
+    const context = this.createContext(cleanups, () => disposed)
+    // 即使插件暂时没有清理函数，也保留作用域，以覆盖异步安装的监听器。
+    this.disposers.set(plugin.name, disposeAll)
 
     try {
-      const dispose = plugin.setup(this.createContext(cleanups))
+      const dispose = plugin.setup(context)
 
       if (typeof dispose === 'function') {
-        cleanups.push(dispose)
-      }
-
-      if (cleanups.length) {
-        this.disposers.set(plugin.name, () => {
-          this.runCleanups(cleanups)
-        })
+        context.addDispose(dispose)
       }
     } catch (error) {
       this.plugins.delete(plugin.name)
-      this.runCleanups(cleanups)
+      this.disposers.delete(plugin.name)
+      disposeAll()
       throw error
     }
 
@@ -90,19 +93,23 @@ export class Monitor {
   }
 
   destroy(): void {
+    if (this.destroyed) return
+    this.destroyed = true
+    this.transport.destroy()
     Array.from(this.disposers.values())
       .reverse()
       .forEach((dispose) => {
-        dispose()
+        safely(dispose)
       })
 
     this.disposers.clear()
     this.plugins.clear()
     this.capabilities.clear()
     this.eventHandlers.clear()
+  }
 
-    this.reportTransportDispose?.()
-    this.reportTransportDispose = undefined
+  flush(): Promise<void> {
+    return this.transport.flush()
   }
 
   private runCleanups(cleanups: MonitorDispose[]): void {
@@ -110,20 +117,26 @@ export class Monitor {
       .slice()
       .reverse()
       .forEach((cleanup) => {
-        cleanup()
+        safely(cleanup)
       })
   }
 
-  private createContext(cleanups: MonitorDispose[]): MonitorContext {
+  private createContext(cleanups: MonitorDispose[], disposed: () => boolean): MonitorContext {
     const addDispose = (dispose: MonitorDispose): MonitorDispose => {
+      if (this.destroyed || disposed()) {
+        safely(dispose)
+        return dispose
+      }
       cleanups.push(dispose)
       return dispose
     }
 
     return {
-      config: getConfig(),
-      getConfig,
-      report: lazyReportBatch,
+      config: this.config,
+      getConfig: () => this.config,
+      report: (event) => {
+        if (!disposed()) this.transport.report(event)
+      },
       getPlugin: (name: string) => this.getPlugin(name),
       events: {
         on: (name, handler) => {
@@ -151,7 +164,7 @@ export class Monitor {
           const handlers = this.eventHandlers.get(name)
 
           handlers?.forEach((handler) => {
-            handler(payload)
+            safely(() => handler(payload))
           })
         },
       },
