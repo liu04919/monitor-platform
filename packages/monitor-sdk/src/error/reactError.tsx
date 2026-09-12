@@ -33,7 +33,7 @@ export default function createErrorBoundary(ctx: MonitorContext) {
     componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
       const { componentName, url } = getReactComponentInfo(errorInfo)
 
-      const replayData = ctx.getRecordScreenData()
+      const replayData = ctx.getReplayData()
 
       const reportData: ExceptionErrorEvent = {
         ...createEventBase(ctx),
@@ -42,7 +42,7 @@ export default function createErrorBoundary(ctx: MonitorContext) {
         eventType: 'react_error',
         level: 'error',
 
-        breadcrumbs: ctx.getBehaviorState(),
+        breadcrumbs: ctx.getBreadcrumbs(),
         replayData: replayData || undefined,
 
         payload: {

@@ -1,5 +1,6 @@
 import { createEventBase } from '../common/event'
 import { safely } from '../common/safe'
+import { addHttpBreadcrumb, isTelemetryRequest } from '../breadcrumbs/http'
 import type { MonitorContext, PerformanceEvent } from '../types'
 
 // 浏览器只有一个 Fetch 入口；记录本插件包装链，允许实例按任意顺序销毁。
@@ -81,11 +82,7 @@ export default function fetch(ctx: MonitorContext): () => void {
     safely(() => {
       if (!active) return
       const url = getFetchUrl(input)
-      if (
-        new URL(url, window.location.href).href ===
-        new URL(ctx.getConfig().url, window.location.href).href
-      )
-        return
+      if (isTelemetryRequest(ctx, url)) return
       metadata = { url, method: getFetchMethod(input, init), params: getFetchParams(input, init) }
     })
     if (!metadata) return request
@@ -95,6 +92,7 @@ export default function fetch(ctx: MonitorContext): () => void {
         if (!active || !metadata) return
         const endTime = performance.now()
         const duration = endTime - startTime
+        addHttpBreadcrumb(ctx, { url: metadata.url, method: metadata.method, status, duration })
 
         const reportData: PerformanceEvent = {
           ...createEventBase(ctx),

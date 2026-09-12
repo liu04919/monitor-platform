@@ -17,7 +17,7 @@ const scenarios = [
   { id: 'fetch', index: '01', category: '网络性能', title: 'Fetch 请求', description: '发起成功请求，验证状态码、耗时和参数采集。' },
   { id: 'xhr', index: '02', category: '网络性能', title: 'XHR 请求', description: '使用 XMLHttpRequest 验证传统 Ajax 拦截。' },
   { id: 'stream', index: '03', category: 'AI 性能', title: 'AI 流式响应', description: '采集 TTFB、TTFT、Chunk 数量与间隔。' },
-  { id: 'custom', index: '04', category: '用户行为', title: '自定义事件', description: '调用 Behavior 能力，验证业务自定义埋点。' },
+  { id: 'custom', index: '04', category: '用户行为', title: '自定义事件', description: '调用 track 和 addBreadcrumb，验证业务埋点与错误上下文。' },
   { id: 'route', index: '05', category: '用户行为', title: '路由切换', description: '触发 pushState，记录来源、去向和停留时间。' },
   { id: 'longtask', index: '06', category: '页面性能', title: '主线程长任务', description: '阻塞约 180ms，验证 Long Task 与 RAF 卡顿。' },
   { id: 'js', index: '07', category: '错误采集', title: 'JavaScript 错误', description: '抛出全局运行时错误并采集源码位置和堆栈。' },
@@ -133,13 +133,8 @@ export function App() {
     if (!BEACON_TEST_MODE || beaconRan.current) return
     beaconRan.current = true
 
-    const behavior = monitor.getCapability<{ customHandler: (data: object) => void }>('behavior:instance')
-    if (!behavior) throw new Error('Behavior 能力未注册，无法执行 Beacon 测试')
-
-    behavior.customHandler({
-      eventKey: `beacon_exit_${BEACON_TEST_RUN_ID}`,
-      eventAction: 'page-exit',
-      eventValue: { runId: BEACON_TEST_RUN_ID, transport: 'sendBeacon' },
+    monitor.track(`beacon_exit_${BEACON_TEST_RUN_ID}`, {
+      runId: BEACON_TEST_RUN_ID, transport: 'sendBeacon',
     })
 
     // 完成页不加载 SDK，避免 IndexedDB 中的同一批数据立刻被 Fetch 重传。
@@ -172,9 +167,8 @@ export function App() {
       if (id === 'xhr') await runXhr()
       if (id === 'stream') await consumeStream()
       if (id === 'custom') {
-        const behavior = monitor.getCapability<{ customHandler: (data: object) => void }>('behavior:instance')
-        if (!behavior) throw new Error('Behavior 能力未注册')
-        behavior.customHandler({ eventKey: 'demo_cta', eventAction: 'click', eventValue: { source: 'test-console' } })
+        monitor.addBreadcrumb({ category: 'custom', message: '执行自定义测试', data: { source: 'test-console' } })
+        monitor.track('demo_cta', { source: 'test-console' })
       }
       if (id === 'route') {
         const nextRoute = `/scenario/${Date.now()}`
@@ -248,7 +242,7 @@ export function App() {
                   <p className="scenario-category">{scenario.category}</p>
                   <h3>{scenario.title}</h3>
                   <p>{scenario.description}</p>
-                  <button type="button" disabled={status === 'running'} onClick={() => execute(scenario.id)}>
+                  <button type="button" data-monitor-id={`scenario-${scenario.id}`} disabled={status === 'running'} onClick={() => execute(scenario.id)}>
                     <span>{status === 'running' ? '执行中…' : status === 'done' ? '再次运行' : status === 'failed' ? '重试' : '运行测试'}</span><b>{status === 'done' ? '✓' : '→'}</b>
                   </button>
                 </article>

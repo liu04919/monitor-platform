@@ -32,6 +32,11 @@ pnpm --dir apps/monitor-demo dev
 `http://127.0.0.1:5173/?auto=1` 会自动运行基础场景，并在最后一批事件发送后销毁
 Monitor，避免无人值守的测试页面持续采集。Vite 热更新也会销毁旧 Monitor 实例。
 
+Demo 显式安装 `recordScreenPlugin()`；行为插件本身不再启动录屏。“自定义事件”场景通过
+`monitor.addBreadcrumb()` 添加业务轨迹，再通过 `monitor.track()` 发送独立事件。先触发
+Fetch、XHR、自定义场景，再触发 JavaScript 错误，可以在错误详情的 breadcrumbs 中检查
+`http` 和 `custom`；测试按钮带有稳定的 `data-monitor-id`，点击不采集按钮文本。
+
 页面显示“Go ingestion 已接通”只代表 SDK 的 Fetch 上报收到成功响应。页面退出时的
 `sendBeacon` 不会向 JavaScript 暴露服务端响应，必须到 PostgreSQL 和 ClickHouse 中
 确认最终写入结果。

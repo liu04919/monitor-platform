@@ -25,7 +25,7 @@ const server = createServer(async (request, response) => {
       for await (const chunk of request) body += chunk
       requests.push({ path: request.url, body: JSON.parse(body) })
       response.writeHead(202).end()
-    } else if (request.url === '/business') {
+    } else if (new URL(request.url, 'http://localhost').pathname === '/business') {
       response.writeHead(200, { 'Content-Type': 'text/plain' }).end('business body')
     } else if (request.url.endsWith('.js')) {
       const file = resolve(root, `.${request.url}`)
@@ -230,6 +230,133 @@ try {
   assert.equal(fallback.body.sendType, 'fetch')
   assert.equal(fallback.body.events[0].eventId, 'actual-keepalive')
   console.log('PASS: real navigation / Beacon refused / Fetch keepalive received')
+  await page.waitForFunction(() => window.sdk)
+  const behaviorResult = await page.evaluate(async () => {
+    const originalPush = history.pushState
+    const originalReplace = history.replaceState
+    const originalFetch = fetch
+    const historyEvents = []
+    const onHistory = (event) => historyEvents.push({ type: event.type, path: location.pathname })
+    window.addEventListener('pushstate', onHistory)
+    window.addEventListener('replacestate', onHistory)
+    let ctx
+    const monitor = window.sdk.createMonitor({
+      url: `${location.origin}/collect-behavior`,
+      appId: 'behavior',
+      projectName: 'behavior',
+      publicKey: 'key-behavior',
+      plugins: [
+        {
+          name: 'capture',
+          setup(value) {
+            ctx = value
+          },
+        },
+        ...window.sdk.behaviorPlugins(),
+        window.sdk.fetchPlugin,
+        window.sdk.xhrPlugin,
+        window.sdk.errorPlugin,
+      ],
+    })
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    await monitor.flush()
+    const noReplay = ctx.getReplayData() === ''
+    history.replaceState({ stateOnly: true }, '', location.href)
+    history.pushState(null, '', '/behavior-route?token=secret')
+    location.hash = '#/settings'
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    document.body.innerHTML =
+      '<button data-monitor-id="save"><span>private-button-text</span><svg><path /></svg></button><div id="plain"></div><section data-monitor-ignore><button>ignored</button></section>'
+    document.querySelector('span').click()
+    document
+      .querySelector('path')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true }))
+    document.querySelector('#plain').textContent = 'x'.repeat(10000)
+    document.querySelector('#plain').click()
+    document.querySelector('section button').click()
+    const host = document.createElement('div')
+    host.setAttribute('data-monitor-id', 'shadow-host')
+    document.body.append(host)
+    const shadow = host.attachShadow({ mode: 'open' })
+    shadow.innerHTML =
+      '<button data-monitor-id="inner-button"><span>private-shadow-text</span></button>'
+    shadow.querySelector('span').click()
+    await fetch('/business?token=secret')
+    await new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', '/business?token=secret')
+      xhr.onload = resolve
+      xhr.onerror = reject
+      xhr.send('password=secret')
+    })
+    monitor.addBreadcrumb({
+      category: 'custom',
+      message: 'project_saved',
+      data: { source: 'browser-test' },
+    })
+    monitor.track('project_saved', { source: 'browser-test' })
+    const breadcrumbs = ctx.getBreadcrumbs()
+    const error = new Error('behavior regression error')
+    window.dispatchEvent(new ErrorEvent('error', { message: error.message, error }))
+    // 错误已经取得 DONE 时的 HTTP 轨迹；让随后到来的 loadend 也完成性能事件汇总。
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await monitor.flush()
+    monitor.destroy()
+    history.pushState(null, '', '/after-destroy')
+    history.replaceState(null, '', '/after-destroy-replace')
+    window.removeEventListener('pushstate', onHistory)
+    window.removeEventListener('replacestate', onHistory)
+    document.querySelector('span').click()
+    monitor.track('after_destroy')
+    monitor.addBreadcrumb({ category: 'custom', message: 'after_destroy' })
+    return {
+      breadcrumbs,
+      historyEvents,
+      noReplay,
+      afterDestroy: ctx.getBreadcrumbs(),
+      restored:
+        history.pushState === originalPush &&
+        history.replaceState === originalReplace &&
+        fetch === originalFetch,
+    }
+  })
+  const behaviorEvents = requests
+    .filter((r) => r.path === '/collect-behavior')
+    .flatMap((r) => r.body.events)
+  assert.equal(behaviorResult.noReplay, true)
+  assert.equal(behaviorResult.restored, true)
+  assert.deepEqual(behaviorResult.historyEvents, [
+    { type: 'replacestate', path: '/finished' },
+    { type: 'pushstate', path: '/behavior-route' },
+  ])
+  assert.deepEqual(behaviorResult.afterDestroy, [])
+  assert.equal(behaviorEvents.filter((e) => e.eventType === 'page_view').length, 3)
+  assert.equal(behaviorEvents.filter((e) => e.eventType === 'route_change').length, 2)
+  const clicks = behaviorEvents.filter((e) => e.eventType === 'click')
+  assert.equal(clicks.length, 4)
+  assert.deepEqual(
+    clicks.map((event) => event.payload.data.tagName),
+    ['SPAN', 'path', 'DIV', 'DIV'],
+  )
+  assert.equal(clicks[0].payload.data.monitorId, undefined)
+  assert.match(clicks[0].payload.data.path, /span:nth-of-type\(1\)$/)
+  assert.match(clicks[1].payload.data.path, /path:nth-of-type\(1\)$/)
+  assert.equal(clicks[3].payload.data.monitorId, 'shadow-host')
+  for (const click of clicks) assert.equal(click.payload.data.textContent, undefined)
+  assert.deepEqual(
+    behaviorResult.breadcrumbs.map((b) => b.category),
+    ['navigation', 'navigation', 'click', 'click', 'click', 'click', 'http', 'http', 'custom'],
+  )
+  assert(!JSON.stringify(behaviorResult.breadcrumbs).includes('secret'))
+  const errorEvent = behaviorEvents.find((e) => e.eventType === 'js_error')
+  assert(errorEvent)
+  assert.deepEqual(errorEvent.breadcrumbs, behaviorResult.breadcrumbs)
+  assert(!errorEvent.replayData)
+  assert.equal(behaviorEvents.filter((e) => e.eventType === 'custom').length, 1)
+  assert.equal(behaviorEvents.filter((e) => e.eventType === 'http_request').length, 2)
+  console.log(
+    'PASS: navigation / hash dedup / event.target click / Fetch+XHR breadcrumbs / custom API / error context / cleanup',
+  )
   assert.deepEqual(errors, [])
   await context.close()
 } catch (error) {

@@ -51,7 +51,7 @@ function getEmptyPointCount(ctx: MonitorContext): number {
 }
 
 function reportWhiteScreen(ctx: MonitorContext): void {
-  const replayData = ctx.getRecordScreenData()
+  const replayData = ctx.getReplayData()
 
   const reportData: StabilityEvent = {
     ...createEventBase(ctx),
@@ -60,7 +60,7 @@ function reportWhiteScreen(ctx: MonitorContext): void {
     eventType: 'white_screen',
     level: 'error',
 
-    breadcrumbs: ctx.getBehaviorState(),
+    breadcrumbs: ctx.getBreadcrumbs(),
     replayData: replayData || undefined,
 
     payload: {

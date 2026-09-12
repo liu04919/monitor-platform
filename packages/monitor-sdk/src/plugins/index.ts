@@ -1,12 +1,6 @@
-export {
-  behaviorPlugins,
-  breadcrumbPlugin,
-  clickPlugin,
-  pvPlugin,
-  recordScreenPlugin,
-  routePlugin,
-  routerChangePlugin,
-} from '../behavior'
+export { behaviorPlugins, clickPlugin, pvPlugin, navigationPlugin } from '../behavior'
+export type { ClickOptions } from '../behavior'
+export { recordScreenPlugin } from '../replay'
 export {
   browserErrorPlugins,
   jsErrorPlugin,

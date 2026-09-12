@@ -17,7 +17,7 @@ export default function stutterLoop(ctx: MonitorContext): void {
   }
 
   const reportStutter = (fps: number): void => {
-    const replayData = ctx.getRecordScreenData()
+    const replayData = ctx.getReplayData()
 
     const reportData: StabilityEvent = {
       ...createEventBase(ctx),
@@ -26,7 +26,7 @@ export default function stutterLoop(ctx: MonitorContext): void {
       eventType: 'stutter',
       level: 'warning',
 
-      breadcrumbs: ctx.getBehaviorState(),
+      breadcrumbs: ctx.getBreadcrumbs(),
       replayData: replayData || undefined,
 
       payload: {

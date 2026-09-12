@@ -1,5 +1,6 @@
 import { createEventBase } from '../common/event'
 import { safely } from '../common/safe'
+import { addHttpBreadcrumb, isTelemetryRequest } from '../breadcrumbs/http'
 import { urlToJson } from '../common/utils'
 import type { MonitorContext, PerformanceEvent } from '../types'
 
@@ -64,6 +65,12 @@ export default function xhr(ctx: MonitorContext): () => void {
     username?: string | null,
     password?: string | null,
   ) {
+    if (!active) {
+      return originalOpen.apply(this, [method, url, async, username, password] as Parameters<
+        XMLHttpRequest['open']
+      >)
+    }
+
     this.url = url.toString()
     this.method = method
 
@@ -75,15 +82,34 @@ export default function xhr(ctx: MonitorContext): () => void {
   function newSend(this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
     if (!active) return originalSend.call(this, body)
     const startTime = performance.now()
+    let breadcrumbRecorded = false
+    const completionEvents = ['load', 'error', 'abort', 'timeout'] as const
+    const recordBreadcrumb = () =>
+      safely(() => {
+        if (!active || breadcrumbRecorded) return
+        breadcrumbRecorded = true
+        addHttpBreadcrumb(ctx, {
+          url: this.url || '',
+          method: this.method || 'GET',
+          status: this.status,
+          duration: performance.now() - startTime,
+        })
+      })
+    const onReadyStateChange = () =>
+      safely(() => {
+        if (this.readyState === XMLHttpRequest.DONE) recordBreadcrumb()
+      })
 
     const onLoaded = () => {
       remove()
       safely(() => {
         if (!active) return
+        recordBreadcrumb()
         const endTime = performance.now()
         const duration = endTime - startTime
         const url = this.url || ''
         const method = this.method || 'GET'
+        if (isTelemetryRequest(ctx, url)) return
         const params = body != null ? serializeBody(body) : urlToJson(url)
 
         const reportData: PerformanceEvent = {
@@ -115,9 +141,14 @@ export default function xhr(ctx: MonitorContext): () => void {
 
     const remove = () => {
       this.removeEventListener('loadend', onLoaded)
+      completionEvents.forEach((type) => this.removeEventListener(type, recordBreadcrumb, true))
+      this.removeEventListener('readystatechange', onReadyStateChange, true)
       listeners.delete(remove)
     }
 
+    // DONE 通知先于 load/error；不能仅依赖 load 上的 capture 标志控制原生 XHR 回调顺序。
+    this.addEventListener('readystatechange', onReadyStateChange, true)
+    completionEvents.forEach((type) => this.addEventListener(type, recordBreadcrumb, true))
     this.addEventListener('loadend', onLoaded, { once: true })
     listeners.add(remove)
 

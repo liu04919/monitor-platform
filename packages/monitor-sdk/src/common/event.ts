@@ -1,5 +1,6 @@
 import type { MonitorContext } from '../types'
 import { MONITOR_SCHEMA_VERSION } from '../types/events'
+import { sanitizeUrl } from './sanitize'
 
 export interface EventBaseFields {
   schemaVersion: typeof MONITOR_SCHEMA_VERSION
@@ -17,14 +18,14 @@ export function createEventId(): string {
   return [Date.now().toString(36), Math.random().toString(36).slice(2)].join('-')
 }
 
-export function createEventBase(ctx: MonitorContext): EventBaseFields {
+export function createEventBase(ctx: Pick<MonitorContext, 'getConfig'>): EventBaseFields {
   const config = ctx.getConfig()
 
   return {
     schemaVersion: MONITOR_SCHEMA_VERSION,
     eventId: createEventId(),
     timestamp: Date.now(),
-    pageUrl: typeof window !== 'undefined' ? window.location.href : '',
+    pageUrl: typeof window !== 'undefined' ? sanitizeUrl(window.location.href) : '',
 
     userId: config.userId || undefined,
   }

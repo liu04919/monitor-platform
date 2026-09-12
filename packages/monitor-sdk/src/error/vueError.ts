@@ -57,7 +57,7 @@ function reportVueError(ctx: MonitorContext, err: unknown, vm: any, info: string
   const error = normalizeError(err)
   const { componentName, src } = getComponentInfo(vm)
 
-  const replayData = ctx.getRecordScreenData()
+  const replayData = ctx.getReplayData()
 
   const reportData: ExceptionErrorEvent = {
     ...createEventBase(ctx),
@@ -66,7 +66,7 @@ function reportVueError(ctx: MonitorContext, err: unknown, vm: any, info: string
     eventType: 'vue_error',
     level: 'error',
 
-    breadcrumbs: ctx.getBehaviorState(),
+    breadcrumbs: ctx.getBreadcrumbs(),
     replayData: replayData || undefined,
 
     payload: {

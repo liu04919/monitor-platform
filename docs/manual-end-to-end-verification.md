@@ -303,6 +303,7 @@ export const monitor = createMonitor({
   batchSize: 1,
   plugins: [
     ...behaviorPlugins(),
+    recordScreenPlugin(), // 从 minitor-sdk/plugins 导入，录屏现在需要显式启用
     ...browserErrorPlugins(),
     reactErrorPlugin(),
     ...performancePlugins(),

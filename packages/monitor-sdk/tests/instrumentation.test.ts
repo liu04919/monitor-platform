@@ -5,6 +5,7 @@ import instrumentFetch from '../src/performance/fetch'
 import instrumentXHR from '../src/performance/xhr'
 import type { MonitorContext } from '../src/types'
 import { visible } from './helpers'
+import { BreadcrumbStore } from '../src/breadcrumbs'
 
 let cleanups: (() => void)[]
 beforeEach(() => {
@@ -17,6 +18,7 @@ afterEach(() => {
 
 function context(): MonitorContext {
   const config = createConfig({ url: 'http://localhost:3000/telemetry' })
+  const breadcrumbs = new BreadcrumbStore()
   return {
     config,
     getConfig: () => config,
@@ -25,8 +27,9 @@ function context(): MonitorContext {
     events: { on: () => () => {}, off: () => {}, emit: () => {} },
     provide: () => {},
     consume: () => undefined,
-    getBehaviorState: () => [],
-    getRecordScreenData: () => '',
+    addBreadcrumb: (item) => breadcrumbs.add(item),
+    getBreadcrumbs: () => breadcrumbs.snapshot(),
+    getReplayData: () => '',
     addDispose: (dispose) => {
       cleanups.push(dispose)
       return dispose
@@ -41,6 +44,53 @@ function context(): MonitorContext {
 }
 
 describe('Fetch 业务隔离', () => {
+  it('只复用一次请求采集，HTTP 轨迹不带查询参数和请求体', async () => {
+    const original = vi.fn().mockResolvedValue(new Response('ok'))
+    vi.stubGlobal('fetch', original)
+    const ctx = context()
+    cleanups.push(instrumentFetch(ctx))
+    await window.fetch('/business?token=secret', { method: 'POST', body: 'password=secret' })
+    expect(original).toHaveBeenCalledTimes(1)
+    expect(ctx.report).toHaveBeenCalledTimes(1)
+    expect(ctx.getBreadcrumbs()).toEqual([
+      expect.objectContaining({
+        category: 'http',
+        data: {
+          url: 'http://localhost:3000/business',
+          method: 'POST',
+          status: 200,
+          duration: expect.any(Number),
+        },
+      }),
+    ])
+    expect(JSON.stringify(ctx.getBreadcrumbs())).not.toContain('secret')
+  })
+
+  it('记录请求失败；SDK 自身带查询参数的请求不写轨迹', async () => {
+    const failure = new Error('offline')
+    const original = vi.fn().mockRejectedValueOnce(failure).mockResolvedValue(new Response())
+    vi.stubGlobal('fetch', original)
+    const ctx = context()
+    cleanups.push(instrumentFetch(ctx))
+    await expect(window.fetch('/failed')).rejects.toBe(failure)
+    expect(ctx.getBreadcrumbs()[0].data).toMatchObject({ status: 0 })
+    await window.fetch('/telemetry?retry=1')
+    expect(ctx.getBreadcrumbs()).toHaveLength(1)
+    expect(ctx.report).toHaveBeenCalledTimes(1)
+  })
+
+  it('breadcrumb 写入失败不改变 Response，也不阻断性能事件', async () => {
+    const response = new Response('ok')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(response))
+    const ctx = context()
+    ctx.addBreadcrumb = () => {
+      throw new Error('breadcrumb failed')
+    }
+    cleanups.push(instrumentFetch(ctx))
+    expect(await window.fetch('/business')).toBe(response)
+    expect(ctx.report).toHaveBeenCalledTimes(1)
+  })
+
   it('report 抛错不把成功请求变成失败，不读取 Response body', async () => {
     const response = new Response('business body', { status: 200 })
     const original = vi.fn().mockResolvedValue(response)
@@ -103,6 +153,8 @@ describe('Fetch 业务隔离', () => {
     await window.fetch('/business')
     expect(a.report).not.toHaveBeenCalled()
     expect(b.report).toHaveBeenCalledTimes(1)
+    expect(a.getBreadcrumbs()).toEqual([])
+    expect(b.getBreadcrumbs()).toHaveLength(1)
     disposeB()
     expect(window.fetch).toBe(original)
   })
@@ -181,6 +233,55 @@ describe('卡顿采集', () => {
 })
 
 describe('XHR', () => {
+  it('HTTP 摘要先于业务 onload 可读，loadend 不重复写轨迹', () => {
+    vi.spyOn(XMLHttpRequest.prototype, 'send').mockImplementation(() => {})
+    const ctx = context()
+    cleanups.push(instrumentXHR(ctx))
+    const request = new XMLHttpRequest()
+    request.open('GET', '/business')
+    let atLoad = 0
+    request.onload = () => {
+      atLoad = ctx.getBreadcrumbs().length
+    }
+    request.send()
+    Object.defineProperty(request, 'readyState', { value: XMLHttpRequest.DONE })
+    request.dispatchEvent(new Event('readystatechange'))
+    request.dispatchEvent(new Event('load'))
+    expect(atLoad).toBe(1)
+    request.dispatchEvent(new Event('loadend'))
+    expect(ctx.getBreadcrumbs()).toHaveLength(1)
+    expect(ctx.report).toHaveBeenCalledTimes(1)
+  })
+
+  it('同一请求只产生一条摘要，排除自身上报，保留调用方的参数', () => {
+    const send = vi.spyOn(XMLHttpRequest.prototype, 'send').mockImplementation(() => {})
+    const ctx = context()
+    cleanups.push(instrumentXHR(ctx))
+    const request = new XMLHttpRequest()
+    request.open('POST', '/business?token=secret')
+    request.send('password=secret')
+    Object.defineProperty(request, 'status', { value: 503 })
+    request.dispatchEvent(new Event('loadend'))
+    request.dispatchEvent(new Event('loadend'))
+    expect(send).toHaveBeenCalledWith('password=secret')
+    expect(ctx.getBreadcrumbs()).toEqual([
+      expect.objectContaining({
+        data: {
+          url: 'http://localhost:3000/business',
+          method: 'POST',
+          status: 503,
+          duration: expect.any(Number),
+        },
+      }),
+    ])
+    const own = new XMLHttpRequest()
+    own.open('POST', '/telemetry?retry=1')
+    own.send('{}')
+    own.dispatchEvent(new Event('loadend'))
+    expect(ctx.getBreadcrumbs()).toHaveLength(1)
+    expect(ctx.report).toHaveBeenCalledTimes(1)
+  })
+
   it('上报错误不冒泡为页面错误，销毁后清理尚未完成请求的监听器', () => {
     vi.spyOn(XMLHttpRequest.prototype, 'send').mockImplementation(() => {})
     const ctx = context()

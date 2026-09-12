@@ -16,6 +16,7 @@ export function createConfig(options: Partial<ConfigType> = {}): ConfigType {
   config.containerElements = [...config.containerElements]
   config.skeletonElements = [...config.skeletonElements]
   config.transport = { ...config.transport }
+  config.breadcrumbs = Object.freeze({ ...config.breadcrumbs })
   if (typeof window !== 'undefined') {
     config.url = new URL(config.url, window.location.href).href
   }

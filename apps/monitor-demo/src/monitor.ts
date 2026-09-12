@@ -6,6 +6,7 @@ import {
   performancePlugins,
   reactErrorPlugin,
   reactProfilerPlugin,
+  recordScreenPlugin,
   stallPlugin,
   stabilityPlugins,
 } from 'minitor-sdk/plugins'
@@ -38,6 +39,7 @@ export const monitor = createMonitor({
   batchSize: BEACON_TEST_MODE ? 100 : 1,
   plugins: [
     ...behaviorPlugins(),
+    recordScreenPlugin(),
     ...browserErrorPlugins(),
     reactErrorPlugin(),
     ...performancePlugins(),

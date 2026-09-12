@@ -1,14 +1,6 @@
 import pako from 'pako'
 import { Base64 } from 'js-base64'
-import { PageInformation, originInfoType } from '../types'
 import type { StackFrame } from '../types'
-
-const WebPageLoad: Record<number, string> = {
-  0: 'navigate',
-  1: 'reload',
-  2: 'back_forward',
-  255: 'reserved',
-}
 
 export function deepClone(obj: any, hash = new WeakMap()) {
   if (obj == null) {
@@ -182,49 +174,6 @@ export const getReactComponentInfo = (errorInfo: React.ErrorInfo) => {
   return {
     componentName,
     url: componentFile,
-  }
-}
-
-// 获取 PI 页面基本信息
-export const getPageInfo = (): PageInformation => {
-  const { host, hostname, href, protocol, origin, port, pathname, search, hash } = window.location
-  const { width, height } = window.screen
-  const { language, userAgent } = navigator
-  const { type } = performance.navigation
-
-  return {
-    host,
-    hostname,
-    href,
-    protocol,
-    origin,
-    port,
-    pathname,
-    search,
-    hash,
-    title: document.title,
-    language: language.substr(0, 2),
-    userAgent,
-    winScreen: `${width}x${height}`,
-    docScreen: `${document.documentElement.clientWidth || document.body.clientWidth}x${
-      document.documentElement.clientHeight || document.body.clientHeight
-    }`,
-    pageLoadType: WebPageLoad[type],
-  }
-}
-
-export const afterLoad = (callback: any) => {
-  if (document.readyState === 'complete') {
-    setTimeout(callback)
-  } else {
-    window.addEventListener('pageshow', callback, { once: true, capture: true })
-  }
-}
-
-export const getOriginInfo = (): originInfoType => {
-  return {
-    referrer: document.referrer,
-    navigationType: window.performance?.navigation.type || '',
   }
 }
 

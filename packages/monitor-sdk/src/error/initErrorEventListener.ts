@@ -24,10 +24,10 @@ type ErrorListenerState = {
 const LISTENER_STATE = 'error:browser-listener-state'
 
 function getDiagnosticFields(ctx: MonitorContext) {
-  const replayData = ctx.getRecordScreenData()
+  const replayData = ctx.getReplayData()
 
   return {
-    breadcrumbs: ctx.getBehaviorState(),
+    breadcrumbs: ctx.getBreadcrumbs(),
     replayData: replayData || undefined,
   }
 }

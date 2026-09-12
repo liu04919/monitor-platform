@@ -16,7 +16,7 @@ function reportStall(
   threshold: number,
   startTime: number,
 ): void {
-  const replayData = ctx.getRecordScreenData()
+  const replayData = ctx.getReplayData()
 
   const reportData: StabilityEvent = {
     ...createEventBase(ctx),
@@ -25,7 +25,7 @@ function reportStall(
     eventType: 'stutter',
     level: 'warning',
 
-    breadcrumbs: ctx.getBehaviorState(),
+    breadcrumbs: ctx.getBreadcrumbs(),
     replayData: replayData || undefined,
 
     payload: {

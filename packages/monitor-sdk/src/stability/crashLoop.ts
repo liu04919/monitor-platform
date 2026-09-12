@@ -10,8 +10,8 @@ type CrashSnapshot = {
 function getSnapshot(ctx: MonitorContext): CrashSnapshot {
   return {
     pageUrl: window.location.href,
-    replayData: ctx.getRecordScreenData(),
-    breadcrumbs: ctx.getBehaviorState(),
+    replayData: ctx.getReplayData(),
+    breadcrumbs: ctx.getBreadcrumbs(),
   };
 }
 

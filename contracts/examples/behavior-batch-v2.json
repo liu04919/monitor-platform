@@ -19,27 +19,9 @@
       "payload": {
         "message": "view /projects/demo",
         "data": {
-          "pageInfo": {
-            "host": "monitor.example.com",
-            "hostname": "monitor.example.com",
-            "href": "https://monitor.example.com/projects/demo",
-            "protocol": "https:",
-            "origin": "https://monitor.example.com",
-            "port": "",
-            "pathname": "/projects/demo",
-            "search": "",
-            "hash": "",
-            "title": "Demo project",
-            "language": "zh",
-            "userAgent": "Mozilla/5.0",
-            "winScreen": "1920x1080",
-            "docScreen": "1440x900",
-            "pageLoadType": "navigate"
-          },
-          "originInfo": {
-            "referrer": "https://monitor.example.com/projects",
-            "navigationType": 0
-          }
+          "url": "https://monitor.example.com/projects/demo",
+          "referrer": "https://monitor.example.com/projects",
+          "navigationType": "navigate"
         }
       }
     },
@@ -52,12 +34,13 @@
       "pageUrl": "https://monitor.example.com/projects/demo/issues",
       "userId": "user-42",
       "payload": {
-        "message": "/projects/demo -> /projects/demo/issues",
+        "message": "https://monitor.example.com/projects/demo -> https://monitor.example.com/projects/demo/issues",
         "data": {
           "from": "https://monitor.example.com/projects/demo",
           "to": "https://monitor.example.com/projects/demo/issues",
           "jumpType": "pushState",
-          "pageTime": 18342
+          "timestamp": 1717243400200,
+          "elapsedMs": 18342
         }
       }
     },
@@ -70,11 +53,11 @@
       "pageUrl": "https://monitor.example.com/projects/demo/issues",
       "userId": "user-42",
       "payload": {
-        "message": "click button",
+        "message": "click create-issue",
         "data": {
           "tagName": "BUTTON",
-          "path": "#root > main > header > button",
-          "textContent": "Create issue"
+          "path": "main:nth-of-type(1) > header:nth-of-type(1) > button:nth-of-type(1)",
+          "monitorId": "create-issue"
         }
       }
     },
@@ -87,11 +70,12 @@
       "pageUrl": "https://monitor.example.com/projects/demo/issues",
       "userId": "user-42",
       "payload": {
-        "message": "filter: status",
+        "message": "status_filter_changed",
         "data": {
-          "eventKey": "status",
-          "eventAction": "filter",
-          "eventValue": "unresolved"
+          "name": "status_filter_changed",
+          "attributes": {
+            "status": "unresolved"
+          }
         }
       }
     }

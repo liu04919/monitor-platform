@@ -1,8 +1,10 @@
 import { createConfig } from '../common/config'
 import { safely } from '../common/safe'
 import { ReportTransport } from '../transport'
+import { BreadcrumbStore } from '../breadcrumbs'
+import type { BreadcrumbInput } from '../breadcrumbs'
+import { createCustomEvent } from '../behavior/custom'
 import {
-  Breadcrumb,
   ConfigType,
   MonitorContext,
   MonitorDispose,
@@ -21,10 +23,12 @@ export class Monitor {
 
   private readonly config: ConfigType
   private readonly transport: ReportTransport
+  private readonly breadcrumbs: BreadcrumbStore
   private destroyed = false
 
   constructor(options?: Partial<ConfigType>) {
     this.config = createConfig(options)
+    this.breadcrumbs = new BreadcrumbStore(this.config.breadcrumbs)
     this.transport = new ReportTransport(this.config)
     try {
       options?.plugins?.forEach((plugin) => {
@@ -106,6 +110,20 @@ export class Monitor {
     this.plugins.clear()
     this.capabilities.clear()
     this.eventHandlers.clear()
+    this.breadcrumbs.clear()
+  }
+
+  /** 自定义业务事件；需要错误上下文时，另行调用 addBreadcrumb。 */
+  track(name: string, data?: Record<string, unknown>): void {
+    if (this.destroyed) return
+    safely(() => {
+      const event = createCustomEvent(this.config, name, data)
+      if (event) this.transport.report(event)
+    })
+  }
+
+  addBreadcrumb(breadcrumb: BreadcrumbInput): void {
+    if (!this.destroyed) this.breadcrumbs.add(breadcrumb)
   }
 
   flush(): Promise<void> {
@@ -172,14 +190,12 @@ export class Monitor {
         this.capabilities.set(name, value)
       },
       consume: (name) => this.capabilities.get(name),
-      getBehaviorState: () => {
-        const getState = this.capabilities.get('behavior:state') as (() => Breadcrumb[]) | undefined
-        return getState?.() || []
+      addBreadcrumb: (breadcrumb) => {
+        if (!disposed()) this.addBreadcrumb(breadcrumb)
       },
-      getRecordScreenData: () => {
-        const getData = this.capabilities.get('behavior:record-screen-data') as
-          | (() => string)
-          | undefined
+      getBreadcrumbs: () => this.breadcrumbs.snapshot(),
+      getReplayData: () => {
+        const getData = this.capabilities.get('replay:data') as (() => string) | undefined
         return getData?.() || ''
       },
       on: (target, type, listener, options) => {

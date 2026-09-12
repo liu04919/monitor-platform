@@ -3,6 +3,8 @@ export type {
   AiEvent,
   BehaviorEvent,
   Breadcrumb,
+  BreadcrumbInput,
+  BreadcrumbOptions,
   ConfigType,
   ErrorEvent,
   ExceptionErrorEvent,

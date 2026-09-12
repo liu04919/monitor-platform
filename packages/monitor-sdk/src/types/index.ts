@@ -1,5 +1,7 @@
 import type { Breadcrumb, MonitorEvent } from './events'
 import type { ReportDrop, TransportOptions } from '../transport/types'
+import type { BreadcrumbInput, BreadcrumbOptions } from '../breadcrumbs/types'
+export type { BreadcrumbInput, BreadcrumbOptions } from '../breadcrumbs/types'
 
 export type { ReportDrop, TransportOptions } from '../transport/types'
 
@@ -23,8 +25,9 @@ export type MonitorContext = {
   events: MonitorEvents
   provide: <T = unknown>(name: string, value: T) => void
   consume: <T = unknown>(name: string) => T | undefined
-  getBehaviorState: () => Breadcrumb[]
-  getRecordScreenData: () => string
+  addBreadcrumb: (breadcrumb: BreadcrumbInput) => void
+  getBreadcrumbs: () => Breadcrumb[]
+  getReplayData: () => string
   on: (
     target: EventTarget,
     type: string,
@@ -51,6 +54,7 @@ export type ConfigType = {
   containerElements: string[]
   skeletonElements: string[]
   transport?: Partial<TransportOptions>
+  breadcrumbs?: BreadcrumbOptions
   reportBefore?: (events: MonitorEvent[]) => unknown
   reportAfter?: (events: MonitorEvent[]) => unknown
   reportSuccess?: (events: MonitorEvent[]) => unknown
@@ -68,35 +72,4 @@ export type ResourceErrorTarget = {
   href?: string
   tagName?: string
   outerHTML?: string
-}
-
-export type PageInformation = {
-  host: string
-  hostname: string
-  href: string
-  protocol: string
-  origin: string
-  port: string
-  pathname: string
-  search: string
-  hash: string
-  title: string
-  language: string
-  userAgent?: string
-  winScreen: string
-  docScreen: string
-  pageLoadType: string
-}
-
-export type originInfoType = {
-  referrer: string
-  navigationType: string | number
-}
-
-/**
- * rrweb 按时间窗口保存的一段录屏事件。
- */
-export type RecordEventScope = {
-  scope: string
-  eventList: any[]
 }

@@ -151,7 +151,14 @@ Fetch 使用 `application/json`；跨源 `sendBeacon` 使用 CORS 简单请求�
 
 行为事件与 breadcrumb 不是同一层数据。行为事件是可以独立查询的完整事件；breadcrumb 是错误或稳定性事件携带的有限上下文快照。
 
-行为数据容易包含 DOM 文本、URL 参数等敏感信息。SDK 和服务端后续都需要脱敏及长度限制，但本协议不允许服务端因为 `data` 灵活就跳过公共字段校验。
+当前 SDK 的行为数据约定如下，不改变四种 eventType 或服务端的通用 data 对象：
+
+- `page_view`：data 为 `url`、`referrer`、可选 `navigationType`；URL 不带查询参数和凭据。
+- `route_change`：data 为 `from`、`to`、`jumpType`、`timestamp`、`elapsedMs`。只修改 state/query 不生成新页面访问；elapsedMs 是有效导航之间的经过时间，不是前台活跃时长。
+- `click`：data 为 `event.target` 元素的 `tagName`、`path`、可选 `monitorId`，不替换为祖先交互元素。默认没有 textContent，显式开启后限制为 120 字符；不读取表单 value。
+- `custom`：`monitor.track(name, attributes)` 生成 message=name，data 为 `{ name, attributes }`。该接口不自动生成 breadcrumb；业务需要诊断上下文时使用 `monitor.addBreadcrumb()`。
+
+breadcrumb 由实例独立缓存，点击、导航和已完成 HTTP 请求会写入摘要，业务可手动添加 custom。SDK 限制数量与字节数，写入前过滤、脱敏并形成快照。行为数据仍可能含业务主动提供的敏感内容；服务端也不能因为 data 灵活就跳过公共字段校验。
 
 参考：`contracts/examples/behavior-batch-v2.json` 覆盖四种行为事件。
 

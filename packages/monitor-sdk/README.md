@@ -7,6 +7,50 @@
 - `src/core`：实例、插件与生命周期。
 - `src/transport`：批次、队列、IndexedDB 和 HTTP 发送。
 - `src/error`、`performance`、`behavior`、`stability`、`aiPerformance`：采集插件。
+- `src/breadcrumbs`：实例级诊断轨迹、过滤与有界快照。
+- `src/replay`：单独启用的 rrweb 录屏。
+
+## 行为与诊断轨迹
+
+```ts
+import { createMonitor } from 'minitor-sdk'
+import { behaviorPlugins, performancePlugins, recordScreenPlugin } from 'minitor-sdk/plugins'
+
+const monitor = createMonitor({
+  url: 'https://monitor.example.com/api/v1/events/batch',
+  projectName: 'Website',
+  appId: '项目 ID',
+  publicKey: '项目 publicKey',
+  plugins: [
+    ...behaviorPlugins(),
+    ...performancePlugins(),
+    // 需要录屏才显式添加；不包含在 behaviorPlugins() 中。
+    recordScreenPlugin(),
+  ],
+  breadcrumbs: {
+    maxBreadcrumbs: 25,
+    beforeBreadcrumb(breadcrumb) {
+      // 同步返回修改后的轨迹，返回 null 丢弃。这里可增加业务专用脱敏。
+      return breadcrumb
+    },
+  },
+})
+
+// 写入错误上下文，但不产生独立事件。
+monitor.addBreadcrumb({ category: 'custom', message: '开始生成', data: { model: 'demo' } })
+// 独立业务事件，不自动再写一条 breadcrumb。
+monitor.track('generation_started', { model: 'demo' })
+```
+
+- `behaviorPlugins()` 组合 `navigationPlugin()`、`pvPlugin()`、`clickPlugin()`。初次访问产生一个 PV，后续按去掉查询参数后的路径与 hash 判断变化；仅修改 state/query 不增加 PV，重复的 popstate/hashchange 通知只处理一次。`elapsedMs` 是两次有效导航之间的经过时间，不是前台有效浏览时长。
+- `history.ts` 包装 History 方法，成功执行后向 `window` 派发小写的 `pushstate` / `replacestate` 自定义事件，不附带 state 或调用参数。`navigation.ts` 和监听原生 `popstate`、`hashchange` 一样监听它们。多个实例共享包装，最后一个实例销毁时恢复；不会覆盖其他库后来安装的包装。
+- 点击直接采集 `event.target` 对应元素的标签、路径及该元素自身的 `data-monitor-id`，不向上替换为按钮，也不限制交互元素白名单，普通 div 同样采集。Shadow DOM 场景保留 window 监听器实际收到的 target，不从事件路径中改选内部节点。默认不读文本或表单 value；使用单独的 `clickPlugin({ captureText: true })` 替换默认 click 插件后，最多采集 120 字符。`data-monitor-ignore`、`.rr-block`、`.rr-ignore`、密码输入框和可编辑区域仍被忽略，事件路径仅用于检查这些排除区域。不要同时安装两个同名 click 插件。
+- Fetch/XHR 插件会复用请求完成结果写入 `http` breadcrumb，不依赖行为插件，不重复包装网络 API。摘要只有方法、脱敏 URL、状态码与耗时；自身上报端点被排除。请求尚未完成时不会提前生成完成摘要。
+- `track()` 和 `addBreadcrumb()` 是实例方法，不需要通过 `getCapability('behavior:instance')` 调用内部类；旧 Behavior 类、breadcrumbPlugin、routePlugin/routerChangePlugin 入口已移除，不保留兼容路径。
+- breadcrumb 默认最多 25 条，配置上限 100 条；单条最多 2 KiB、总计最多 32 KiB，单条超限丢弃，数量/总量超限淘汰最旧记录。`maxBreadcrumbs: 0` 关闭轨迹。输入和读取结果都与内部快照隔离，实例销毁时清空。
+- 自定义数据限制嵌套深度、字段数与字符串长度，并过滤常见凭据字段。URL 去掉凭据与查询参数；hash 路由保留路径，带键值的 token fragment 移除。任意业务文本、路径段不可能自动判断是否敏感，业务仍需避免传入个人信息，或使用 `beforeBreadcrumb` 做领域脱敏。
+
+以上是行为事件和 breadcrumb 的采集边界，不代表所有插件都完成了隐私治理：原有 HTTP 性能事件仍可能包含 params，录屏有独立的数据采集规则。不要将这两个数据面与轻量 HTTP breadcrumb 混为一谈。
 
 ## 实例与队列
 
