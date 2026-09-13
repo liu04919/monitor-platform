@@ -140,6 +140,10 @@ Fetch 使用 `application/json`；跨源 `sendBeacon` 使用 CORS 简单请求�
 
 参考：`contracts/examples/performance-batch-v2.json` 覆盖五种性能事件。
 
+`react_render` 按 Profiler ID 汇总：`payload.value` 是窗口内 React `actualDuration` 之和，单位 `ms`，不是 DOM 提交耗时。`attributes` 包含 `id`、`windowStart`、`windowEnd`、`commitCount`、`mountCount`、`updateCount`、`nestedUpdateCount`、`actualDurationMax`、`baseDurationMax` 和 `slowRenderCount`。三个阶段次数之和等于回调总次数 `commitCount`；慢渲染按配置的渲染耗时门槛判断，不代表 LoAF 卡顿事件。
+
+`windowStart` 为本轮首次渲染的开始时间，`windowEnd` 为汇总时刻，均为 performance 单调时间轴上的毫秒值；事件顶层 `timestamp` 才是汇总时的 Unix 毫秒时间戳。汇总后删除该 ID 的统计，下一次渲染重新开窗，不统计每秒提交率或最后一次回调参数。同名 Profiler 的回调会合并，嵌套 Profiler 的耗时不能跨 ID 相加。生产环境是否能产生此事件取决于应用是否启用 React profiling 构建。
+
 ### 5.3 行为事件
 
 行为事件 payload 包含以下可选字段：
@@ -169,9 +173,19 @@ breadcrumb 由实例独立缓存，点击、导航和已完成 HTTP 请求会写
 | 字段 | 类型 | 必填 | 含义 |
 | --- | --- | --- | --- |
 | `message` | string | 是 | 白屏、卡顿或崩溃的可读摘要。 |
-| `metrics` | object | 否 | 数值型诊断指标，例如 `fps`、`duration`。所有值必须是有限数字。 |
+| `metrics` | object | 否 | 数值型诊断指标，例如 `duration`、`blockingDuration`。所有值必须是有限数字。 |
+| `diagnostics` | object | 否 | 结构化诊断信息，例如慢帧的脚本入口和同期旁证。存在时必须是 JSON 对象。 |
 
 `replayData` 仍属于事件顶层的诊断字段，不放入 payload。
+
+`stutter` 只由 LoAF（`long-animation-frame`）达到 SDK 配置门槛后触发，不再计算平均 FPS，也不由 Long Tasks / rAF gap 独立触发。不支持 LoAF 的浏览器不启动该插件，不保留旧告警分支。
+
+- `metrics` 保存 LoAF 的 `startTime`、`duration`、`blockingDuration`、`renderStart`、`styleAndLayoutStart`，以及项目自定上报门槛 `threshold`。`startTime`、`renderStart`、`styleAndLayoutStart` 使用本页面 performance 毫秒时间轴；事件顶层 `timestamp` 使用 LoAF 开始时的 Unix 毫秒，二者不能混用。
+- `diagnostics.source` 固定为 `long-animation-frame`；`scripts` 最多包含耗时最高的 5 个脚本入口，保存开始时间、执行耗时、脱敏 URL、函数名、字符位置、调用类型和强制布局耗时，不复制 DOM / window 对象。入口位置不保证就是函数内部最耗时的位置。
+- 可选 `diagnostics.longTasks` 包含关联样本的 `count` 和 `maxDuration`；可选 `diagnostics.rafGap` 包含相交间隔中最长一条的 `startTime` 和 `duration`。关联是时间区间相交的旁证，不等于确认共同根因；不同指标不可相加。
+- 旁证仅取有界短期缓存。回调晚到、API 不支持或没有匹配样本时省略相应对象，不填 0，也不影响 LoAF 本身的上报。`count` 是缓存内的关联样本数，不保证是完整任务总数。
+
+SDK 默认门槛为 `duration >= 120ms`、最小上报间隔 3000ms；等待旁证的 200ms 窗口内只保留最慢的一帧，随后统一上报。采集生命周期、缓存上限与配置示例见 SDK README。这些门槛是本项目策略，不是浏览器 API 或行业统一标准。
 
 `crash` 使用 v2 事件和批次结构，包含在 `stabilityPlugins()` 中。它表示 Worker 检测到主线程长时间未回复心跳，不代表确认浏览器进程已经崩溃。Worker 无法直接调用主线程的 `ctx.report()`，但可以访问同源 IndexedDB，因此通过同一个 `ReportTransport` 实现生成单事件批次、持久化并发送。
 
@@ -190,7 +204,13 @@ AI 事件的 payload 与性能指标形状相似：
 | `unit` | string | 是 | `ms`、`bytes` 或 `count`。 |
 | `attributes` | object | 否 | trace、请求、分片和流式响应特有信息。 |
 
-AI 事件独立于 `performance`，是因为它描述模型流式输出的领域语义，例如首 token、流结束和停顿，而不只是普通 HTTP 耗时。
+当前浏览器 AI 插件观测 Fetch 字节流，不解析 SSE 或模型协议；分片不等于 token。
+
+- `stream_metric` 的 `payload.value` 与 `attributes.ttlb` 是请求开始到流观测结束的毫秒数；中断时是截至取消或报错的耗时，结合 `endReason` 判断。`ttfb` 用 Fetch 返回 Response 的耗时近似首字节耗时；`ttft` / `ttlt` 用 Transform 观察到首块 / 尾块的耗时近似首 token / 尾 token 耗时，不是模型协议级的精确测量。缺失的时刻和耗时省略，不填 0。
+- `chunkCount`、`totalBytes` 记录观察到的块数和字节数；`averageChunkInterval`、`maxChunkInterval` 少于两块时省略。业务消费暂停和浏览器缓冲会影响这些指标，它们不代表纯网络或模型耗时。
+- `endReason` 为 `end`（读完 / 无正文）、`error`（Fetch 或源流失败）、`cancel`（主动取消 / 请求信号中止）。只有正常结束且 HTTP 为 2xx 时 `success` 为 true；错误响应正文仍原样提供给业务。
+- `stream_stall` 仅在消费方正在等待原始 `reader.read()` 时计时。`payload.value` 是本次等待经过的毫秒，`attributes.waitStart` 是本次等待开始时刻，`threshold` 是配置门槛。同一次等待只上报一次，不把暂停消费或等待响应头当成分片停顿。
+- 两类事件用同一个 `traceId` 关联。请求 / 分片 / 等待的原始时刻使用页面 `performance.now()` 时间轴；事件顶层 `timestamp` 使用 Unix 毫秒。销毁 SDK 只停止监控，不伪造业务取消或完成事件。
 
 参考：`contracts/examples/ai-batch-v2.json` 覆盖 `stream_metric` 和 `stream_stall`。
 

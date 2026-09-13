@@ -28,6 +28,48 @@ React 插件安装后，通过 `monitor.getCapability('error:react-boundary')` �
 
 同一 Monitor 按插件名称去重，销毁时移除浏览器监听器并恢复仍由 SDK 接管的 Vue 错误处理器。需要录屏时另行安装 `recordScreenPlugin()`，错误上报时读取当前实例的录屏和 breadcrumbs 快照。
 
+## React 渲染统计
+
+`reactProfilerPlugin()` 通过 React 的 `<Profiler>` 收集被包裹子树的渲染耗时，产生 `performance / react_render`。安装插件不会自动包裹应用；应在模块初始化时取得包装组件，不要在组件渲染中反复创建 Monitor 或包装组件。
+
+```tsx
+import type { ComponentType } from 'react'
+import { createMonitor } from 'minitor-sdk'
+import { reactProfilerPlugin, REACT_PROFILER_CAPABILITY } from 'minitor-sdk/plugins'
+import type { MonitorProfilerProps } from 'minitor-sdk/plugins'
+
+const monitor = createMonitor({
+  url: 'https://monitor.example.com/api/v1/events/batch',
+  projectName: 'Website',
+  appId: '项目 ID',
+  publicKey: '项目 publicKey',
+  plugins: [
+    reactProfilerPlugin({
+      reportIntervalMs: 1000,
+      maxCommitCount: 20,
+      slowRenderThresholdMs: 16,
+    }),
+  ],
+})
+const MonitorProfiler = monitor.getCapability<ComponentType<MonitorProfilerProps>>(
+  REACT_PROFILER_CAPABILITY,
+)!
+
+// 在业务 JSX 中：<MonitorProfiler id="editor"><Editor /></MonitorProfiler>
+```
+
+- `reportIntervalMs` 默认 1000ms，从某个 ID 本轮第一次回调起计时；后续更新不延后计时器。必须大于 0 且不超过 2147483647，主线程忙时实际回调可能推迟。
+- `maxCommitCount` 默认 20，某个 ID 达到该次数就提前汇总并取消计时器；必须为正安全整数。
+- `slowRenderThresholdMs` 默认 16ms，`actualDuration` 达到门槛就累计一次慢渲染；非负有限数字，0 表示全部计入。这是采集阈值，不代表确认页面卡顿。
+- 参数在创建插件时复制并校验。每个 Monitor 独立累计；一次汇总后删除该 ID 的统计，下一次真实回调再开窗，不保留闲置 ID。
+- `payload.value` 是窗口内 `actualDuration` 之和；`attributes` 保留 `commitCount`、三个阶段的次数、`actualDurationMax`、`baseDurationMax` 和 `slowRenderCount`。`windowStart` 是首个回调提供的渲染开始时间，`windowEnd` 是汇总时刻，二者均使用 performance 时间轴，不是 Unix 时间戳。
+- `actualDuration` 是被包裹子树的渲染耗时，不是 DOM 提交耗时；`baseDuration` 是不考虑渲染优化时的子树耗时估计。一个 ID 应对应一个稳定的 UI 区域；同名实例会合并计数，嵌套 Profiler 的耗时有重叠，不能跨 ID 相加当成整页耗时。
+- 销毁只停止回调、清理计时器并丢弃尚未汇总的统计。`monitor.flush()` 只刷新已经进入传输队列的事件，不会强制生成 Profiler 报表；本插件不保证退出前最后一个窗口被保留。
+
+**普通 React 生产构建默认不触发 Profiler 回调。** 需要采集时，应用应明确选择启用 profiling 的生产构建，并接受额外开销；SDK 本身无法替应用开启。当前 Demo 使用普通构建，开发模式可以验证，普通 `build` 后没有这类事件是预期。参见 [React Profiler 官方说明](https://react.dev/reference/react/Profiler)。
+
+独立回归命令 `pnpm test:browser:react` 会在临时浏览器上下文中检查开发、普通生产、profiling 生产三种构建和真实 HTTP 上报；不修改 Demo 构建配置，也不连接项目数据库。
+
 ## 白屏检测
 
 白屏规则配置在插件上，不放在 `createMonitor()` 顶层：
@@ -71,6 +113,36 @@ stabilityPlugins({
 同一段异常只报一次，但检测不会停止；某次采样恢复到比例门槛以内后，可以检测并上报下一段异常。事件仍是 `stability / white_screen`，附带 breadcrumbs、已启用的录屏快照，以及 `payload.metrics` 中的 `recheckDelayMs`（首检到复检的实际间隔，使用单调时钟）、`blankPoints`、`totalPoints`、`blankRatio`（复检时的实际空白点比例）。不再使用持续 6 秒的判定规则。
 
 这是基于 DOM 命中和业务名单的启发式检测，不是截图像素检测。两次采样之间的短暂变化可能被漏过；忽略遮罩后判断的是下方页面是否有内容，不能用来发现遮罩本身一直不消失。当前不检查 iframe 或 Shadow DOM 内部内容。
+
+## 卡顿检测
+
+`stutterPlugin()` 位于 `src/stability/stutter/`，只由 LoAF 触发 `stability / stutter`。Long Tasks 和 rAF gap 提前采集，作为同一时间段的旁证附带，不独立上报；不再计算平均 FPS。AI 流式分片的 `stream_stall` 不属于这类页面卡顿，仍留在 AI 插件。
+
+```ts
+import { stutterPlugin } from 'minitor-sdk/plugins'
+
+stutterPlugin({
+  durationThresholdMs: 120,
+  reportIntervalMs: 3000,
+  includeRafGap: true,
+})
+// 组合安装：stabilityPlugins({ stutter: { durationThresholdMs: 120 } })。
+```
+
+- `durationThresholdMs`：LoAF 的 `duration` 上报门槛，默认 120ms，必须为至少 50 的有限数字。LoAF API 只提供超过约 50ms 的慢帧；本项目的告警门槛不是行业标准。
+- `reportIntervalMs`：按 LoAF 开始时间控制最小上报间隔，默认 3000ms，0 表示不限频。不能用回调抵达时间让晚到的旧帧绕过限频。
+- `includeRafGap`：默认 true；关闭后不运行 rAF 采集循环，仍使用 LoAF 和可用的 Long Tasks。观察 rAF 仅记录至少 50ms 的间隔，不计算平均 FPS，也不把回调间隔当成真实屏幕掉帧数。开启时仍有每帧回调的采集开销。
+- 每个实例分别缓存最多 100 条 Long Task、100 条 rAF gap；只保留两个数字，写入和关联时清理结束时间早于 10 秒前的样本。缓存是旁证，不是完整性能轨迹。
+- LoAF 达到门槛后等待 200ms，让其他 Observer / rAF 回调有机会到达。窗口内只保留最慢的一帧，只维护一个待报项和计时器；最后按时间区间相交寻找旁证，统一读取一次录屏和 breadcrumbs。没有旁证仍可上报，迟于窗口的旁证不另发补报。200ms 是计划等待时间，主线程再次阻塞时实际执行会延迟。
+- `payload.metrics` 保存慢帧耗时、阻塞耗时、渲染起点等原生数值；`payload.diagnostics` 保存 LoAF 来源、最多 5 个最耗时脚本入口、可选长任务数量/最大耗时、可选最大 rAF 间隔。URL 脱敏，函数名限制 120 字符；不携带原生条目的 window 等对象。不同指标不能相加，时间相交不保证相同根因。
+- 插件创建时复制并校验参数。不支持 LoAF 或订阅失败时不启动辅助监听，不自动换成旧告警。Long Tasks 不可用时仅缺少该项旁证。
+- 只观察安装后且完整位于本次可见周期的帧和任务，不读取历史 buffered 条目。隐藏、`pagehide`、`freeze` 会取消待报项、清空缓存并停止所有监听；恢复时重新建立时间基准，防止后台长间隔被误报。销毁后不再恢复。
+
+事件顶层 `timestamp` 是 LoAF 开始时刻，关联字段 `startTime` 使用 performance 单调时间轴；页面 URL 在选中帧时保存，附件在等待结束后读取，可能略晚于慢帧发生时。两者都只能在主线程恢复执行后处理，不能替代独立 Worker 的心跳检测。
+
+LoAF 描述主线程慢帧，不保证涵盖所有 GPU / 合成线程卡顿；它的脚本位置是入口，不保证指向最耗时的内部函数。参考 [Chrome LoAF 文档](https://developer.chrome.com/docs/web-platform/long-animation-frames)。
+
+源码分工：`index.ts` 负责监听、等待窗口和生命周期；`evidence.ts` 负责有界样本及时间关联；`report.ts` 负责脚本字段整理与事件构造；`types.ts` 负责配置和类型。
 
 ## 主线程心跳检测
 
@@ -140,6 +212,51 @@ monitor.track('generation_started', { model: 'demo' })
 
 以上是行为事件和 breadcrumb 的采集边界，不代表所有插件都完成了隐私治理：原有 HTTP 性能事件仍可能包含 params，录屏有独立的数据采集规则。不要将这两个数据面与轻量 HTTP breadcrumb 混为一谈。
 
+## AI 流式响应
+
+```ts
+import { aiStreamPlugin } from 'minitor-sdk/plugins'
+
+const monitor = createMonitor({
+  // 项目和上报配置略。
+  plugins: [aiStreamPlugin({
+    urlPatterns: ['/api/chat'],
+    stallThreshold: 2000,
+    getMeta: () => ({ model: 'demo' }),
+  })],
+})
+```
+
+`urlPatterns` 只接受字符串数组，URL 包含其中任意字符串就采集，区分大小写，默认 `['/api/chat']`；空数组不采集。配置创建时复制，不受外部数组后续修改影响。自身上报端点按 origin + pathname 排除，查询参数不影响排除。`getMeta` 应保持轻量、同步；抛错或误返回异步拒绝不会阻断业务请求。
+
+实现集中在 `aiPerformance/stream/`，三个文件共同实现一个 `aiStreamPlugin`：
+
+- `index.ts`：插件入口，处理配置、请求匹配和 Fetch 安装 / 销毁；请求信息准备与业务 Fetch 流程分开。
+- `body.ts`：外层 `ReadableStream` 按需读取原始 reader，再通过 `TransformStream` 统计并原样透传。`sourceReader` 读取原始响应，`transformWriter` / `transformReader` 分别写入 / 读取 Transform。两者同时启动，避免背压死锁；没有 clone 分支或自动读完整段响应的循环。
+- `measurement.ts`：统计、等待计时与事件构建，不保存回答正文。只用于此插件的小函数放在各自文件，不再单独散落在外层 `utils.ts`。
+
+外层 `highWaterMark` 为 0，只有消费方请求下一块时才读取上游。`stream_stall` 从本次原始 `reader.read()` 开始计时，达到门槛上报一次；同一次等待不重复上报，收到结果后清理计时器，下一次读取重新计时。未开始消费、暂停处理上一块、等待响应头都不计作流分片停顿。默认门槛 2000ms，必须为大于 0 且不超过 2147483647 的有限数字。
+
+`stream_metric` 在读到 EOF、原始流报错、主动取消或 Fetch 失败时汇总一次，`endReason` 为 `end` / `error` / `cancel`；HTTP 非 2xx 即使读完正文，`success` 仍是 false。通过原始 reader 的 `closed` 观察错误，业务暂停读取时也能收尾。只停止读取但未取消的流不会被主动耗尽，也不会伪造完成事件。`destroy()` 清理监控计时器并停止报告，不取消业务请求。
+
+指标沿用 TTFB / TTFT / TTLT / TTLB 命名，单位为毫秒。以浏览器响应和分片时刻近似测量，不解析 SSE 或模型协议：
+
+| attributes 字段 | 含义 |
+| --- | --- |
+| `ttfb` | 请求开始到 Fetch 返回 Response 的耗时，近似首字节耗时。 |
+| `ttft` / `ttlt` | 请求开始到 Transform 观察到首块 / 尾块的耗时，近似首 token / 尾 token 耗时。分片不等于 token，首块也可能只有元信息。 |
+| `ttlb` | 请求开始到本次流观测结束的耗时，也是最终事件的 `payload.value`。正常结束表示读取完成；取消或报错时表示截至中断的耗时，结合 `endReason` 判断。 |
+| `chunkCount` / `totalBytes` | 观察到的块数和字节总量，不保存块内容。 |
+| `averageChunkInterval` / `maxChunkInterval` | Transform 观察到的相邻块间隔，可能包含业务消费暂停。少于两块时省略。 |
+
+不存在的响应头、首块和尾块时刻及耗时省略，不填 0。原始 `requestStart`、`responseStart`、`firstChunkTime`、`lastChunkTime`、`streamEndTime` 以及停顿事件的 `waitStart` 使用本页面 `performance.now()` 毫秒时间轴，不能与事件 `timestamp` 的 Unix 毫秒直接相减。浏览器缓冲、主线程调度和业务消费速度都会影响观测，不能仅凭这些数值判定模型或服务端卡顿。
+
+匹配成功的有正文响应会返回新的 Response 实例，保留 `status`、`statusText`、headers 内容、`url`、`type`、`redirected` 与普通 `clone()` 的元信息；不保证对象身份、额外自定义属性或底层字节流 BYOB 能力相同。消费方法保留原始流错误，包括 Chromium 中重建响应后可能被改写的 `AbortError`；JSON 解析失败、重复消费及锁冲突仍保留原生错误。204 / 205 / 304、不可见状态、已使用或锁定的响应不重建。业务主动 clone 仍具有原生分流的缓冲和提前拉取特性，此时按它实际发起的 read 计时，不会因此重复采集同一条流。
+
+页面和请求 URL 去除凭据及查询参数；`getMeta` 复制为有界 JSON，并过滤常见敏感字段。不要传入提示词、回答正文或个人信息；任意文本和 URL 路径中的敏感内容不能靠通用过滤完整识别。
+
+单独验证流式采集可运行 `pnpm test:browser:stream`，使用真实浏览器、原生 Fetch / Streams 和独立 HTTP 接收端，不访问项目数据库。
+
 ## 实例与队列
 
 每次 `createMonitor(options)` 创建独立的配置、事件缓存、发送器和定时器。配置创建后固定；更换项目或上报 Key 时销毁旧实例并创建新实例。未传入 `userId` 时，不填写虚构的默认用户。
@@ -162,7 +279,7 @@ await monitor.flush()
 monitor.destroy()
 ```
 
-`flush()` 封装当前缓存，并尝试发送当前已到重试时间的批次；它不等待未来的重试，也不代表队列已经全部投递成功。明确收到成功响应才调用 `reportSuccess`。页面隐藏时暂不启动正常 Fetch 消费。
+`flush()` 封装当前传输缓存，并尝试发送当前已到重试时间的批次；不催促尚未提交事件的采集器（例如 Profiler 的统计窗口）。它不等待未来的重试，也不代表队列已经全部投递成功。明确收到成功响应才调用 `reportSuccess`。页面隐藏时暂不启动正常 Fetch 消费。
 
 `destroy()` 幂等地停止采集、定时器和在途监控请求，不影响业务请求；剩余批次尝试持久化，下一实例恢复。销毁后不再调用用户回调。页面强制终止时无法保证异步存储写入完成。
 

@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createConfig } from '../src/common/config'
-import { stallPlugin } from '../src/aiPerformance/stall'
 import instrumentFetch from '../src/performance/fetch'
 import instrumentXHR from '../src/performance/xhr'
 import type { MonitorContext } from '../src/types'
@@ -177,58 +176,6 @@ describe('Fetch 业务隔离', () => {
     resolve(new Response())
     await request
     expect(ctx.report).not.toHaveBeenCalled()
-  })
-})
-
-describe('卡顿采集', () => {
-  it('后台无任何 rAF 回调，切回后的第一帧不报告假卡顿；前台真卡顿仍报告', () => {
-    let nextFrame!: FrameRequestCallback
-    vi.stubGlobal(
-      'requestAnimationFrame',
-      vi.fn((callback: FrameRequestCallback) => {
-        nextFrame = callback
-        return 42
-      }),
-    )
-    const cancel = vi.fn()
-    vi.stubGlobal('cancelAnimationFrame', cancel)
-    const ctx = context()
-    stallPlugin({ reportInterval: 1 }).setup(ctx)
-    nextFrame(1000)
-    visible(false)
-    document.dispatchEvent(new Event('visibilitychange'))
-    // 模拟后台一分钟内没有执行任何一帧。
-    visible(true)
-    document.dispatchEvent(new Event('visibilitychange'))
-    nextFrame(61000)
-    expect(ctx.report).not.toHaveBeenCalled()
-    nextFrame(61200)
-    expect(ctx.report).toHaveBeenCalledTimes(1)
-    expect(ctx.report).toHaveBeenCalledWith(
-      expect.objectContaining({
-        payload: expect.objectContaining({ message: 'raf_gap 持续 200ms' }),
-      }),
-    )
-    cleanups.forEach((cleanup) => cleanup())
-    expect(cancel).toHaveBeenCalledWith(42)
-  })
-
-  it('一次上报失败不停止后续帧调度', () => {
-    let nextFrame!: FrameRequestCallback
-    const raf = vi.fn((callback: FrameRequestCallback) => {
-      nextFrame = callback
-      return 1
-    })
-    vi.stubGlobal('requestAnimationFrame', raf)
-    vi.stubGlobal('cancelAnimationFrame', vi.fn())
-    const ctx = context()
-    ctx.report = () => {
-      throw new Error('report')
-    }
-    stallPlugin({ reportInterval: 1 }).setup(ctx)
-    nextFrame(1000)
-    expect(() => nextFrame(2000)).not.toThrow()
-    expect(raf).toHaveBeenCalledTimes(3)
   })
 })
 

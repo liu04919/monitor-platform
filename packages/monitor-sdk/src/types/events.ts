@@ -181,6 +181,8 @@ export type StabilityEventType = 'white_screen' | 'stutter' | 'crash'
 export interface StabilityPayload {
   message: string
   metrics?: Record<string, number>
+  /** 非数值的诊断信息，例如 LoAF 脚本入口及同期卡顿旁证。 */
+  diagnostics?: Record<string, unknown>
 }
 
 export type StabilityEvent = EventBase<'stability', StabilityEventType, StabilityPayload> &

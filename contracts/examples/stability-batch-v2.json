@@ -25,9 +25,12 @@
         }
       ],
       "payload": {
-        "message": "Page remained blank for more than 6 seconds",
+        "message": "页面白屏，两次采样确认",
         "metrics": {
-          "duration": 6000
+          "recheckDelayMs": 2000,
+          "blankPoints": 33,
+          "totalPoints": 33,
+          "blankRatio": 1
         }
       }
     },
@@ -42,9 +45,28 @@
       "level": "warning",
       "breadcrumbs": [],
       "payload": {
-        "message": "Page FPS dropped to 18",
+        "message": "页面慢帧持续 230ms",
         "metrics": {
-          "fps": 18
+          "startTime": 1100,
+          "duration": 230,
+          "threshold": 120,
+          "blockingDuration": 150,
+          "renderStart": 1300,
+          "styleAndLayoutStart": 1310
+        },
+        "diagnostics": {
+          "source": "long-animation-frame",
+          "scripts": [{
+            "startTime": 1110,
+            "duration": 180,
+            "sourceURL": "https://monitor.example.com/app.js",
+            "sourceFunctionName": "updateProject",
+            "sourceCharPosition": 1500,
+            "invokerType": "event-listener",
+            "forcedStyleAndLayoutDuration": 10
+          }],
+          "longTasks": { "count": 1, "maxDuration": 200 },
+          "rafGap": { "startTime": 1100, "duration": 240 }
         }
       }
     }

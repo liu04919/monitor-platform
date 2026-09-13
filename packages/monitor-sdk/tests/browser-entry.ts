@@ -7,4 +7,4 @@ import instrumentXHR from '../src/performance/xhr'
 export const xhrPlugin = { name: 'browser-test:xhr', setup: instrumentXHR }
 export { jsErrorPlugin } from '../src/error/jsError'
 export { whiteScreenPlugin } from '../src/stability/whiteScreen'
-export { crashPlugin } from '../dist/plugins/index.js'
+export { crashPlugin, stutterPlugin } from '../dist/plugins/index.js'

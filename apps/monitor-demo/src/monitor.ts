@@ -7,7 +7,6 @@ import {
   reactErrorPlugin,
   reactProfilerPlugin,
   recordScreenPlugin,
-  stallPlugin,
   stabilityPlugins,
 } from 'minitor-sdk/plugins'
 
@@ -44,6 +43,11 @@ export const monitor = createMonitor({
     reactErrorPlugin(),
     ...performancePlugins(),
     ...stabilityPlugins({
+      stutter: {
+        durationThresholdMs: 120,
+        reportIntervalMs: 500,
+        includeRafGap: true,
+      },
       whiteScreen: {
         // Demo 的 React 挂载容器是 #root；名单只用于白屏采样。
         blankSelectors: ['html', 'body', '#root'],
@@ -58,14 +62,9 @@ export const monitor = createMonitor({
       getMeta: () => ({ scenario: 'local-stream-test' }),
     }),
     reactProfilerPlugin({
-      reportInterval: 700,
+      reportIntervalMs: 700,
       maxCommitCount: 4,
-      slowCommitThreshold: 1,
-    }),
-    stallPlugin({
-      longTaskThreshold: 80,
-      rafGapThreshold: 120,
-      reportInterval: 500,
+      slowRenderThresholdMs: 1,
     }),
   ],
   reportSuccess: (events: unknown[]) => {

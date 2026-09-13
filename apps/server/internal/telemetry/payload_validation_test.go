@@ -103,8 +103,22 @@ func TestValidateBatchRejectsInvalidPayload(t *testing.T) {
 			name:      "stability message is missing",
 			category:  CategoryStability,
 			eventType: "stutter",
-			payload:   `{"metrics":{"fps":18}}`,
+			payload:   `{"metrics":{"duration":180}}`,
 			wantField: "events[0].payload.message",
+		},
+		{
+			name:      "stability diagnostics are not an object",
+			category:  CategoryStability,
+			eventType: "stutter",
+			payload:   `{"message":"slow frame","diagnostics":[]}`,
+			wantField: "events[0].payload.diagnostics",
+		},
+		{
+			name:      "stability diagnostics cannot be null",
+			category:  CategoryStability,
+			eventType: "stutter",
+			payload:   `{"message":"slow frame","diagnostics":null}`,
+			wantField: "events[0].payload.diagnostics",
 		},
 		{
 			name:      "payload field has the wrong JSON type",
@@ -176,16 +190,44 @@ func TestPayloadValidationRejectsNonFiniteProgrammaticValues(t *testing.T) {
 		payload := StabilityPayload{
 			Message: "Page stuttered",
 			Metrics: map[string]float64{
-				"fps": math.NaN(),
+				"duration": math.NaN(),
 			},
 		}
 
 		assertFieldError(
 			t,
 			validateStabilityPayload(payload, "events[0].payload"),
-			"events[0].payload.metrics.fps",
+			"events[0].payload.metrics.duration",
 		)
 	})
+}
+
+func TestStutterDiagnosticsAreValidatedWithoutChangingPayload(t *testing.T) {
+	batch := validTelemetryBatch()
+	batch.Events[0].Category = CategoryStability
+	batch.Events[0].EventType = "stutter"
+	batch.Events[0].Payload = json.RawMessage(`{"message":"页面慢帧持续 230ms","metrics":{"duration":230,"blockingDuration":150},"diagnostics":{"source":"long-animation-frame","scripts":[{"sourceURL":"https://example.com/app.js","duration":180}],"longTasks":{"count":1,"maxDuration":200},"rafGap":{"startTime":1100,"duration":240}}}`)
+	want := string(batch.Events[0].Payload)
+	if err := ValidateBatch(batch); err != nil {
+		t.Fatalf("validate LoAF diagnostics: %v", err)
+	}
+	// 校验 DTO 不重写 payload，完整诊断对象继续由原写入链路保存。
+	if string(batch.Events[0].Payload) != want {
+		t.Fatal("validation changed the original payload")
+	}
+	var payload StabilityPayload
+	if err := json.Unmarshal(batch.Events[0].Payload, &payload); err != nil {
+		t.Fatal(err)
+	}
+	var diagnostics struct {
+		Source string `json:"source"`
+	}
+	if err := json.Unmarshal(payload.Diagnostics, &diagnostics); err != nil {
+		t.Fatal(err)
+	}
+	if diagnostics.Source != "long-animation-frame" {
+		t.Fatalf("unexpected diagnostics: %s", payload.Diagnostics)
+	}
 }
 
 func assertFieldError(t *testing.T, err error, wantField string) {

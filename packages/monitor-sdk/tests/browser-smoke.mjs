@@ -7,6 +7,7 @@ import { chromium } from 'playwright'
 import { build } from 'tsup'
 import { testWhiteScreen } from './white-screen.browser.mjs'
 import { testHeartbeat } from './heartbeat.browser.mjs'
+import { testStutter } from './stutter.browser.mjs'
 
 await build({
   entry: ['tests/browser-entry.ts'],
@@ -460,6 +461,7 @@ try {
     await errorContext.close()
   }
   await testWhiteScreen(browser, origin, requests)
+  await testStutter(browser, origin, requests)
   await testHeartbeat(browser, origin, requests)
 } catch (error) {
   for (const browserError of errors) console.error(browserError)

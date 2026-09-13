@@ -307,9 +307,11 @@ export const monitor = createMonitor({
     jsErrorPlugin(),
     reactErrorPlugin(),
     ...performancePlugins(),
+    ...stabilityPlugins({
+      stutter: { durationThresholdMs: 120, reportIntervalMs: 500, includeRafGap: true },
+    }),
     aiStreamPlugin(...),
     reactProfilerPlugin(...),
-    stallPlugin(...),
   ],
 })
 ```
@@ -449,7 +451,7 @@ Demo 还提供以下场景：
 | --------------- | ------------------------- | ------------ |
 | Fetch 请求      | Fetch 状态和耗时          | 事件流       |
 | XHR 请求        | XMLHttpRequest 状态和耗时 | 事件流       |
-| AI 流式响应     | TTFB、TTFT、Chunk 和停顿  | 事件流       |
+| AI 流式响应     | 响应头 / 首块耗时、分片和读取停顿 | 事件流       |
 | 自定义事件      | 业务行为数据              | 事件流       |
 | 路由切换        | 页面导航行为              | 事件流       |
 | 主线程长任务    | Long Task 和 RAF 卡顿     | 事件流       |
@@ -457,7 +459,7 @@ Demo 还提供以下场景：
 | Promise 错误    | 未处理 Promise rejection  | 问题、事件流 |
 | 资源加载错误    | 失败资源地址和标签        | 问题、事件流 |
 | React 错误      | React ErrorBoundary       | 问题、事件流 |
-| React Profiler  | React 提交次数和耗时      | 事件流       |
+| React Profiler  | React 提交次数和渲染耗时（开发模式） | 事件流       |
 
 “事件流”展示所有原始事件；“问题”只聚合错误类事件。性能和行为事件不会出现在“问题”页面。
 

@@ -16,10 +16,10 @@ const MonitorProfiler = monitor.getCapability<ComponentType<ProfilerProps>>(REAC
 const scenarios = [
   { id: 'fetch', index: '01', category: '网络性能', title: 'Fetch 请求', description: '发起成功请求，验证状态码、耗时和参数采集。' },
   { id: 'xhr', index: '02', category: '网络性能', title: 'XHR 请求', description: '使用 XMLHttpRequest 验证传统 Ajax 拦截。' },
-  { id: 'stream', index: '03', category: 'AI 性能', title: 'AI 流式响应', description: '采集 TTFB、TTFT、Chunk 数量与间隔。' },
+  { id: 'stream', index: '03', category: 'AI 性能', title: 'AI 流式响应', description: '采集响应头与首块耗时、分片数量和间隔。' },
   { id: 'custom', index: '04', category: '用户行为', title: '自定义事件', description: '调用 track 和 addBreadcrumb，验证业务埋点与错误上下文。' },
   { id: 'route', index: '05', category: '用户行为', title: '路由切换', description: '触发 pushState，记录来源、去向和停留时间。' },
-  { id: 'longtask', index: '06', category: '页面性能', title: '主线程长任务', description: '阻塞约 180ms，验证 Long Task 与 RAF 卡顿。' },
+  { id: 'longtask', index: '06', category: '页面性能', title: '主线程长任务', description: '阻塞约 180ms，验证 LoAF 慢帧及同期长任务、rAF 间隔。' },
   { id: 'js', index: '07', category: '错误采集', title: 'JavaScript 错误', description: '抛出全局运行时错误并采集源码位置和堆栈。' },
   { id: 'promise', index: '08', category: '错误采集', title: 'Promise 错误', description: '制造未处理拒绝并采集堆栈与行为轨迹。' },
   { id: 'resource', index: '09', category: '错误采集', title: '资源加载错误', description: '加载不存在的图片，验证资源错误定位。' },

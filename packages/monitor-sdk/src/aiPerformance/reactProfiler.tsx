@@ -1,13 +1,33 @@
 import { Profiler } from 'react'
 import type { ProfilerOnRenderCallback } from 'react'
 import { createEventBase } from '../common/event'
+import { safely } from '../common/safe'
 import type { MonitorContext, MonitorPlugin, PerformanceEvent } from '../types'
 import type { MonitorProfilerProps, ReactProfilerOptions } from './types'
 
-const DEFAULT_REPORT_INTERVAL = 1000
-const DEFAULT_MAX_COMMIT_COUNT = 20
-const DEFAULT_SLOW_COMMIT_THRESHOLD = 16
 export const REACT_PROFILER_CAPABILITY = 'ai-performance:react-profiler'
+
+function profilerOptions(input: ReactProfilerOptions): Required<ReactProfilerOptions> {
+  const options = {
+    reportIntervalMs: input.reportIntervalMs ?? 1000,
+    maxCommitCount: input.maxCommitCount ?? 20,
+    slowRenderThresholdMs: input.slowRenderThresholdMs ?? 16,
+  }
+  if (
+    !Number.isFinite(options.reportIntervalMs) ||
+    options.reportIntervalMs <= 0 ||
+    options.reportIntervalMs > 2_147_483_647
+  ) {
+    throw new Error('[monitor-sdk] reportIntervalMs 必须是大于 0 且不超过 2147483647 的有限数字')
+  }
+  if (!Number.isSafeInteger(options.maxCommitCount) || options.maxCommitCount < 1) {
+    throw new Error('[monitor-sdk] maxCommitCount 必须是正安全整数')
+  }
+  if (!Number.isFinite(options.slowRenderThresholdMs) || options.slowRenderThresholdMs < 0) {
+    throw new Error('[monitor-sdk] slowRenderThresholdMs 必须是非负有限数字')
+  }
+  return options
+}
 
 type ProfilerStats = {
   windowStart: number
@@ -18,16 +38,13 @@ type ProfilerStats = {
   actualDurationTotal: number
   actualDurationMax: number
   baseDurationMax: number
-  slowCommitCount: number
-  lastPhase: string
-  lastStartTime: number
-  lastCommitTime: number
+  slowRenderCount: number
   timer: number | null
 }
 
-function createEmptyStats(): ProfilerStats {
+function createStats(startTime: number): ProfilerStats {
   return {
-    windowStart: performance.now(),
+    windowStart: startTime,
     commitCount: 0,
     mountCount: 0,
     updateCount: 0,
@@ -35,26 +52,35 @@ function createEmptyStats(): ProfilerStats {
     actualDurationTotal: 0,
     actualDurationMax: 0,
     baseDurationMax: 0,
-    slowCommitCount: 0,
-    lastPhase: '',
-    lastStartTime: 0,
-    lastCommitTime: 0,
+    slowRenderCount: 0,
     timer: null,
   }
 }
 
-function addPhaseCount(stats: ProfilerStats, phase: string): void {
-  if (phase === 'mount') {
-    stats.mountCount++
-    return
-  }
+function addRender(
+  stats: ProfilerStats,
+  phase: Parameters<ProfilerOnRenderCallback>[1],
+  actualDuration: number,
+  baseDuration: number,
+  slowRenderThresholdMs: number,
+): void {
+  stats.commitCount++
+  stats.actualDurationTotal += actualDuration
+  stats.actualDurationMax = Math.max(stats.actualDurationMax, actualDuration)
+  stats.baseDurationMax = Math.max(stats.baseDurationMax, baseDuration)
+  if (actualDuration >= slowRenderThresholdMs) stats.slowRenderCount++
 
-  if (phase === 'nested-update') {
-    stats.nestedUpdateCount++
-    return
+  switch (phase) {
+    case 'mount':
+      stats.mountCount++
+      break
+    case 'update':
+      stats.updateCount++
+      break
+    case 'nested-update':
+      stats.nestedUpdateCount++
+      break
   }
-
-  stats.updateCount++
 }
 
 function clearStatsTimer(stats: ProfilerStats): void {
@@ -69,10 +95,6 @@ function buildProfilerMetric(
   id: string,
   stats: ProfilerStats,
 ): PerformanceEvent {
-  const windowEnd = performance.now()
-
-  const duration = Math.max(windowEnd - stats.windowStart, 1)
-
   return {
     ...createEventBase(ctx),
 
@@ -87,51 +109,33 @@ function buildProfilerMetric(
       attributes: {
         id,
         windowStart: stats.windowStart,
-        windowEnd,
+        windowEnd: performance.now(),
         commitCount: stats.commitCount,
         mountCount: stats.mountCount,
         updateCount: stats.updateCount,
         nestedUpdateCount: stats.nestedUpdateCount,
         actualDurationMax: stats.actualDurationMax,
         baseDurationMax: stats.baseDurationMax,
-        slowCommitCount: stats.slowCommitCount,
-
-        commitPerSecond: (stats.commitCount * 1000) / duration,
-
-        lastPhase: stats.lastPhase,
-        lastStartTime: stats.lastStartTime,
-        lastCommitTime: stats.lastCommitTime,
+        slowRenderCount: stats.slowRenderCount,
       },
     },
   }
 }
 
-export function createMonitorProfiler(ctx: MonitorContext, options: ReactProfilerOptions = {}) {
-  const reportInterval = options.reportInterval || DEFAULT_REPORT_INTERVAL
-  const maxCommitCount = options.maxCommitCount || DEFAULT_MAX_COMMIT_COUNT
-  const slowCommitThreshold = options.slowCommitThreshold || DEFAULT_SLOW_COMMIT_THRESHOLD
+export function createMonitorProfiler(ctx: MonitorContext, input: ReactProfilerOptions = {}) {
+  const options = profilerOptions(input)
   const statsById = new Map<string, ProfilerStats>()
+  let stopped = false
 
   const flush = (id: string): void => {
     const stats = statsById.get(id)
 
-    if (!stats || !stats.commitCount) {
-      return
-    }
+    if (stopped || !stats) return
 
     clearStatsTimer(stats)
-    ctx.report(buildProfilerMetric(ctx, id, stats))
-    statsById.set(id, createEmptyStats())
-  }
-
-  const scheduleFlush = (id: string, stats: ProfilerStats): void => {
-    if (stats.timer !== null) {
-      return
-    }
-
-    stats.timer = window.setTimeout(() => {
-      flush(id)
-    }, reportInterval)
+    // 先移除本轮统计；下一次真正渲染时再开新窗口，不保留空桶和闲置 ID。
+    statsById.delete(id)
+    safely(() => ctx.report(buildProfilerMetric(ctx, id, stats)))
   }
 
   const onRender: ProfilerOnRenderCallback = (
@@ -140,38 +144,30 @@ export function createMonitorProfiler(ctx: MonitorContext, options: ReactProfile
     actualDuration,
     baseDuration,
     startTime,
-    commitTime,
   ) => {
-    const stats = statsById.get(id) || createEmptyStats()
-
-    stats.commitCount++
-    stats.actualDurationTotal += actualDuration
-    stats.actualDurationMax = Math.max(stats.actualDurationMax, actualDuration)
-    stats.baseDurationMax = Math.max(stats.baseDurationMax, baseDuration)
-    stats.lastPhase = phase
-    stats.lastStartTime = startTime
-    stats.lastCommitTime = commitTime
-
-    if (actualDuration >= slowCommitThreshold) {
-      stats.slowCommitCount++
+    if (stopped) return
+    let stats = statsById.get(id)
+    if (!stats) {
+      stats = createStats(startTime)
+      statsById.set(id, stats)
     }
+    addRender(stats, phase, actualDuration, baseDuration, options.slowRenderThresholdMs)
 
-    addPhaseCount(stats, phase)
-    statsById.set(id, stats)
-
-    if (stats.commitCount >= maxCommitCount) {
+    if (stats.commitCount >= options.maxCommitCount) {
       flush(id)
       return
     }
 
-    scheduleFlush(id, stats)
+    // 从本轮第一次回调起计时，后续更新不推迟上报。
+    if (stats.timer === null) {
+      stats.timer = window.setTimeout(() => flush(id), options.reportIntervalMs)
+    }
   }
 
   ctx.addDispose(() => {
-    statsById.forEach((stats, id) => {
-      clearStatsTimer(stats)
-      flush(id)
-    })
+    // 核心层进入销毁后已禁止上报；这里仅停止采集并丢弃尚未上报的统计。
+    stopped = true
+    statsById.forEach(clearStatsTimer)
     statsById.clear()
   })
 
@@ -188,7 +184,8 @@ export function createMonitorProfiler(ctx: MonitorContext, options: ReactProfile
   }
 }
 
-export function reactProfilerPlugin(options: ReactProfilerOptions = {}): MonitorPlugin {
+export function reactProfilerPlugin(input: ReactProfilerOptions = {}): MonitorPlugin {
+  const options = profilerOptions(input)
   return {
     name: 'ai-performance:react-profiler',
     setup: (ctx) => {

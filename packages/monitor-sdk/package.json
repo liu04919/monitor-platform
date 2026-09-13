@@ -24,7 +24,9 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.tests.json",
-    "test:browser": "pnpm build && node tests/browser-smoke.mjs",
+    "test:browser": "pnpm build && node tests/browser-smoke.mjs && node tests/react-profiler.browser.mjs && node tests/stream-metrics.browser.mjs",
+    "test:browser:stream": "pnpm build && node tests/stream-metrics.browser.mjs",
+    "test:browser:react": "pnpm build && node tests/react-profiler.browser.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

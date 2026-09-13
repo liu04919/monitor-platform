@@ -108,12 +108,15 @@
         "unit": "ms",
         "attributes": {
           "id": "DashboardChart",
-          "windowStart": 1717243299000,
-          "windowEnd": 1717243300500,
+          "windowStart": 1500,
+          "windowEnd": 2520,
           "commitCount": 4,
           "mountCount": 1,
           "updateCount": 3,
-          "slowCommitCount": 1
+          "nestedUpdateCount": 0,
+          "actualDurationMax": 20,
+          "baseDurationMax": 25,
+          "slowRenderCount": 1
         }
       }
     }

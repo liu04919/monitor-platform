@@ -137,6 +137,9 @@ func validateStabilityPayload(payload StabilityPayload, prefix string) error {
 			return invalid(prefix+".metrics."+name, "must be a finite number")
 		}
 	}
+	if len(payload.Diagnostics) > 0 && !isJSONObject(payload.Diagnostics) {
+		return invalid(prefix+".diagnostics", "must be a JSON object when present")
+	}
 
 	return nil
 }

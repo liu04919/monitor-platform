@@ -76,6 +76,7 @@ type BehaviorPayload struct {
 }
 
 type StabilityPayload struct {
-	Message string             `json:"message"`
-	Metrics map[string]float64 `json:"metrics"`
+	Message     string             `json:"message"`
+	Metrics     map[string]float64 `json:"metrics"`
+	Diagnostics json.RawMessage    `json:"diagnostics"`
 }

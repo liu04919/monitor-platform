@@ -41,6 +41,24 @@ Fetch、XHR、自定义场景，再触发 JavaScript 错误，可以在错误详
 `sendBeacon` 不会向 JavaScript 暴露服务端响应，必须到 PostgreSQL 和 ClickHouse 中
 确认最终写入结果。
 
+### 页面卡顿场景
+
+使用支持 `long-animation-frame` 的 Chrome / Edge，点击“主线程长任务”。Demo 阻塞约 180ms；`stabilityPlugins({ stutter: ... })` 用 120ms 门槛触发 LoAF 事件，等待 200ms 收集旁证后上报。该 Demo 将最小上报间隔设为 500ms，SDK 默认是 3 秒。
+
+管理端事件流中应看到 `stability / stutter`：`payload.metrics.duration` 是 LoAF 慢帧耗时，`payload.diagnostics.source` 为 `long-animation-frame`，并尽力附带 `scripts`、`longTasks` 和 `rafGap`。旁证不保证每次都有，不应分别出现旧的 `longtask`、`raf_gap` 或 FPS 告警。不支持 LoAF 时该场景不会生成卡顿事件。
+
+### React Profiler 场景
+
+在 `pnpm dev` 的页面点击“触发渲染 +”，在事件流查看 `performance / react_render`。Demo 按 ID 累计 4 次提交或等待 700ms 后汇总，`payload.value` 是累计渲染耗时；`slowRenderCount` 使用 Demo 的 1ms 门槛，SDK 默认门槛是 16ms，不代表卡顿判定。
+
+普通 React 生产构建默认关闭 profiling，所以当前 Demo 执行 `pnpm build` 后不会产生该事件；这不是上传失败。需要在生产环境采集时，应用必须使用 [React profiling 构建](https://react.dev/reference/react/Profiler#caveats)。独立的 `pnpm --dir packages/monitor-sdk test:browser:react` 会验证三种构建行为，不修改 Demo 的默认构建配置。
+
+### AI 流式响应场景
+
+点击流式请求按钮，Demo 持续读取 `/api/demo/chat` 的三段文本。`aiStreamPlugin` 的等待门槛配置为 500ms，默认 Demo 的 0 / 180 / 420ms 写入通常只产生一个 `ai / stream_metric`，不产生停顿事件。网络可能合并分片，因此 `chunkCount` 不保证等于服务端 write 次数。
+
+在事件详情查看 `ttfb`、`ttft`、`ttlt`、`ttlb`、`totalBytes` 和 `endReason`。这些耗时使用浏览器响应和首 / 尾分片时刻近似测量，不是模型协议级的精确 token 计时；只有实际等待读取超过门槛才报告 `stream_stall`，暂停消费不报告。源码分工与完整边界见 SDK README 的“AI 流式响应”。
+
 ### 页面退出 Beacon 场景
 
 使用唯一的 `runId` 打开以下地址：
