@@ -38,6 +38,9 @@ export class ReportTransport {
       window.addEventListener('online', this.resume)
       window.addEventListener('pagehide', this.exit)
       document.addEventListener('visibilitychange', this.visibility)
+    }
+    // Window 和 Worker 都需要消费队列；只有页面监听器依赖 window/document。
+    if (typeof self !== 'undefined') {
       this.retryTimer = setInterval(this.resume, RETRY_CHECK_MS)
       this.resume()
     }

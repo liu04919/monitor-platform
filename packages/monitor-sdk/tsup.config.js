@@ -1,6 +1,7 @@
 import { defineConfig } from 'tsup'
+import { heartbeatWorkerDefine } from './build/heartbeat-worker.ts'
 
-export default defineConfig({
+export default defineConfig(async () => ({
   entry: ['src/index.ts', 'src/plugins/index.ts'],
   format: ['esm', 'cjs'],
   dts: true,
@@ -12,4 +13,5 @@ export default defineConfig({
   minify: true,
   platform: 'browser',
   target: 'es2020',
-})
+  define: await heartbeatWorkerDefine(),
+}))

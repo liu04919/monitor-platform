@@ -173,9 +173,9 @@ breadcrumb 由实例独立缓存，点击、导航和已完成 HTTP 请求会写
 
 `replayData` 仍属于事件顶层的诊断字段，不放入 payload。
 
-`crash` 已使用 v2 事件和批次结构，并已加入默认 `stabilityPlugins()`。它的采集逻辑运行在 Web Worker 中，Worker 无法访问主线程里的 `ctx.report()` 和 IndexedDB 上报队列，因此会独立生成只包含一个 crash 事件的 v2 批次并直接通过 fetch 发送。
+`crash` 使用 v2 事件和批次结构，包含在 `stabilityPlugins()` 中。它表示 Worker 检测到主线程长时间未回复心跳，不代表确认浏览器进程已经崩溃。Worker 无法直接调用主线程的 `ctx.report()`，但可以访问同源 IndexedDB，因此通过同一个 `ReportTransport` 实现生成单事件批次、持久化并发送。
 
-这意味着 crash 与其他事件共享同一份服务端协议，但当前不具备常规批次的离线持久化和自动重试能力。服务端不能因为传输路径不同而为 crash 定义另一套 DTO。
+心跳事件与其他事件共享服务端协议、大小限制、请求超时、持久队列和有限重试规则。主线程与 Worker 通过队列租约协调；重试保持同一 batchId 和内容，不能因为执行线程不同而定义另一套 DTO。Worker 使用事先同步的有界诊断快照；录屏过大时省略附件，`payload.metrics.snapshotAgeMs` 表示快照在 Worker 中的持有时长。
 
 参考：`contracts/examples/stability-batch-v2.json` 展示走常规队列的白屏和卡顿；`contracts/examples/crash-batch-v2.json` 单独展示 Worker 生成的 crash 批次。
 
@@ -198,7 +198,7 @@ AI 事件独立于 `performance`，是因为它描述模型流式输出的领域
 
 常规 `ctx.report()` 事件会被 SDK 批量保存到 IndexedDB。断网、服务端限流或 5xx 响应后，同一个批次可能以相同 `batchId` 再次发送；通过 beacon 发送的批次也可能在下次启动时重新确认。
 
-当前 crash Worker 直接发送 v2 批次，不经过这套离线重试队列，但仍必须遵守相同的幂等规则。这样将来为 crash 增加重试，或网络层出现重复请求时，服务端无需改变处理方式。
+crash Worker 同样使用这套离线重试队列和幂等规则。已经写入 IndexedDB 的批次可由仍在运行的 Worker 或后续页面实例继续发送；尚未完成的持久化写入不保证在进程终止后保留。
 
 服务端以 `(app.id, batchId)` 作为批次幂等键：
 

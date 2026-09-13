@@ -10,6 +10,94 @@
 - `src/breadcrumbs`：实例级诊断轨迹、过滤与有界快照。
 - `src/replay`：单独启用的 rrweb 录屏。
 
+## 错误采集
+
+错误采集只提供三个插件，按运行环境组合使用：
+
+| 插件                  | 捕获范围                                                                        |
+| --------------------- | ------------------------------------------------------------------------------- |
+| `jsErrorPlugin()`     | 浏览器 JS 异常、未处理的 Promise 拒绝、资源加载失败、信息受限的 `Script error.` |
+| `reactErrorPlugin()`  | React 错误边界捕获的组件异常及组件栈                                            |
+| `vueErrorPlugin(app)` | Vue 应用错误处理器捕获的异常及组件信息                                          |
+
+React 项目使用 `plugins: [jsErrorPlugin(), reactErrorPlugin()]`；Vue 项目使用 `plugins: [jsErrorPlugin(), vueErrorPlugin(app)]`。均从 `minitor-sdk/plugins` 导入，实例不会自动安装这些插件。
+
+React 插件安装后，通过 `monitor.getCapability('error:react-boundary')` 取得错误边界组件，并用它包裹需要保护的组件树，传入 `Fallback` 组件。注册插件本身不会自动包裹应用。错误边界不替代浏览器基础错误采集；普通事件回调和异步任务中的未捕获异常仍需 JS 插件。
+
+`src/error` 中每个插件各自负责监听和事件分类；`shared.ts` 只共用异常整理和诊断字段。未知拒绝原因会转换成字符串，非 Error 值不生成虚假的 SDK 调用栈。事件类型仍区分 `js_error`、`unhandled_rejection`、`resource_error`、`cors_error`、`react_error` 和 `vue_error`。
+
+同一 Monitor 按插件名称去重，销毁时移除浏览器监听器并恢复仍由 SDK 接管的 Vue 错误处理器。需要录屏时另行安装 `recordScreenPlugin()`，错误上报时读取当前实例的录屏和 breadcrumbs 快照。
+
+## 白屏检测
+
+白屏规则配置在插件上，不放在 `createMonitor()` 顶层：
+
+```ts
+import { whiteScreenPlugin } from 'minitor-sdk/plugins'
+
+// 放进 createMonitor({ plugins: [...] })。
+whiteScreenPlugin({
+  blankSelectors: ['html', 'body', '#root', '#app', '.skeleton', '.skeleton *'],
+  ignoreSelectors: ['.monitor-overlay'],
+  blankRatio: 0.7,
+  recheckIntervalMs: 2000,
+})
+```
+
+- `blankSelectors`：命中元素自身就将该点判为空白，不继续向下找。默认 `['html', 'body', '#root', '#app']`，自定义数组替换默认值。骨架屏及其内部占位元素可分别写 `.skeleton` 和 `.skeleton *`。不能通过祖先匹配这份名单，否则 `#root` 中的正常内容也会被判为空白。
+- `ignoreSelectors`：跳过匹配的元素及其 DOM 后代，继续检查该坐标下方的元素。默认为空数组，不自动忽略弹窗或遮罩；这份配置用于明确需要穿透的覆盖层。
+- 每个点按 `elementsFromPoint()` 返回的视觉叠放顺序检查：忽略规则优先，其次是空白规则；遇到其他元素就算非空白。没有命中元素或所有元素都被跳过时算空白。
+- `blankRatio`：空白点比例门槛，默认 `0.7`，必须严格大于才算疑似白屏。33 点中 23 点为空白不满足，24 点才满足；取值范围为 `[0, 1)`。
+- `recheckIntervalMs`：两次检测的间隔，默认 `2000` 毫秒。首检满足比例后不立即上报，下一轮仍满足才确认；复检不满足则取消疑似状态。每轮检测结束后再安排下一轮。
+- 参数在创建插件时复制，每个 Monitor 独立维护检测状态。检测间隔必须是大于 0 的有限数值，比例也必须是有限数值；非法选择器会在安装插件时抛错。不支持 `elementsFromPoint()` 的环境不启动检测。
+
+组合安装时，将同一份配置交给 `whiteScreen` 字段即可，不要再额外安装一个同名白屏插件：
+
+```ts
+import { stabilityPlugins } from 'minitor-sdk/plugins'
+
+stabilityPlugins({
+  whiteScreen: {
+    blankSelectors: ['html', 'body', '#root'],
+    ignoreSelectors: [],
+  },
+})
+```
+
+检测使用米字形 33 点：横、竖、两条对角线各 9 点，共用中心点，`9 + 8 + 8 + 8 = 33`。默认采用空白点比例大于 70%、间隔 2 秒两次满足才上报的规则，参考 [腾讯云 Aegis 白屏检测说明](https://cloud.tencent.com/document/product/248/87193)，不是行业统一标准。
+
+这里仅采用其采样与复检规则，触发方式仍为页面 `load` 后立即检测并定时巡检，没有加入错误触发或 DOM 变化观察器。等待加载的时间不计入复检间隔；隐藏或 `pagehide` 时暂停并清空疑似状态，恢复可见或 `pageshow` 后重新首检。零尺寸视口不参与判定。
+
+同一段异常只报一次，但检测不会停止；某次采样恢复到比例门槛以内后，可以检测并上报下一段异常。事件仍是 `stability / white_screen`，附带 breadcrumbs、已启用的录屏快照，以及 `payload.metrics` 中的 `recheckDelayMs`（首检到复检的实际间隔，使用单调时钟）、`blankPoints`、`totalPoints`、`blankRatio`（复检时的实际空白点比例）。不再使用持续 6 秒的判定规则。
+
+这是基于 DOM 命中和业务名单的启发式检测，不是截图像素检测。两次采样之间的短暂变化可能被漏过；忽略遮罩后判断的是下方页面是否有内容，不能用来发现遮罩本身一直不消失。当前不检查 iframe 或 Shadow DOM 内部内容。
+
+## 主线程心跳检测
+
+`crashPlugin()` 使用独立 Worker 检查主线程是否回复。它检测的是主线程长时间无响应，不保证发现进程退出、浏览器崩溃或系统杀进程；事件类型为 `stability / crash`。
+
+```ts
+import { crashPlugin } from 'minitor-sdk/plugins'
+
+crashPlugin({
+  intervalMs: 5000,
+  timeoutMs: 15000,
+  snapshotIntervalMs: 10000,
+})
+// 组合安装时使用 stabilityPlugins({ heartbeat: { timeoutMs: 20000 } })。
+```
+
+- Worker 每 5 秒发送带序号的 ping，主线程立即回复对应 pong。每轮检查距离上次有效回复是否达到 15 秒，因此判定有最多约一个心跳间隔的检查延迟；这里的时长不是精确测量的死循环持续时间。超时必须大于心跳间隔，这些默认值不是行业统一标准。
+- 同一次无响应只生成一个事件，上报后心跳继续运行；有效回复到达后，可以报告下一次异常。发送失败的重试沿用原批次，不生成新的事件。
+- 隐藏时暂停检测；恢复可见后重新计时。`pagehide` / `freeze` 终止 Worker，`pageshow` / `resume` 重新创建。SDK 销毁后不再恢复。
+- 如果 Worker 自己也长时间没有运行，先发新心跳重新探测，不直接把这段停顿计入主线程无响应。这只能减少休眠、调试和调度暂停造成的误判，不能精确识别它们的原因。
+- 初始快照通过独立任务生成，之后默认每 10 秒更新一次。心跳回复不读取录屏；快照任务仍可能执行同步压缩，并不是把录屏处理搬进了 Worker。快照超过半个批次预算时先省略录屏，再省略 breadcrumbs，不截断压缩数据。`snapshotAgeMs` 表示 Worker 持有这份快照多久，它可能早于卡住时刻。
+- Worker 直接复用 `ReportTransport`：批次大小限制、IndexedDB 队列、请求超时、HTTP 状态检查、有限重试都与普通事件一致；网络错误、408、429、5xx 可重试，413 等其他 4xx 终止该批次。主线程与 Worker 通过同一套队列租约协调，不维护第二份离线队列。
+- Worker 初始化只接收可序列化配置，不复制业务函数。Worker 消费任务时，通过消息把已配置的发送回调和 `reportDrop` 通知交回主线程执行；主线程卡住时，回调会延迟到恢复后。主线程恢复或重新打开页面后，也可能消费已持久化的任务。
+- 持久化仍是尽力而为：IndexedDB 不可用时退回有界内存队列；页面或进程终止前尚未完成的写入不保证保留。
+
+源码位于 `src/stability/heartbeat/`：`index.ts` 管主线程及页面生命周期，`watchdog.ts` 管心跳计时，`worker.ts` 管 Worker 入口与上报，`types.ts` 定义选项和线程消息。构建时将 Worker TypeScript 及其依赖打包为独立脚本再内嵌，应用无需配置额外 Worker 文件。使用 CSP 的站点需要允许该 Blob Worker（`worker-src`），Worker 上报也需要满足 `connect-src` 和服务端 CORS；创建或运行失败时只停止本插件，不中断业务初始化。
+
 ## 行为与诊断轨迹
 
 ```ts
@@ -114,7 +202,7 @@ IndexedDB 按固定的上报 URL、项目 ID、publicKey 隔离。相同范围�
 
 本轮将本地 IndexedDB `reportQueue` 更新为版本 4，升级会删除该浏览器来源下旧的待发送队列，不转换旧记录；不影响服务端已接收数据。
 
-这套路径覆盖通过 `ctx.report()` 提交的事件。`crashLoop` 的 Worker 断联检测仍有独立的直接发送路径；录屏也仍随事件携带，尚未升级为独立回放存储。
+这套传输实现同时用于 `ctx.report()` 和心跳 Worker。录屏仍随事件携带，尚未升级为独立回放存储。
 
 ## 验证
 
@@ -142,4 +230,4 @@ set MONITOR_BROWSER_CHANNEL=msedge
 pnpm test:browser
 ```
 
-覆盖真实构建、多实例、业务 Fetch、IndexedDB 离线刷新恢复以及页面导航退出发送。单元测试另外覆盖超时、存储故障、回调异常、容量限制和前后台切换。
+覆盖真实构建、多实例、业务 Fetch、IndexedDB 离线刷新恢复、页面导航退出发送、原生错误采集和白屏采样。白屏用例使用真实 CSS 布局检查 23/33 与 24/33 比例边界、默认 2 秒复检、遮罩后代、骨架屏、内容恢复及上报；其他布局用例将检测间隔缩短至 80 毫秒。受控时钟单元测试另验证完整采样坐标、复检取消、前后台生命周期和配置边界。

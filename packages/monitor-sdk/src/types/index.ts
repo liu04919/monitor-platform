@@ -51,8 +51,6 @@ export type ConfigType = {
   userId: string
   batchSize: number
   isAjax: boolean
-  containerElements: string[]
-  skeletonElements: string[]
   transport?: Partial<TransportOptions>
   breadcrumbs?: BreadcrumbOptions
   reportBefore?: (events: MonitorEvent[]) => unknown

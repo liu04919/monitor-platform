@@ -1,6 +1,6 @@
-import { createEventBase } from '../common/event'
-import { getVueComponentInfo, parseStackFrames } from '../common/utils'
-import type { ExceptionErrorEvent, MonitorContext, MonitorDispose } from '../types'
+import { getVueComponentInfo } from '../common/utils'
+import type { ExceptionErrorEvent, MonitorContext, MonitorPlugin } from '../types'
+import { createErrorBase, normalizeException } from './shared'
 
 type VueErrorHandler = (err: unknown, vm: any, info: string) => void
 
@@ -10,31 +10,13 @@ export interface Vue {
   }
 }
 
-function stringifyUnknownError(err: unknown): string {
-  if (typeof err === 'string') {
-    return err
-  }
-
-  try {
-    return JSON.stringify(err)
-  } catch {
-    return String(err)
-  }
-}
-
-function normalizeError(err: unknown): Error {
-  if (err instanceof Error) {
-    return err
-  }
-
-  return new Error(stringifyUnknownError(err))
-}
-
 function getComponentInfo(vm: any): {
   componentName: string
   src: string
 } {
-  const vue2Info = getVueComponentInfo(vm)
+  const vue2Info = vm?.$options
+    ? getVueComponentInfo(vm)
+    : { componentName: '<Anonymous>', url: '' }
 
   if (vue2Info.componentName !== '<Anonymous>' || vue2Info.url) {
     return {
@@ -54,28 +36,12 @@ function getComponentInfo(vm: any): {
 }
 
 function reportVueError(ctx: MonitorContext, err: unknown, vm: any, info: string): void {
-  const error = normalizeError(err)
   const { componentName, src } = getComponentInfo(vm)
-
-  const replayData = ctx.getReplayData()
-
   const reportData: ExceptionErrorEvent = {
-    ...createEventBase(ctx),
-
-    category: 'error',
+    ...createErrorBase(ctx),
     eventType: 'vue_error',
-    level: 'error',
-
-    breadcrumbs: ctx.getBreadcrumbs(),
-    replayData: replayData || undefined,
-
     payload: {
-      exception: {
-        name: error.name,
-        message: error.message,
-        stack: parseStackFrames(error),
-      },
-
+      exception: normalizeException(err),
       mechanism: {
         type: 'vue.error_handler',
         handled: true,
@@ -92,23 +58,22 @@ function reportVueError(ctx: MonitorContext, err: unknown, vm: any, info: string
   ctx.report(reportData)
 }
 
-export default function initVueError(ctx: MonitorContext, app: Vue): MonitorDispose | void {
-  if (!app?.config) {
-    return
-  }
+export const vueErrorPlugin = (app: Vue): MonitorPlugin => ({
+  name: 'error:vue',
+  setup(ctx) {
+    if (!app?.config) return
 
-  const originalErrorHandler = app.config.errorHandler
-  const errorHandler = (err: unknown, vm: any, info: string) => {
-    reportVueError(ctx, err, vm, info)
-
-    originalErrorHandler?.(err, vm, info)
-  }
-
-  app.config.errorHandler = errorHandler
-
-  return () => {
-    if (app.config.errorHandler === errorHandler) {
-      app.config.errorHandler = originalErrorHandler
+    const originalErrorHandler = app.config.errorHandler
+    const errorHandler: VueErrorHandler = (err, vm, info) => {
+      reportVueError(ctx, err, vm, info)
+      originalErrorHandler?.(err, vm, info)
     }
-  }
-}
+    app.config.errorHandler = errorHandler
+
+    return () => {
+      if (app.config.errorHandler === errorHandler) {
+        app.config.errorHandler = originalErrorHandler
+      }
+    }
+  },
+})

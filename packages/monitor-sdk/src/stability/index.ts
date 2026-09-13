@@ -1,25 +1,24 @@
-import crashLoop from "./crashLoop";
-import stutterLoop from "./stutterLoop";
-import whiteScreenLoop from "./whiteScreenLoop";
-import type { MonitorPlugin } from "../types";
+import { crashPlugin } from './heartbeat'
+import type { HeartbeatOptions } from './heartbeat/types'
+import stutterLoop from './stutterLoop'
+import { whiteScreenPlugin, type WhiteScreenOptions } from './whiteScreen'
+import type { MonitorPlugin } from '../types'
 
-export const whiteScreenPlugin = (): MonitorPlugin => ({
-  name: "stability:white-screen",
-  setup: whiteScreenLoop,
-});
+export { whiteScreenPlugin, crashPlugin }
+export type { WhiteScreenOptions, HeartbeatOptions }
+
+export interface StabilityOptions {
+  whiteScreen?: WhiteScreenOptions
+  heartbeat?: HeartbeatOptions
+}
 
 export const stutterPlugin = (): MonitorPlugin => ({
-  name: "stability:stutter",
+  name: 'stability:stutter',
   setup: stutterLoop,
-});
+})
 
-export const crashPlugin = (): MonitorPlugin => ({
-  name: "stability:crash",
-  setup: crashLoop,
-});
-
-export const stabilityPlugins = (): MonitorPlugin[] => [
-  whiteScreenPlugin(),
+export const stabilityPlugins = (options: StabilityOptions = {}): MonitorPlugin[] => [
+  whiteScreenPlugin(options.whiteScreen),
   stutterPlugin(),
-  crashPlugin(),
-];
+  crashPlugin(options.heartbeat),
+]

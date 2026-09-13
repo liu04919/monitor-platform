@@ -5,6 +5,8 @@ import { resolve, sep } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { chromium } from 'playwright'
 import { build } from 'tsup'
+import { testWhiteScreen } from './white-screen.browser.mjs'
+import { testHeartbeat } from './heartbeat.browser.mjs'
 
 await build({
   entry: ['tests/browser-entry.ts'],
@@ -14,6 +16,8 @@ await build({
   clean: true,
   config: false,
   noExternal: [/.*/],
+  platform: 'browser',
+  define: { 'process.env.NODE_ENV': '"production"' },
 })
 const requests = []
 const errors = []
@@ -24,9 +28,14 @@ const server = createServer(async (request, response) => {
       let body = ''
       for await (const chunk of request) body += chunk
       requests.push({ path: request.url, body: JSON.parse(body) })
-      response.writeHead(202).end()
+      const firstHeartbeatRetry =
+        request.url === '/collect-heartbeat-retry' &&
+        requests.filter((item) => item.path === request.url).length === 1
+      response.writeHead(firstHeartbeatRetry ? 500 : 202).end()
     } else if (new URL(request.url, 'http://localhost').pathname === '/business') {
       response.writeHead(200, { 'Content-Type': 'text/plain' }).end('business body')
+    } else if (request.url === '/missing-error.png') {
+      response.writeHead(404).end()
     } else if (request.url.endsWith('.js')) {
       const file = resolve(root, `.${request.url}`)
       if (!file.startsWith(root + sep)) {
@@ -255,7 +264,7 @@ try {
         ...window.sdk.behaviorPlugins(),
         window.sdk.fetchPlugin,
         window.sdk.xhrPlugin,
-        window.sdk.errorPlugin,
+        window.sdk.jsErrorPlugin(),
       ],
     })
     await new Promise((resolve) => setTimeout(resolve, 30))
@@ -359,6 +368,99 @@ try {
   )
   assert.deepEqual(errors, [])
   await context.close()
+
+  const errorContext = await browser.newContext()
+  try {
+    const errorPage = await errorContext.newPage()
+    const expectedPageErrors = []
+    errorPage.on('pageerror', (error) => expectedPageErrors.push(error.message))
+    await errorPage.goto(origin)
+    await errorPage.waitForFunction(() => window.sdk)
+    await errorPage.evaluate(async () => {
+      window.errorMonitor = window.sdk.createMonitor({
+        url: `${location.origin}/collect-errors`,
+        appId: 'errors',
+        projectName: 'errors',
+        publicKey: 'key-errors',
+        plugins: [window.sdk.jsErrorPlugin(), window.sdk.jsErrorPlugin()],
+      })
+      window.errorMonitor.addBreadcrumb({ category: 'custom', message: 'before-native-errors' })
+      await window.errorMonitor.flush()
+      setTimeout(() => {
+        throw new TypeError('native js plugin probe')
+      }, 0)
+      void Promise.reject(new Error('native promise plugin probe'))
+      const image = document.createElement('img')
+      const failed = new Promise((resolve) =>
+        image.addEventListener('error', resolve, { once: true }),
+      )
+      image.src = '/missing-error.png'
+      document.body.append(image)
+      await failed
+      // 受限脚本的浏览器策略不在此测试中复现，仅验证收到该事件后的分类。
+      window.dispatchEvent(new ErrorEvent('error', { message: 'Script error.' }))
+    })
+    await errorPage.waitForTimeout(100)
+    await errorPage.evaluate(() => window.errorMonitor.flush())
+    const nativeEvents = requests
+      .filter((r) => r.path === '/collect-errors')
+      .flatMap((r) => r.body.events)
+    assert.deepEqual(nativeEvents.map((event) => event.eventType).sort(), [
+      'cors_error',
+      'js_error',
+      'resource_error',
+      'unhandled_rejection',
+    ])
+    assert.deepEqual(expectedPageErrors.sort(), [
+      'native js plugin probe',
+      'native promise plugin probe',
+    ])
+    assert.equal(
+      nativeEvents.find((event) => event.eventType === 'js_error').payload.exception.name,
+      'TypeError',
+    )
+    assert(
+      nativeEvents.find((event) => event.eventType === 'js_error').payload.exception.stack.length >
+        0,
+    )
+    assert.equal(
+      nativeEvents.find((event) => event.eventType === 'unhandled_rejection').payload.exception
+        .message,
+      'native promise plugin probe',
+    )
+    assert.equal(
+      nativeEvents.find((event) => event.eventType === 'resource_error').payload.resource.url,
+      `${origin}/missing-error.png`,
+    )
+    for (const event of nativeEvents) {
+      assert.equal(event.breadcrumbs[0].message, 'before-native-errors')
+      assert.equal(event.replayData, undefined)
+    }
+    const countBeforeDestroy = nativeEvents.length
+    await errorPage.evaluate(async () => {
+      window.errorMonitor.destroy()
+      window.dispatchEvent(new ErrorEvent('error', { message: 'after-error-plugin-destroy' }))
+      window.dispatchEvent(
+        new PromiseRejectionEvent('unhandledrejection', {
+          promise: Promise.resolve(),
+          reason: 'after-destroy',
+        }),
+      )
+      await window.errorMonitor.flush()
+    })
+    await errorPage.waitForTimeout(1100)
+    assert.equal(
+      requests.filter((r) => r.path === '/collect-errors').flatMap((r) => r.body.events).length,
+      countBeforeDestroy,
+    )
+    console.log(
+      'PASS: native JS / native Promise rejection / non-bubbling resource error / restricted-script classification / plugin dedup / cleanup',
+    )
+  } finally {
+    await errorContext.close()
+  }
+  await testWhiteScreen(browser, origin, requests)
+  await testHeartbeat(browser, origin, requests)
 } catch (error) {
   for (const browserError of errors) console.error(browserError)
   throw error

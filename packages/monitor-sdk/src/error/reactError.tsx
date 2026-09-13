@@ -1,7 +1,7 @@
 import React, { ReactNode } from 'react'
-import { createEventBase } from '../common/event'
-import { getReactComponentInfo, parseStackFrames } from '../common/utils'
-import type { ExceptionErrorEvent, MonitorContext } from '../types'
+import { getReactComponentInfo } from '../common/utils'
+import type { ExceptionErrorEvent, MonitorContext, MonitorPlugin } from '../types'
+import { createErrorBase, normalizeException } from './shared'
 
 interface FallbackProps {
   error: ExceptionErrorEvent | null
@@ -17,7 +17,7 @@ interface ErrorBoundaryState {
   error: ExceptionErrorEvent | null
 }
 
-export default function createErrorBoundary(ctx: MonitorContext) {
+function createErrorBoundary(ctx: MonitorContext) {
   return class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
     state: ErrorBoundaryState = {
       hasError: false,
@@ -33,35 +33,16 @@ export default function createErrorBoundary(ctx: MonitorContext) {
     componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
       const { componentName, url } = getReactComponentInfo(errorInfo)
 
-      const replayData = ctx.getReplayData()
-
       const reportData: ExceptionErrorEvent = {
-        ...createEventBase(ctx),
-
-        category: 'error',
+        ...createErrorBase(ctx),
         eventType: 'react_error',
-        level: 'error',
-
-        breadcrumbs: ctx.getBreadcrumbs(),
-        replayData: replayData || undefined,
-
         payload: {
-          exception: {
-            name: error.name,
-            message: error.message,
-            stack: parseStackFrames(error),
-          },
-
+          exception: normalizeException(error),
           mechanism: {
             type: 'react.error_boundary',
-
-            /**
-             * ErrorBoundary 已经接管了渲染并显示 Fallback，
-             * 所以这里可以认为是 handled。
-             */
+            // 错误边界已接管渲染并显示 Fallback。
             handled: true,
           },
-
           component: {
             name: componentName,
             file: url || undefined,
@@ -89,3 +70,11 @@ export default function createErrorBoundary(ctx: MonitorContext) {
     }
   }
 }
+
+export const reactErrorPlugin = (): MonitorPlugin => ({
+  name: 'error:react',
+  setup(ctx) {
+    // 每个 Monitor 安装时只创建一次组件类型，不在业务组件渲染中重新创建。
+    ctx.provide('error:react-boundary', createErrorBoundary(ctx))
+  },
+})

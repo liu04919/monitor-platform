@@ -5,5 +5,6 @@ export const fetchPlugin = { name: 'browser-test:fetch', setup: instrumentFetch 
 export { behaviorPlugins } from '../src/behavior'
 import instrumentXHR from '../src/performance/xhr'
 export const xhrPlugin = { name: 'browser-test:xhr', setup: instrumentXHR }
-import initErrorEventListener from '../src/error/initErrorEventListener'
-export const errorPlugin = { name: 'browser-test:errors', setup: initErrorEventListener }
+export { jsErrorPlugin } from '../src/error/jsError'
+export { whiteScreenPlugin } from '../src/stability/whiteScreen'
+export { crashPlugin } from '../dist/plugins/index.js'

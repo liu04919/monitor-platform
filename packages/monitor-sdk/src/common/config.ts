@@ -9,19 +9,13 @@ export function createConfig(options: Partial<ConfigType> = {}): ConfigType {
     userId: '', // 未提供业务用户时，不伪造用户身份
     isAjax: false, // 是否开启ajax上报
     batchSize: 5, // 批量上报大小
-    containerElements: ['html', 'body', '#app', '#root'], // 容器元素
-    skeletonElements: [], // 骨架屏元素
     ...options,
   }
-  config.containerElements = [...config.containerElements]
-  config.skeletonElements = [...config.skeletonElements]
   config.transport = { ...config.transport }
   config.breadcrumbs = Object.freeze({ ...config.breadcrumbs })
   if (typeof window !== 'undefined') {
     config.url = new URL(config.url, window.location.href).href
   }
-  Object.freeze(config.containerElements)
-  Object.freeze(config.skeletonElements)
   Object.freeze(config.transport)
   // 实例创建后固定投递目标，已入队的批次不能被配置更新改投到其他项目。
   return Object.freeze(config)

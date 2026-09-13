@@ -1,15 +1,9 @@
 export { behaviorPlugins, clickPlugin, pvPlugin, navigationPlugin } from '../behavior'
 export type { ClickOptions } from '../behavior'
 export { recordScreenPlugin } from '../replay'
-export {
-  browserErrorPlugins,
-  jsErrorPlugin,
-  promiseErrorPlugin,
-  reactErrorPlugin,
-  resourceErrorPlugin,
-  vueErrorPlugin,
-} from '../error'
+export { jsErrorPlugin, reactErrorPlugin, vueErrorPlugin } from '../error'
 export { crashPlugin, stabilityPlugins, stutterPlugin, whiteScreenPlugin } from '../stability'
+export type { StabilityOptions, WhiteScreenOptions, HeartbeatOptions } from '../stability'
 export {
   fcpPlugin,
   fetchPlugin,

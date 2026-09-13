@@ -2,7 +2,7 @@ import { createMonitor } from 'minitor-sdk'
 import {
   aiStreamPlugin,
   behaviorPlugins,
-  browserErrorPlugins,
+  jsErrorPlugin,
   performancePlugins,
   reactErrorPlugin,
   reactProfilerPlugin,
@@ -40,10 +40,18 @@ export const monitor = createMonitor({
   plugins: [
     ...behaviorPlugins(),
     recordScreenPlugin(),
-    ...browserErrorPlugins(),
+    jsErrorPlugin(),
     reactErrorPlugin(),
     ...performancePlugins(),
-    ...stabilityPlugins(),
+    ...stabilityPlugins({
+      whiteScreen: {
+        // Demo 的 React 挂载容器是 #root；名单只用于白屏采样。
+        blankSelectors: ['html', 'body', '#root'],
+        ignoreSelectors: [],
+        blankRatio: 0.7,
+        recheckIntervalMs: 2000,
+      },
+    }),
     aiStreamPlugin({
       urlPatterns: ['/api/demo/chat'],
       stallThreshold: 500,
