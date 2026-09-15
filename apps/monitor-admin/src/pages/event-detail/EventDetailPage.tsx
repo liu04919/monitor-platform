@@ -16,21 +16,14 @@ import { eventDetailQueryOptions } from '@/features/events/model/eventQueries'
 import { ErrorState } from '@/shared/ui/feedback/AsyncFeedback'
 import { AlertIcon, ArrowLeftIcon, ExternalIcon } from '@/shared/ui/icons/Icons'
 import { useAdminStore } from '@/store/adminStore'
+import { ReplayPanel } from '@/features/replay/components/ReplayPanel'
 import styles from './EventDetailPage.module.css'
-
-function parseReplayData(value: string | null) {
-  if (!value) return null
-  try {
-    return JSON.parse(value) as unknown
-  } catch {
-    return value
-  }
-}
 
 export function EventDetailPage() {
   const { eventId = '' } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
-  const view = searchParams.get('view') === 'raw' ? 'raw' : 'overview'
+  const requestedView = searchParams.get('view')
+  const view = requestedView === 'raw' || requestedView === 'replay' ? requestedView : 'overview'
   const projectId = useAdminStore((state) => state.projectId)
   const query = useQuery(eventDetailQueryOptions(projectId, eventId))
 
@@ -96,13 +89,14 @@ export function EventDetailPage() {
         keepMounted={false}
         onChange={(nextView) => {
           const next = new URLSearchParams(searchParams)
-          if (nextView === 'raw') next.set('view', 'raw')
+          if (nextView === 'raw' || nextView === 'replay') next.set('view', nextView)
           else next.delete('view')
           setSearchParams(next)
         }}
       >
         <Tabs.List className={styles.tabs} aria-label="事件详情视图">
           <Tabs.Tab value="overview">概览</Tabs.Tab>
+          <Tabs.Tab value="replay">录屏</Tabs.Tab>
           <Tabs.Tab value="raw">原始数据</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="overview">
@@ -118,6 +112,13 @@ export function EventDetailPage() {
             <EventContext event={event} />
           </div>
         </Tabs.Panel>
+        <Tabs.Panel value="replay">
+          <ReplayPanel
+            key={event.eventId}
+            replayData={event.replayData}
+            timestamp={event.timestamp}
+          />
+        </Tabs.Panel>
         <Tabs.Panel value="raw">
           <RawEventData event={event} />
         </Tabs.Panel>
@@ -128,12 +129,11 @@ export function EventDetailPage() {
 
 // 切换到原始数据时才格式化 JSON，避免录屏大字符串影响概览渲染。
 function RawEventData({ event }: { event: EventDetail }) {
-  const replayData = parseReplayData(event.replayData)
   return (
     <div className={styles.primary}>
       <EventMetadata event={event} />
       <JsonPanel title="Payload" value={event.payload} />
-      {replayData !== null ? <JsonPanel title="Replay Data" value={replayData} /> : null}
+      {event.replayData ? <JsonPanel title="Replay Data" value={event.replayData} /> : null}
     </div>
   )
 }

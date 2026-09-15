@@ -1,4 +1,5 @@
 import { MantineProvider } from '@mantine/core'
+import { gzipSync } from 'node:zlib'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -48,6 +49,18 @@ const issueOccurrence = {
 const primaryProjectId = '11111111-1111-4111-8111-111111111111'
 const secondProjectId = '22222222-2222-4222-8222-222222222222'
 const createdProjectId = '33333333-3333-4333-8333-333333333333'
+const replayFixture = gzipSync(
+  Buffer.from(
+    JSON.stringify([
+      { type: 4, timestamp: 1787068790000, data: { width: 1440, height: 900 } },
+      {
+        type: 2,
+        timestamp: 1787068790001,
+        data: { node: { type: 0, id: 1, childNodes: [] }, initialOffset: { top: 0, left: 0 } },
+      },
+    ]),
+  ).toString('base64'),
+).toString('base64')
 
 function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
   const url = String(input)
@@ -128,7 +141,7 @@ function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
                           data: { selector: 'button.save' },
                         },
                       ],
-                      replayData: '[{"type":2,"timestamp":1787068790000}]',
+                      replayData: replayFixture,
                       payload: {
                         exception: {
                           name: 'TypeError',
