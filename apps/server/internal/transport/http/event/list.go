@@ -26,7 +26,13 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
+	timeRange, err := telemetry.ParseTimeRange(c.Query("from"), c.Query("to"))
+	if err != nil {
+		writeEventListQueryError(c, err)
+		return
+	}
 	page, err := h.service.List(c.Request.Context(), eventdomain.ListRequest{
+		TimeRange: timeRange,
 		UserID:    user.ID,
 		ProjectID: c.Param("projectId"),
 		Category:  telemetry.Category(c.Query("category")),
@@ -79,6 +85,8 @@ func parseOptionalLimit(value string) (int, error) {
 
 func writeEventListError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, telemetry.ErrInvalidTimeRange):
+		writeEventListQueryError(c, err)
 	case errors.Is(err, eventdomain.ErrProjectIDRequired):
 		writeEventListQueryError(c, eventdomain.ErrProjectIDRequired)
 	case errors.Is(err, eventdomain.ErrInvalidCategory):
@@ -105,6 +113,9 @@ func writeEventListQueryError(c *gin.Context, err error) {
 	message := "query parameters are invalid"
 
 	switch {
+	case errors.Is(err, telemetry.ErrInvalidTimeRange):
+		field = "timeRange"
+		message = telemetry.ErrInvalidTimeRange.Error()
 	case errors.Is(err, eventdomain.ErrProjectIDRequired):
 		field = "projectId"
 		message = "projectId is required"

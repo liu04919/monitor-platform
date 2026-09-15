@@ -1,5 +1,6 @@
 import { Badge, Button } from '@mantine/core'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { listSearch } from '@/features/time-range/model/timeRange'
 import type { IssueSummary } from '@/features/issues/model/issueTypes'
 import { formatTime } from '@/shared/lib/dateFormat'
 import { AlertIcon, ChevronIcon } from '@/shared/ui/icons/Icons'
@@ -20,6 +21,8 @@ export function IssueTable({
   isFetchingNextPage,
   onLoadMore,
 }: IssueTableProps) {
+  const [params] = useSearchParams()
+  const search = listSearch(params)
   return (
     <>
       <div className={`${styles.row} ${styles.header}`} aria-hidden="true">
@@ -37,7 +40,7 @@ export function IssueTable({
               <AlertIcon />
             </span>
             <div>
-              <Link to={`/issues/${encodeURIComponent(issue.id)}`} title={issue.title}>
+              <Link to={`/issues/${encodeURIComponent(issue.id)}${search}`} title={issue.title}>
                 {issue.title}
               </Link>
               <div className={styles.tags}>
@@ -61,7 +64,7 @@ export function IssueTable({
           </time>
           <Link
             className={styles.latestLink}
-            to={`/issues/${encodeURIComponent(issue.id)}`}
+            to={`/issues/${encodeURIComponent(issue.id)}${search}`}
             aria-label={`查看问题 ${issue.title}`}
           >
             <ChevronIcon />

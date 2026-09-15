@@ -18,6 +18,7 @@ import { AlertIcon, ArrowLeftIcon, ExternalIcon } from '@/shared/ui/icons/Icons'
 import { useAdminStore } from '@/store/adminStore'
 import { ReplayPanel } from '@/features/replay/components/ReplayPanel'
 import styles from './EventDetailPage.module.css'
+import { listSearch } from '@/features/time-range/model/timeRange'
 
 export function EventDetailPage() {
   const { eventId = '' } = useParams()
@@ -139,17 +140,20 @@ function RawEventData({ event }: { event: EventDetail }) {
 }
 
 function BackToEvents() {
+  const [params] = useSearchParams()
+  const issueId = params.get('issueId')
+  const fromIssue = issueId && /^[a-f0-9]{32}$/.test(issueId)
   return (
     <Button
       component={Link}
       className={styles.backLink}
-      to="/events"
+      to={`${fromIssue ? `/issues/${issueId}` : '/events'}${listSearch(params)}`}
       variant="subtle"
       color="gray"
       size="compact-sm"
       leftSection={<ArrowLeftIcon />}
     >
-      返回事件流
+      {fromIssue ? '返回问题详情' : '返回事件流'}
     </Button>
   )
 }

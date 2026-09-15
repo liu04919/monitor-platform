@@ -13,6 +13,7 @@ import (
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/auth"
 	issuedomain "github.com/liu04919/monitor-platform/apps/server/internal/issue"
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 	"github.com/liu04919/monitor-platform/apps/server/internal/transport/http/middleware"
 )
 
@@ -33,7 +34,7 @@ func TestListReturnsIssueSummary(t *testing.T) {
 		}},
 		NextCursor: "next",
 	}}
-	recorder := performListRequest(NewHandler(service), "/api/v1/projects/project-1/issues?limit=20")
+	recorder := performListRequest(NewHandler(service), "/api/v1/projects/project-1/issues?limit=20&from=0&to=4102444800000")
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
@@ -48,6 +49,9 @@ func TestListReturnsIssueSummary(t *testing.T) {
 	if service.request.UserID != "user-1" || service.request.Limit != 20 {
 		t.Fatalf("request = %#v", service.request)
 	}
+	if service.request.TimeRange != (telemetry.TimeRange{From: 0, To: 4102444800000}) {
+		t.Fatalf("timeRange = %#v", service.request.TimeRange)
+	}
 }
 
 func TestListMapsErrors(t *testing.T) {
@@ -58,10 +62,12 @@ func TestListMapsErrors(t *testing.T) {
 		wantStatus int
 		wantCode   string
 	}{
-		{name: "invalid limit", url: "/api/v1/projects/project-1/issues?limit=0", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY"},
-		{name: "invalid cursor", serviceErr: issuedomain.ErrInvalidCursor, url: "/api/v1/projects/project-1/issues", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY"},
-		{name: "foreign project", serviceErr: issuedomain.ErrProjectNotFound, url: "/api/v1/projects/project-1/issues", wantStatus: http.StatusNotFound, wantCode: "PROJECT_NOT_FOUND"},
-		{name: "storage failure", serviceErr: errors.New("secret dsn"), url: "/api/v1/projects/project-1/issues", wantStatus: http.StatusInternalServerError, wantCode: "INTERNAL_ERROR"},
+		{name: "invalid limit", url: "/api/v1/projects/project-1/issues?limit=0&from=0&to=4102444800000", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY"},
+		{name: "missing time", url: "/api/v1/projects/project-1/issues", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY"},
+		{name: "invalid time", url: "/api/v1/projects/project-1/issues?from=20&to=10", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY"},
+		{name: "invalid cursor", serviceErr: issuedomain.ErrInvalidCursor, url: "/api/v1/projects/project-1/issues?from=0&to=4102444800000", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY"},
+		{name: "foreign project", serviceErr: issuedomain.ErrProjectNotFound, url: "/api/v1/projects/project-1/issues?from=0&to=4102444800000", wantStatus: http.StatusNotFound, wantCode: "PROJECT_NOT_FOUND"},
+		{name: "storage failure", serviceErr: errors.New("secret dsn"), url: "/api/v1/projects/project-1/issues?from=0&to=4102444800000", wantStatus: http.StatusInternalServerError, wantCode: "INTERNAL_ERROR"},
 	}
 
 	for _, test := range tests {

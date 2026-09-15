@@ -1,5 +1,6 @@
 import { Badge, Button } from '@mantine/core'
-import { Link } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { listSearch } from '@/features/time-range/model/timeRange'
 import type { IssueOccurrence } from '@/features/issues/model/issueTypes'
 import { formatFullTime } from '@/shared/lib/dateFormat'
 import { ChevronIcon } from '@/shared/ui/icons/Icons'
@@ -18,6 +19,11 @@ export function IssueOccurrenceList({
   isFetchingNextPage,
   onLoadMore,
 }: IssueOccurrenceListProps) {
+  const [params] = useSearchParams()
+  const { issueId = '' } = useParams()
+  const eventParams = new URLSearchParams(listSearch(params))
+  eventParams.set('issueId', issueId)
+  const search = `?${eventParams}`
   return (
     <section className={styles.panel} aria-labelledby="occurrence-list-title">
       <header className={styles.heading}>
@@ -37,11 +43,13 @@ export function IssueOccurrenceList({
       {occurrences.map((occurrence) => (
         <article className={`${styles.row} ${styles.occurrence}`} key={occurrence.eventId}>
           <div className={styles.identity}>
-            <Link to={`/events/${encodeURIComponent(occurrence.eventId)}`}>
+            <Link to={`/events/${encodeURIComponent(occurrence.eventId)}${search}`}>
               {occurrence.message || occurrence.eventType}
             </Link>
             <div>
-              <Badge color="red" variant="light" size="xs">{occurrence.eventType}</Badge>
+              <Badge color="red" variant="light" size="xs">
+                {occurrence.eventType}
+              </Badge>
               <span title={occurrence.pageUrl}>{occurrence.pageUrl || '未记录页面地址'}</span>
             </div>
           </div>
@@ -51,7 +59,7 @@ export function IssueOccurrenceList({
           </time>
           <Link
             className={styles.detailLink}
-            to={`/events/${encodeURIComponent(occurrence.eventId)}`}
+            to={`/events/${encodeURIComponent(occurrence.eventId)}${search}`}
             aria-label={`查看事件 ${occurrence.eventId}`}
           >
             <ChevronIcon />
@@ -71,7 +79,9 @@ export function IssueOccurrenceList({
           >
             加载更多发生记录
           </Button>
-        ) : <span>已经加载全部发生记录</span>}
+        ) : (
+          <span>已经加载全部发生记录</span>
+        )}
       </footer>
     </section>
   )

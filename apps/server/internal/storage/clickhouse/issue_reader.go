@@ -8,6 +8,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/issue"
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
 const listIssuesSQL = `
@@ -36,6 +37,8 @@ const listIssuesSQL = `
 			JSONExtractString(payload_json, 'exception', 'name') AS exception_type
 		FROM telemetry_events
 		WHERE project_id = ?
+			AND event_timestamp >= fromUnixTimestamp64Milli(?)
+			AND event_timestamp < fromUnixTimestamp64Milli(?)
 			AND category = 'error'
 			AND issue_fingerprint != ''
 	)
@@ -54,6 +57,8 @@ const listIssueOccurrencesSQL = `
 	FROM telemetry_events
 	WHERE project_id = ?
 		AND issue_fingerprint = ?
+		AND event_timestamp >= fromUnixTimestamp64Milli(?)
+		AND event_timestamp < fromUnixTimestamp64Milli(?)
 `
 
 // IssueReader 从 ClickHouse 的错误事件中读取按稳定指纹聚合的 Issue。
@@ -73,7 +78,7 @@ func (r *IssueReader) ListIssues(
 ) ([]issue.Summary, error) {
 	query := strings.Builder{}
 	query.WriteString(listIssuesSQL)
-	arguments := []any{filter.ProjectID}
+	arguments := []any{filter.ProjectID, filter.TimeRange.From, filter.TimeRange.To}
 
 	if filter.Before != nil {
 		query.WriteString("\tHAVING (last_seen, issue_fingerprint) < (fromUnixTimestamp64Milli(?), ?)\n")
@@ -119,9 +124,10 @@ func (r *IssueReader) GetIssue(
 	ctx context.Context,
 	projectID string,
 	issueID string,
+	timeRange telemetry.TimeRange,
 ) (issue.Summary, bool, error) {
 	query := listIssuesSQL + "\tHAVING issue_fingerprint = ?\n\tLIMIT 1"
-	rows, err := r.conn.Query(ctx, query, projectID, issueID)
+	rows, err := r.conn.Query(ctx, query, projectID, timeRange.From, timeRange.To, issueID)
 	if err != nil {
 		return issue.Summary{}, false, fmt.Errorf("执行 ClickHouse Issue 详情查询: %w", err)
 	}
@@ -159,7 +165,7 @@ func (r *IssueReader) ListOccurrences(
 ) ([]issue.Occurrence, error) {
 	query := strings.Builder{}
 	query.WriteString(listIssueOccurrencesSQL)
-	arguments := []any{filter.ProjectID, filter.IssueID}
+	arguments := []any{filter.ProjectID, filter.IssueID, filter.TimeRange.From, filter.TimeRange.To}
 
 	if filter.Before != nil {
 		query.WriteString("\tAND (event_timestamp, event_id) < (fromUnixTimestamp64Milli(?), ?)\n")

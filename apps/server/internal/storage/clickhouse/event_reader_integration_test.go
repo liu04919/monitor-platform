@@ -60,7 +60,8 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 	}
 
 	service := event.NewService(clickhousestore.NewEventReader(conn), allowAllProjects{})
-	firstPage, err := service.List(ctx, event.ListRequest{UserID: "user-1", ProjectID: projectID, Limit: 2})
+	timeRange := telemetry.TimeRange{From: now.Add(-time.Hour).UnixMilli(), To: now.Add(time.Hour).UnixMilli()}
+	firstPage, err := service.List(ctx, event.ListRequest{TimeRange: timeRange, UserID: "user-1", ProjectID: projectID, Limit: 2})
 	if err != nil {
 		t.Fatalf("查询第一页失败: %v", err)
 	}
@@ -73,6 +74,7 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 	}
 
 	secondPage, err := service.List(ctx, event.ListRequest{
+		TimeRange: timeRange,
 		UserID:    "user-1",
 		ProjectID: projectID,
 		Limit:     2,
@@ -87,6 +89,7 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 	}
 
 	errorPage, err := service.List(ctx, event.ListRequest{
+		TimeRange: timeRange,
 		UserID:    "user-1",
 		ProjectID: projectID,
 		Category:  telemetry.CategoryError,

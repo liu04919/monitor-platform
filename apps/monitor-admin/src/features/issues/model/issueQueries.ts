@@ -1,21 +1,26 @@
 import { infiniteQueryOptions } from '@tanstack/react-query'
 import { getIssue, listIssues } from '@/features/issues/api/issuesApi'
+import type { TimeRange } from '@/features/time-range/model/timeRange'
 
-export function issuesQueryOptions(projectId: string) {
+export function issuesQueryOptions(projectId: string, range: TimeRange | null) {
   return infiniteQueryOptions({
-    queryKey: ['projects', projectId, 'issues'] as const,
-    queryFn: ({ pageParam, signal }) => listIssues(projectId, pageParam, signal),
-    enabled: Boolean(projectId),
+    queryKey: ['projects', projectId, 'issues', range] as const,
+    queryFn: ({ pageParam, signal }) => listIssues(projectId, range!, pageParam, signal),
+    enabled: Boolean(projectId && range),
     initialPageParam: '',
     getNextPageParam: (lastPage) => lastPage.nextCursor || undefined,
   })
 }
 
-export function issueDetailQueryOptions(projectId: string, issueId: string) {
+export function issueDetailQueryOptions(
+  projectId: string,
+  issueId: string,
+  range: TimeRange | null,
+) {
   return infiniteQueryOptions({
-    queryKey: ['projects', projectId, 'issues', issueId] as const,
-    queryFn: ({ pageParam, signal }) => getIssue(projectId, issueId, pageParam, signal),
-    enabled: Boolean(projectId && issueId),
+    queryKey: ['projects', projectId, 'issues', issueId, range] as const,
+    queryFn: ({ pageParam, signal }) => getIssue(projectId, issueId, range!, pageParam, signal),
+    enabled: Boolean(projectId && issueId && range),
     initialPageParam: '',
     getNextPageParam: (lastPage) => lastPage.nextCursor || undefined,
   })

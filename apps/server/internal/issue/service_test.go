@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
 func TestServiceListPaginatesIssues(t *testing.T) {
@@ -15,6 +17,7 @@ func TestServiceListPaginatesIssues(t *testing.T) {
 	}}
 
 	page, err := NewService(store, allowProject{}).List(context.Background(), ListRequest{
+		TimeRange: telemetry.TimeRange{From: 1000, To: 4000},
 		UserID:    "user-1",
 		ProjectID: "project-1",
 		Limit:     2,
@@ -74,6 +77,7 @@ func TestServiceDetailPaginatesOccurrences(t *testing.T) {
 	}
 
 	page, err := NewService(store, allowProject{}).Detail(context.Background(), DetailRequest{
+		TimeRange: telemetry.TimeRange{From: 1000, To: 4000},
 		UserID:    "user-1",
 		ProjectID: "project-1",
 		IssueID:   issueID,
@@ -112,7 +116,7 @@ func TestServiceDetailValidatesInputAuthorizationAndExistence(t *testing.T) {
 		{name: "invalid limit", request: DetailRequest{ProjectID: "project-1", IssueID: issueID, Limit: MaxLimit + 1}, store: &stubStore{}, authorizer: allowProject{}, wantErr: ErrInvalidLimit},
 		{name: "invalid cursor", request: DetailRequest{ProjectID: "project-1", IssueID: issueID, Cursor: "invalid"}, store: &stubStore{}, authorizer: allowProject{}, wantErr: ErrInvalidCursor},
 		{name: "foreign project", request: DetailRequest{ProjectID: "project-1", IssueID: issueID}, store: &stubStore{}, authorizer: denyProject{}, wantErr: ErrProjectNotFound},
-		{name: "missing issue", request: DetailRequest{ProjectID: "project-1", IssueID: issueID}, store: &stubStore{}, authorizer: allowProject{}, wantErr: ErrIssueNotFound},
+		{name: "missing issue", request: DetailRequest{ProjectID: "project-1", IssueID: issueID, TimeRange: telemetry.TimeRange{From: 1000, To: 4000}}, store: &stubStore{}, authorizer: allowProject{}, wantErr: ErrIssueNotFound},
 	}
 
 	for _, test := range tests {
@@ -133,6 +137,7 @@ type stubStore struct {
 	err              error
 	filter           ListFilter
 	occurrenceFilter OccurrenceFilter
+	summaryRange     telemetry.TimeRange
 }
 
 func (s *stubStore) ListIssues(_ context.Context, filter ListFilter) ([]Summary, error) {
@@ -140,7 +145,8 @@ func (s *stubStore) ListIssues(_ context.Context, filter ListFilter) ([]Summary,
 	return s.issues, s.err
 }
 
-func (s *stubStore) GetIssue(_ context.Context, _, _ string) (Summary, bool, error) {
+func (s *stubStore) GetIssue(_ context.Context, _, _ string, timeRange telemetry.TimeRange) (Summary, bool, error) {
+	s.summaryRange = timeRange
 	return s.issue, s.found, s.err
 }
 

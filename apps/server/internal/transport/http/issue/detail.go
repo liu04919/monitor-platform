@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	issuedomain "github.com/liu04919/monitor-platform/apps/server/internal/issue"
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 	"github.com/liu04919/monitor-platform/apps/server/internal/transport/http/middleware"
 	"github.com/liu04919/monitor-platform/apps/server/internal/transport/http/response"
 )
@@ -24,7 +25,13 @@ func (h *Handler) Detail(c *gin.Context) {
 		return
 	}
 
+	timeRange, err := telemetry.ParseTimeRange(c.Query("from"), c.Query("to"))
+	if err != nil {
+		writeQueryError(c, err)
+		return
+	}
 	page, err := h.service.Detail(c.Request.Context(), issuedomain.DetailRequest{
+		TimeRange: timeRange,
 		UserID:    user.ID,
 		ProjectID: c.Param("projectId"),
 		IssueID:   c.Param("issueId"),
@@ -62,7 +69,7 @@ func writeDetailError(c *gin.Context, err error) {
 		response.WriteError(c, http.StatusBadRequest, "INVALID_PATH", "projectId is required", &response.ErrorDetails{Field: "projectId"})
 	case errors.Is(err, issuedomain.ErrInvalidIssueID):
 		response.WriteError(c, http.StatusBadRequest, "INVALID_PATH", "issueId is invalid", &response.ErrorDetails{Field: "issueId"})
-	case errors.Is(err, issuedomain.ErrInvalidLimit), errors.Is(err, issuedomain.ErrInvalidCursor):
+	case errors.Is(err, telemetry.ErrInvalidTimeRange), errors.Is(err, issuedomain.ErrInvalidLimit), errors.Is(err, issuedomain.ErrInvalidCursor):
 		writeQueryError(c, err)
 	case errors.Is(err, issuedomain.ErrIssueNotFound):
 		response.WriteError(c, http.StatusNotFound, "ISSUE_NOT_FOUND", "issue was not found in the requested project", nil)

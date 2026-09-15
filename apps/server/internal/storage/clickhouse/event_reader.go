@@ -35,6 +35,8 @@ const listTelemetryEventsSQL = `
 		received_at
 	FROM telemetry_events
 	WHERE project_id = ?
+		AND event_timestamp >= fromUnixTimestamp64Milli(?)
+		AND event_timestamp < fromUnixTimestamp64Milli(?)
 `
 
 const getTelemetryEventSQL = `
@@ -79,7 +81,7 @@ func (r *EventReader) List(
 ) ([]event.EventSummary, error) {
 	query := strings.Builder{}
 	query.WriteString(listTelemetryEventsSQL)
-	arguments := []any{filter.ProjectID}
+	arguments := []any{filter.ProjectID, filter.TimeRange.From, filter.TimeRange.To}
 
 	if filter.Category != "" {
 		query.WriteString("\tAND category = ?\n")

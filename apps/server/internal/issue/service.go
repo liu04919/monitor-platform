@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
 const (
@@ -70,12 +72,14 @@ type OccurrenceCursorKey struct {
 }
 
 type ListFilter struct {
+	TimeRange telemetry.TimeRange
 	ProjectID string
 	Before    *CursorKey
 	Limit     int
 }
 
 type OccurrenceFilter struct {
+	TimeRange telemetry.TimeRange
 	ProjectID string
 	IssueID   string
 	Before    *OccurrenceCursorKey
@@ -84,7 +88,7 @@ type OccurrenceFilter struct {
 
 type Store interface {
 	ListIssues(ctx context.Context, filter ListFilter) ([]Summary, error)
-	GetIssue(ctx context.Context, projectID, issueID string) (Summary, bool, error)
+	GetIssue(ctx context.Context, projectID, issueID string, timeRange telemetry.TimeRange) (Summary, bool, error)
 	ListOccurrences(ctx context.Context, filter OccurrenceFilter) ([]Occurrence, error)
 }
 
@@ -93,6 +97,7 @@ type ProjectAuthorizer interface {
 }
 
 type ListRequest struct {
+	TimeRange telemetry.TimeRange
 	UserID    string
 	ProjectID string
 	Limit     int
@@ -105,6 +110,7 @@ type ListPage struct {
 }
 
 type DetailRequest struct {
+	TimeRange telemetry.TimeRange
 	UserID    string
 	ProjectID string
 	IssueID   string
@@ -158,7 +164,11 @@ func (s *Service) List(ctx context.Context, request ListRequest) (ListPage, erro
 		before = &decoded
 	}
 
+	if err := request.TimeRange.Validate(); err != nil {
+		return ListPage{}, err
+	}
 	issues, err := s.store.ListIssues(ctx, ListFilter{
+		TimeRange: request.TimeRange,
 		ProjectID: projectID,
 		Before:    before,
 		Limit:     limit + 1,
@@ -218,7 +228,10 @@ func (s *Service) Detail(ctx context.Context, request DetailRequest) (DetailPage
 		before = &decoded
 	}
 
-	summary, found, err := s.store.GetIssue(ctx, projectID, issueID)
+	if err := request.TimeRange.Validate(); err != nil {
+		return DetailPage{}, err
+	}
+	summary, found, err := s.store.GetIssue(ctx, projectID, issueID, request.TimeRange)
 	if err != nil {
 		return DetailPage{}, fmt.Errorf("查询 Issue 详情: %w", err)
 	}
@@ -227,6 +240,7 @@ func (s *Service) Detail(ctx context.Context, request DetailRequest) (DetailPage
 	}
 
 	occurrences, err := s.store.ListOccurrences(ctx, OccurrenceFilter{
+		TimeRange: request.TimeRange,
 		ProjectID: projectID,
 		IssueID:   issueID,
 		Before:    before,

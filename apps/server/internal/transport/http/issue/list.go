@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	issuedomain "github.com/liu04919/monitor-platform/apps/server/internal/issue"
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 	"github.com/liu04919/monitor-platform/apps/server/internal/transport/http/middleware"
 	"github.com/liu04919/monitor-platform/apps/server/internal/transport/http/response"
 )
@@ -25,7 +26,13 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
+	timeRange, err := telemetry.ParseTimeRange(c.Query("from"), c.Query("to"))
+	if err != nil {
+		writeQueryError(c, err)
+		return
+	}
 	page, err := h.service.List(c.Request.Context(), issuedomain.ListRequest{
+		TimeRange: timeRange,
 		UserID:    user.ID,
 		ProjectID: c.Param("projectId"),
 		Limit:     limit,
@@ -62,6 +69,8 @@ func parseOptionalLimit(value string) (int, error) {
 
 func writeListError(c *gin.Context, err error) {
 	switch {
+	case errors.Is(err, telemetry.ErrInvalidTimeRange):
+		writeQueryError(c, err)
 	case errors.Is(err, issuedomain.ErrProjectIDRequired):
 		writeQueryError(c, issuedomain.ErrProjectIDRequired)
 	case errors.Is(err, issuedomain.ErrInvalidLimit):
@@ -80,6 +89,9 @@ func writeQueryError(c *gin.Context, err error) {
 	message := "query parameters are invalid"
 
 	switch {
+	case errors.Is(err, telemetry.ErrInvalidTimeRange):
+		field = "timeRange"
+		message = telemetry.ErrInvalidTimeRange.Error()
 	case errors.Is(err, issuedomain.ErrProjectIDRequired):
 		field = "projectId"
 		message = "projectId is required"

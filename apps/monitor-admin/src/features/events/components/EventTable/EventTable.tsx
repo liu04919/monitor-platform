@@ -1,5 +1,6 @@
 import { ActionIcon, Badge, Button } from '@mantine/core'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { listSearch } from '@/features/time-range/model/timeRange'
 import type { EventSummary } from '@/features/events/model/eventTypes'
 import { displayEventName } from '@/features/events/model/eventFormatters'
 import { formatTime } from '@/shared/lib/dateFormat'
@@ -20,6 +21,8 @@ export function EventTable({
   isFetchingNextPage,
   onLoadMore,
 }: EventTableProps) {
+  const [params] = useSearchParams()
+  const search = listSearch(params)
   return (
     <>
       <div className={`${styles.row} ${styles.header}`} aria-hidden="true">
@@ -37,7 +40,7 @@ export function EventTable({
             </span>
             <div>
               <Link
-                to={`/events/${encodeURIComponent(event.eventId)}`}
+                to={`/events/${encodeURIComponent(event.eventId)}${search}`}
                 title={displayEventName(event)}
               >
                 {displayEventName(event)}
@@ -65,7 +68,7 @@ export function EventTable({
             </Badge>
             <ActionIcon
               component={Link}
-              to={`/events/${encodeURIComponent(event.eventId)}`}
+              to={`/events/${encodeURIComponent(event.eventId)}${search}`}
               variant="subtle"
               color="gray"
               aria-label={`查看 ${displayEventName(event)} 详情`}

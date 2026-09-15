@@ -13,6 +13,7 @@ import (
 	"github.com/liu04919/monitor-platform/apps/server/internal/database"
 	"github.com/liu04919/monitor-platform/apps/server/internal/issue"
 	clickhousestore "github.com/liu04919/monitor-platform/apps/server/internal/storage/clickhouse"
+	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
 func TestIssueReaderAggregatesMatchingFingerprints(t *testing.T) {
@@ -38,14 +39,14 @@ func TestIssueReaderAggregatesMatchingFingerprints(t *testing.T) {
 			event_id, category, event_type, event_timestamp, page_url,
 			user_id, level, breadcrumbs_json, replay_data, payload_json, issue_fingerprint
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, fromUnixTimestamp64Milli(?), ?, ?, ?, fromUnixTimestamp64Milli(?), ?, ?, ?, ?, ?, ?, ?)
 	`
 	for index, userID := range []string{"user-1", "user-2"} {
 		if err := conn.Exec(
 			ctx,
 			insertSQL,
-			uint16(2), projectID, "IssueReader 测试", "batch-1", "fetch", now,
-			"event-"+userID, "error", "js_error", now.Add(time.Duration(index)*time.Millisecond),
+			uint16(2), projectID, "IssueReader 测试", "batch-1", "fetch", now.UnixMilli(),
+			"event-"+userID, "error", "js_error", now.Add(time.Duration(index)*time.Millisecond).UnixMilli(),
 			"https://example.com/profile", userID, "error", "[]", nil, payload, issueID,
 		); err != nil {
 			t.Fatalf("写入测试事件失败: %v", err)
@@ -64,7 +65,9 @@ func TestIssueReaderAggregatesMatchingFingerprints(t *testing.T) {
 	})
 
 	reader := clickhousestore.NewIssueReader(conn)
+	timeRange := telemetry.TimeRange{From: now.UnixMilli(), To: now.Add(time.Second).UnixMilli()}
 	issues, err := reader.ListIssues(ctx, issue.ListFilter{
+		TimeRange: timeRange,
 		ProjectID: projectID,
 		Limit:     30,
 	})
@@ -72,6 +75,9 @@ func TestIssueReaderAggregatesMatchingFingerprints(t *testing.T) {
 		t.Fatalf("ListIssues() error = %v", err)
 	}
 
+	if len(issues) != 1 {
+		t.Fatalf("len(issues) = %d, want 1", len(issues))
+	}
 	for _, summary := range issues {
 		if summary.EventType == "js_error" && summary.Title == "profile failed" {
 			if summary.EventCount != 2 || summary.AffectedUsers != 2 {
@@ -81,7 +87,7 @@ func TestIssueReaderAggregatesMatchingFingerprints(t *testing.T) {
 		}
 	}
 
-	summary, found, err := reader.GetIssue(ctx, projectID, issueID)
+	summary, found, err := reader.GetIssue(ctx, projectID, issueID, timeRange)
 	if err != nil {
 		t.Fatalf("GetIssue() error = %v", err)
 	}
@@ -90,6 +96,7 @@ func TestIssueReaderAggregatesMatchingFingerprints(t *testing.T) {
 	}
 
 	firstPage, err := reader.ListOccurrences(ctx, issue.OccurrenceFilter{
+		TimeRange: timeRange,
 		ProjectID: projectID,
 		IssueID:   issueID,
 		Limit:     1,
@@ -102,6 +109,7 @@ func TestIssueReaderAggregatesMatchingFingerprints(t *testing.T) {
 	}
 
 	secondPage, err := reader.ListOccurrences(ctx, issue.OccurrenceFilter{
+		TimeRange: timeRange,
 		ProjectID: projectID,
 		IssueID:   issueID,
 		Before: &issue.OccurrenceCursorKey{

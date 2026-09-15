@@ -45,7 +45,7 @@ func TestEventHandlerReturnsPage(t *testing.T) {
 
 	recorder := performEventListRequest(
 		NewHandler(service),
-		"/api/v1/projects/project-1/events?category=error&eventType=js_error&limit=20&cursor=current-cursor",
+		"/api/v1/projects/project-1/events?category=error&eventType=js_error&limit=20&cursor=current-cursor&from=0&to=4102444800000",
 	)
 
 	if recorder.Code != http.StatusOK {
@@ -53,6 +53,9 @@ func TestEventHandlerReturnsPage(t *testing.T) {
 	}
 	if service.calls != 1 {
 		t.Fatalf("service calls = %d, want 1", service.calls)
+	}
+	if service.request.TimeRange != (telemetry.TimeRange{From: 0, To: 4102444800000}) {
+		t.Fatalf("时间区间未传给 service: %#v", service.request.TimeRange)
 	}
 	if service.request.ProjectID != "project-1" ||
 		service.request.Category != telemetry.CategoryError ||
@@ -89,11 +92,14 @@ func TestEventHandlerMapsListErrors(t *testing.T) {
 		wantCalls     int
 		forbiddenText string
 	}{
-		{name: "limit syntax", url: "/api/v1/projects/project-1/events?limit=abc", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "limit"},
-		{name: "invalid category", url: "/api/v1/projects/project-1/events", serviceError: eventdomain.ErrInvalidCategory, wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "category", wantCalls: 1},
-		{name: "invalid cursor", url: "/api/v1/projects/project-1/events", serviceError: eventdomain.ErrInvalidCursor, wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "cursor", wantCalls: 1},
-		{name: "project not found", url: "/api/v1/projects/project-1/events", serviceError: eventdomain.ErrProjectNotFound, wantStatus: http.StatusNotFound, wantCode: "PROJECT_NOT_FOUND", wantCalls: 1},
-		{name: "storage failure", url: "/api/v1/projects/project-1/events", serviceError: internalError, wantStatus: http.StatusInternalServerError, wantCode: "INTERNAL_ERROR", wantCalls: 1, forbiddenText: "password"},
+		{name: "limit syntax", url: "/api/v1/projects/project-1/events?limit=abc&from=0&to=4102444800000", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "limit"},
+		{name: "missing time", url: "/api/v1/projects/project-1/events", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "timeRange"},
+		{name: "reversed time", url: "/api/v1/projects/project-1/events?from=100&to=99", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "timeRange"},
+		{name: "invalid milliseconds", url: "/api/v1/projects/project-1/events?from=abc&to=100", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "timeRange"},
+		{name: "invalid category", url: "/api/v1/projects/project-1/events?from=0&to=4102444800000", serviceError: eventdomain.ErrInvalidCategory, wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "category", wantCalls: 1},
+		{name: "invalid cursor", url: "/api/v1/projects/project-1/events?from=0&to=4102444800000", serviceError: eventdomain.ErrInvalidCursor, wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "cursor", wantCalls: 1},
+		{name: "project not found", url: "/api/v1/projects/project-1/events?from=0&to=4102444800000", serviceError: eventdomain.ErrProjectNotFound, wantStatus: http.StatusNotFound, wantCode: "PROJECT_NOT_FOUND", wantCalls: 1},
+		{name: "storage failure", url: "/api/v1/projects/project-1/events?from=0&to=4102444800000", serviceError: internalError, wantStatus: http.StatusInternalServerError, wantCode: "INTERNAL_ERROR", wantCalls: 1, forbiddenText: "password"},
 	}
 
 	for _, test := range tests {

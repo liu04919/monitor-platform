@@ -53,6 +53,7 @@ type CursorKey struct {
 
 // ListFilter 是查询存储层使用的已校验条件。
 type ListFilter struct {
+	TimeRange telemetry.TimeRange
 	ProjectID string
 	Category  telemetry.Category
 	EventType string
@@ -71,6 +72,7 @@ type ProjectAuthorizer interface {
 }
 
 type ListRequest struct {
+	TimeRange telemetry.TimeRange
 	UserID    string
 	ProjectID string
 	Category  telemetry.Category
@@ -122,7 +124,11 @@ func (s *Service) List(ctx context.Context, request ListRequest) (ListPage, erro
 		before = &decoded
 	}
 
+	if err := request.TimeRange.Validate(); err != nil {
+		return ListPage{}, err
+	}
 	events, err := s.store.List(ctx, ListFilter{
+		TimeRange: request.TimeRange,
 		ProjectID: projectID,
 		Category:  request.Category,
 		EventType: strings.TrimSpace(request.EventType),

@@ -1,7 +1,7 @@
 import { MantineProvider } from '@mantine/core'
 import { gzipSync } from 'node:zlib'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -174,13 +174,14 @@ function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
 function renderRoute(path: string) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const router = createMemoryRouter(appRoutes, { initialEntries: [path] })
-  return render(
+  const result = render(
     <MantineProvider theme={monitorTheme} defaultColorScheme="light" env="test">
       <QueryClientProvider client={queryClient}>
         <RouterProvider router={router} />
       </QueryClientProvider>
     </MantineProvider>,
   )
+  return { ...result, router }
 }
 
 describe('admin event routes', () => {
@@ -201,7 +202,7 @@ describe('admin event routes', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Cannot read profile' }))
     expect(await screen.findByRole('heading', { name: 'Cannot read profile' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '发生记录' })).toBeInTheDocument()
-    expect(screen.getByText('累计事件').nextElementSibling).toHaveTextContent('3')
+    expect(screen.getByText('事件数').nextElementSibling).toHaveTextContent('3')
     expect(
       fetchMock.mock.calls.some(([input]) => String(input).includes(`/issues/${issueSummary.id}?`)),
     ).toBe(true)
@@ -223,7 +224,7 @@ describe('admin event routes', () => {
     )
     renderRoute('/issues')
 
-    expect(await screen.findByRole('heading', { name: '暂无问题' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: '所选时段暂无问题' })).toBeInTheDocument()
     expect(screen.queryByText(/自动聚合|异常位置/)).not.toBeInTheDocument()
   })
 
@@ -579,5 +580,150 @@ describe('admin event routes', () => {
         ([input, init]) => String(input).endsWith('/auth/logout') && init?.method === 'DELETE',
       ),
     ).toBe(true)
+  })
+})
+
+describe('时间范围与查询导航', () => {
+  beforeEach(() => {
+    useAdminStore.setState({ projectId: primaryProjectId })
+    vi.restoreAllMocks()
+  })
+
+  const fixed = 'from=1787060000123&to=1787068800456&range=custom'
+
+  it('默认区间写入 URL，刷新预设才推进窗口', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1789444800123)
+    const fetchMock = vi.fn(successfulFetch)
+    vi.stubGlobal('fetch', fetchMock)
+    const { router } = renderRoute('/events')
+    await screen.findByText('Cannot read profile')
+    const original = new URLSearchParams(router.state.location.search)
+    expect(Number(original.get('to')) - Number(original.get('from'))).toBe(86400000)
+    expect(original.get('to')).toBe('1789444800123')
+    now.mockReturnValue(1789444805123)
+    fireEvent.click(screen.getByRole('button', { name: '刷新事件' }))
+    await waitFor(() =>
+      expect(new URLSearchParams(router.state.location.search).get('to')).toBe('1789444805123'),
+    )
+    await screen.findByText('Cannot read profile')
+  })
+
+  it('翻页保持区间，选择新时间从第一页开始', async () => {
+    const calls: URLSearchParams[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(String(input), 'http://localhost')
+        if (url.pathname.endsWith('/events')) {
+          calls.push(url.searchParams)
+          const nextPage = url.searchParams.has('cursor')
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              data: {
+                events: [
+                  {
+                    ...eventSummary,
+                    eventId: nextPage ? 'event-2' : 'event-1',
+                    message: nextPage ? '第二页错误' : '第一页错误',
+                  },
+                ],
+                nextCursor: nextPage ? '' : 'cursor-1',
+              },
+            }),
+          } as Response)
+        }
+        return successfulFetch(input, init)
+      }),
+    )
+    renderRoute('/events?' + fixed + '&category=error')
+    await screen.findByText('第一页错误')
+    fireEvent.click(screen.getByRole('button', { name: '加载更多' }))
+    await screen.findByText('第二页错误')
+    expect(calls[1].get('cursor')).toBe('cursor-1')
+    expect(calls[1].get('from')).toBe(calls[0].get('from'))
+    expect(calls[1].get('to')).toBe(calls[0].get('to'))
+    fireEvent.click(screen.getByRole('button', { name: '时间范围：自定义时间' }))
+    fireEvent.click(screen.getByRole('button', { name: '最近 1 小时' }))
+    await waitFor(() => expect(calls).toHaveLength(3))
+    expect(calls[2].has('cursor')).toBe(false)
+    expect(calls[2].get('category')).toBe('error')
+    expect(Number(calls[2].get('to')) - Number(calls[2].get('from'))).toBe(3600000)
+    expect(screen.queryByText('第二页错误')).not.toBeInTheDocument()
+  })
+
+  it('事件详情切换页签再返回仍保留时间和类型筛选', async () => {
+    vi.stubGlobal('fetch', vi.fn(successfulFetch))
+    const { router } = renderRoute('/events?' + fixed + '&category=error&eventType=js_error')
+    fireEvent.click(await screen.findByRole('link', { name: 'Cannot read profile' }))
+    await screen.findByRole('heading', { name: 'Cannot read profile' })
+    fireEvent.click(screen.getByRole('tab', { name: '原始数据' }))
+    fireEvent.click(screen.getByRole('link', { name: '返回事件流' }))
+    await screen.findByRole('heading', { name: '事件流' })
+    expect(router.state.location.search).toBe('?' + fixed + '&category=error&eventType=js_error')
+  })
+
+  it('问题、发生记录、最近事件共用区间，逐级返回不丢条件', async () => {
+    const fetchMock = vi.fn(successfulFetch)
+    vi.stubGlobal('fetch', fetchMock)
+    const { router } = renderRoute('/issues?' + fixed)
+    fireEvent.click(await screen.findByRole('link', { name: 'Cannot read profile' }))
+    await screen.findByRole('heading', { name: '发生记录' })
+    expect(
+      screen.getByRole('link', { name: 'Cannot read profile' }).getAttribute('href'),
+    ).toContain(fixed)
+    fireEvent.click(screen.getByRole('link', { name: '查看最近事件' }))
+    await screen.findByRole('heading', { name: 'Cannot read profile' })
+    fireEvent.click(screen.getByRole('link', { name: '返回问题详情' }))
+    await screen.findByRole('heading', { name: '发生记录' })
+    fireEvent.click(screen.getByRole('link', { name: '返回问题列表' }))
+    await screen.findByRole('heading', { name: '问题' })
+    expect(router.state.location.search).toBe('?' + fixed)
+    for (const [input] of fetchMock.mock.calls) {
+      const url = new URL(String(input), 'http://localhost')
+      if (url.pathname.includes('/issues')) {
+        expect(url.searchParams.get('from')).toBe('1787060000123')
+        expect(url.searchParams.get('to')).toBe('1787068800456')
+      }
+    }
+  })
+
+  it('自定义范围校验，不发送颠倒区间，应用后支持浏览器后退', async () => {
+    const fetchMock = vi.fn(successfulFetch)
+    vi.stubGlobal('fetch', fetchMock)
+    const { router } = renderRoute('/events?' + fixed)
+    await screen.findByText('Cannot read profile')
+    fireEvent.click(screen.getByRole('button', { name: '时间范围：自定义时间' }))
+    fireEvent.change(screen.getByLabelText('开始时间'), { target: { value: '2026-09-15T12:00' } })
+    fireEvent.change(screen.getByLabelText('结束时间'), { target: { value: '2026-09-14T12:00' } })
+    fireEvent.click(screen.getByRole('button', { name: '应用时间范围' }))
+    await screen.findByText('结束时间须晚于开始时间，且不晚于 2100 年')
+    expect(router.state.location.search).toBe('?' + fixed)
+    fireEvent.change(screen.getByLabelText('结束时间'), { target: { value: '2026-09-16T12:00' } })
+    await waitFor(() =>
+      expect(
+        screen.queryByText('结束时间须晚于开始时间，且不晚于 2100 年'),
+      ).not.toBeInTheDocument(),
+    )
+    fireEvent.click(screen.getByRole('button', { name: '应用时间范围' }))
+    await waitFor(() =>
+      expect(new URLSearchParams(router.state.location.search).get('from')).toBe(
+        String(new Date('2026-09-15T12:00').getTime()),
+      ),
+    )
+    await act(() => router.navigate(-1))
+    expect(router.state.location.search).toBe('?' + fixed)
+  })
+
+  it('URL 时间无效时不请求，用户重新选择后恢复', async () => {
+    const fetchMock = vi.fn(successfulFetch)
+    vi.stubGlobal('fetch', fetchMock)
+    renderRoute('/issues?from=200&to=100')
+    await screen.findByText('时间范围无效，请重新选择')
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/issues?'))).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: '时间范围：选择时间' }))
+    fireEvent.click(screen.getByRole('button', { name: '最近 7 天' }))
+    await screen.findByText('Cannot read profile')
   })
 })

@@ -1,0 +1,18 @@
+.trigger {
+  height: 38px;
+  border-color: var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+.trigger svg {
+  width: 14px;
+  height: 14px;
+  transform: rotate(90deg);
+  color: var(--muted);
+}
+.dropdown {
+  padding: 20px;
+  border-color: var(--line);
+}

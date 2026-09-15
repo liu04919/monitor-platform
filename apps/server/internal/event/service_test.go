@@ -21,6 +21,7 @@ func TestServiceListCreatesStableNextCursor(t *testing.T) {
 	}
 
 	page, err := NewService(store, allowProject()).List(context.Background(), ListRequest{
+		TimeRange: telemetry.TimeRange{From: timestamp.UnixMilli(), To: timestamp.Add(time.Hour).UnixMilli()},
 		UserID:    "user-1",
 		ProjectID: " project-1 ",
 		Category:  telemetry.CategoryError,
@@ -58,6 +59,7 @@ func TestServiceListContinuesFromCursor(t *testing.T) {
 	store := &stubStore{}
 
 	page, err := NewService(store, allowProject()).List(context.Background(), ListRequest{
+		TimeRange: telemetry.TimeRange{From: timestamp.Add(-time.Hour).UnixMilli(), To: timestamp.Add(time.Hour).UnixMilli()},
 		UserID:    "user-1",
 		ProjectID: "project-1",
 		Cursor:    cursor,
@@ -110,7 +112,7 @@ func TestServiceListWrapsStoreError(t *testing.T) {
 	storeError := errors.New("clickhouse unavailable")
 	store := &stubStore{err: storeError}
 
-	_, err := NewService(store, allowProject()).List(context.Background(), ListRequest{UserID: "user-1", ProjectID: "project-1"})
+	_, err := NewService(store, allowProject()).List(context.Background(), ListRequest{UserID: "user-1", ProjectID: "project-1", TimeRange: telemetry.TimeRange{From: 0, To: 10000}})
 	if !errors.Is(err, storeError) {
 		t.Fatalf("List() error = %v, want wrapped %v", err, storeError)
 	}

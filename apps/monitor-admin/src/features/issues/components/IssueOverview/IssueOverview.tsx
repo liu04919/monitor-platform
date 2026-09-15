@@ -1,5 +1,6 @@
 import { Button } from '@mantine/core'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
+import { listSearch } from '@/features/time-range/model/timeRange'
 import type { IssueSummary } from '@/features/issues/model/issueTypes'
 import { formatFullTime } from '@/shared/lib/dateFormat'
 import { ExternalIcon } from '@/shared/ui/icons/Icons'
@@ -12,15 +13,18 @@ interface IssueOverviewProps {
 }
 
 export function IssueOverview({ issue }: IssueOverviewProps) {
+  const [params] = useSearchParams()
+  const eventParams = new URLSearchParams(listSearch(params))
+  eventParams.set('issueId', issue.id)
   return (
     <section className={styles.card} aria-labelledby="issue-overview-title">
       <div className={styles.header}>
         <div>
-          <h2 id="issue-overview-title">问题概览</h2>
+          <h2 id="issue-overview-title">所选时段概览</h2>
         </div>
         <Button
           component={Link}
-          to={`/events/${encodeURIComponent(issue.latestEventId)}`}
+          to={`/events/${encodeURIComponent(issue.latestEventId)}?${eventParams}`}
           variant="default"
           size="compact-sm"
         >
@@ -30,7 +34,7 @@ export function IssueOverview({ issue }: IssueOverviewProps) {
 
       <dl className={styles.metrics}>
         <div>
-          <dt>累计事件</dt>
+          <dt>事件数</dt>
           <dd>{numberFormatter.format(issue.eventCount)}</dd>
         </div>
         <div>
@@ -50,11 +54,18 @@ export function IssueOverview({ issue }: IssueOverviewProps) {
       <div className={styles.location}>
         <span>最近页面</span>
         {issue.latestPageUrl ? (
-          <a href={issue.latestPageUrl} target="_blank" rel="noreferrer" title={issue.latestPageUrl}>
+          <a
+            href={issue.latestPageUrl}
+            target="_blank"
+            rel="noreferrer"
+            title={issue.latestPageUrl}
+          >
             {issue.latestPageUrl}
             <ExternalIcon />
           </a>
-        ) : <strong>未记录页面地址</strong>}
+        ) : (
+          <strong>未记录页面地址</strong>
+        )}
       </div>
     </section>
   )

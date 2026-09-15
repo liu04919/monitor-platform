@@ -112,6 +112,25 @@ GET /api/v1/projects/{projectId}
 该字段，详情接口则允许已登录的项目所有者随时重新复制 SDK 配置。数据库故障返回不暴露内部
 错误的 `500 INTERNAL_ERROR`。
 
+## 查询时间范围
+
+事件列表、Issue 列表、Issue 详情均要求 `from` 和 `to` 两个查询参数，使用 Unix 毫秒整数。
+有效范围为 `0 <= from < to <= 4102444800000`（2100-01-01 UTC）。缺失、非整数、倒序或越界
+返回 `400 INVALID_QUERY`，`details.field` 为 `timeRange`。
+
+按事件发生时间 `event_timestamp` 过滤，区间为 **`[from, to)`**，包含开始时刻，不包含结束时刻。
+ClickHouse 显式使用 `fromUnixTimestamp64Milli` 保留毫秒精度。不是按接收时间筛选。
+
+管理端默认最近 24 小时，支持最近 1 小时、7 天和自定义本地时间。选择预设时先固定绝对起止时间，
+再写入 URL；翻页和查看详情沿用同一区间。刷新预设时重新计算区间，刷新自定义范围时保持原区间。
+查询接口只接收绝对时间，不在每一页请求时计算“当前时间”。修改筛选条件后必须丢弃旧游标。
+
+Issue 的 `eventCount`、`affectedUsers`、`firstSeen`、`lastSeen` 和最近事件字段都只统计所选区间。
+列表和详情使用同一个过滤口径；区间内没有发生记录时，详情返回 `404 ISSUE_NOT_FOUND`。
+单个事件详情仍按 `eventId` 读取，不要求时间参数。
+
+示例：`?from=1787328000000&to=1787414400000&limit=30`。
+
 ## Issue 列表
 
 ```http
@@ -124,6 +143,7 @@ Issue 只聚合 `category=error` 的事件。Go 在事件写入 ClickHouse 前�
 查询参数：
 
 - `limit`：可选，默认 `30`，范围 `1..100`
+- `from`、`to`：必填，见「查询时间范围」
 - `cursor`：可选，上一页返回的不透明游标
 
 ```json
@@ -164,6 +184,7 @@ GET /api/v1/projects/{projectId}/issues/{issueId}
 查询参数：
 
 - `limit`：可选，发生记录每页数量，默认 `30`，范围 `1..100`
+- `from`、`to`：必填，摘要和发生记录共用该时间区间
 - `cursor`：可选，上一页返回的不透明发生记录游标
 
 ```json
@@ -210,6 +231,7 @@ GET /api/v1/projects/{projectId}/events
 
 | 参数 | 必填 | 含义 |
 | --- | --- | --- |
+| `from`、`to` | 是 | 事件发生时间区间 `[from, to)`，Unix 毫秒整数。 |
 | `category` | 否 | `error`、`performance`、`behavior`、`stability` 或 `ai`。 |
 | `eventType` | 否 | category 下的具体事件类型。 |
 | `limit` | 否 | 每页数量，默认 50，范围 1 到 100。 |
