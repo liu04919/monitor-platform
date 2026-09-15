@@ -46,14 +46,25 @@ export function withTimeRange(params: URLSearchParams, range: TimeRange) {
   next.set('from', String(range.from))
   next.set('to', String(range.to))
   next.set('range', range.preset)
-  next.delete('cursor')
+  next.delete('page')
+  next.delete('issuesPage')
   return next
 }
 
 // 详情页只携带列表筛选字段，不把录屏页签等详情状态带回列表。
 export function listSearch(params: URLSearchParams) {
   const result = new URLSearchParams()
-  for (const key of ['from', 'to', 'range', 'category', 'eventType']) {
+  for (const key of [
+    'from',
+    'to',
+    'range',
+    'category',
+    'eventType',
+    'page',
+    'pageSize',
+    'issuesPage',
+    'issuesPageSize',
+  ]) {
     const value = params.get(key)
     if (value) result.set(key, value)
   }

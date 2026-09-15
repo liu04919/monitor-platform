@@ -2,79 +2,40 @@ package event
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
-func TestServiceListCreatesStableNextCursor(t *testing.T) {
-	timestamp := time.Date(2026, 8, 18, 12, 0, 0, 456_000_000, time.UTC)
-	store := &stubStore{
-		events: []EventSummary{
-			{EventID: "event-3", Timestamp: timestamp.Add(2 * time.Millisecond)},
-			{EventID: "event-2", Timestamp: timestamp.Add(time.Millisecond)},
-			{EventID: "event-1", Timestamp: timestamp},
-		},
-	}
-
+func TestServiceListUsesPageOffsetAndTotal(t *testing.T) {
+	store := &stubStore{events: []EventSummary{{EventID: "event-1"}}, total: 61}
 	page, err := NewService(store, allowProject()).List(context.Background(), ListRequest{
-		TimeRange: telemetry.TimeRange{From: timestamp.UnixMilli(), To: timestamp.Add(time.Hour).UnixMilli()},
-		UserID:    "user-1",
-		ProjectID: " project-1 ",
-		Category:  telemetry.CategoryError,
-		EventType: " exception ",
-		Limit:     2,
+		TimeRange: telemetry.TimeRange{From: 0, To: 10000},
+		UserID:    "user-1", ProjectID: " project-1 ", Category: telemetry.CategoryError,
+		EventType: " js_error ", Pagination: telemetry.Pagination{Page: 3, PageSize: 30},
 	})
 	if err != nil {
-		t.Fatalf("List() error = %v", err)
+		t.Fatal(err)
 	}
-	if len(page.Events) != 2 {
-		t.Fatalf("len(Events) = %d, want 2", len(page.Events))
+	if page.Page != 3 || page.PageSize != 30 || page.Total != 61 || len(page.Events) != 1 {
+		t.Fatalf("page = %#v", page)
 	}
-	if page.NextCursor == "" {
-		t.Fatal("NextCursor 为空，want 非空")
-	}
-	if store.filter.ProjectID != "project-1" || store.filter.EventType != "exception" {
+	if store.filter.Offset != 60 || store.filter.Limit != 30 || store.filter.ProjectID != "project-1" || store.filter.EventType != "js_error" {
 		t.Fatalf("filter = %#v", store.filter)
-	}
-	if store.filter.Limit != 3 {
-		t.Fatalf("filter.Limit = %d, want 3", store.filter.Limit)
-	}
-
-	cursor, err := decodeCursor(page.NextCursor)
-	if err != nil {
-		t.Fatalf("decodeCursor() error = %v", err)
-	}
-	if cursor.EventID != "event-2" || !cursor.Timestamp.Equal(timestamp.Add(time.Millisecond)) {
-		t.Fatalf("cursor = %#v", cursor)
 	}
 }
 
-func TestServiceListContinuesFromCursor(t *testing.T) {
-	timestamp := time.Date(2026, 8, 18, 12, 0, 0, 123_000_000, time.UTC)
-	cursor := encodeCursor(CursorKey{Timestamp: timestamp, EventID: "event-9"})
+func TestServiceListDefaultsAndEmptyPage(t *testing.T) {
 	store := &stubStore{}
-
 	page, err := NewService(store, allowProject()).List(context.Background(), ListRequest{
-		TimeRange: telemetry.TimeRange{From: timestamp.Add(-time.Hour).UnixMilli(), To: timestamp.Add(time.Hour).UnixMilli()},
-		UserID:    "user-1",
-		ProjectID: "project-1",
-		Cursor:    cursor,
+		ProjectID: "project-1", TimeRange: telemetry.TimeRange{From: 0, To: 10000},
 	})
 	if err != nil {
-		t.Fatalf("List() error = %v", err)
+		t.Fatal(err)
 	}
-	if page.NextCursor != "" {
-		t.Fatalf("NextCursor = %q, want empty", page.NextCursor)
-	}
-	if store.filter.Limit != DefaultLimit+1 {
-		t.Fatalf("filter.Limit = %d, want %d", store.filter.Limit, DefaultLimit+1)
-	}
-	if store.filter.Before == nil || store.filter.Before.EventID != "event-9" || !store.filter.Before.Timestamp.Equal(timestamp) {
-		t.Fatalf("filter.Before = %#v", store.filter.Before)
+	if page.Page != 1 || page.PageSize != 30 || page.Total != 0 || store.filter.Offset != 0 || store.filter.Limit != 30 {
+		t.Fatalf("page = %#v, filter = %#v", page, store.filter)
 	}
 }
 
@@ -85,13 +46,9 @@ func TestServiceListValidatesRequest(t *testing.T) {
 		wantErr error
 	}{
 		{name: "缺少项目", request: ListRequest{}, wantErr: ErrProjectIDRequired},
+		{name: "非法页码", request: ListRequest{ProjectID: "project-1", Pagination: telemetry.Pagination{Page: -1}}, wantErr: telemetry.ErrInvalidPage},
+		{name: "每页超过上限", request: ListRequest{ProjectID: "project-1", Pagination: telemetry.Pagination{PageSize: 101}}, wantErr: telemetry.ErrInvalidPageSize},
 		{name: "分类非法", request: ListRequest{ProjectID: "project-1", Category: "unknown"}, wantErr: ErrInvalidCategory},
-		{name: "limit 为负数", request: ListRequest{ProjectID: "project-1", Limit: -1}, wantErr: ErrInvalidLimit},
-		{name: "limit 超过上限", request: ListRequest{ProjectID: "project-1", Limit: MaxLimit + 1}, wantErr: ErrInvalidLimit},
-		{name: "游标不是 Base64", request: ListRequest{ProjectID: "project-1", Cursor: "%%%"}, wantErr: ErrInvalidCursor},
-		{name: "游标字段缺失", request: ListRequest{ProjectID: "project-1", Cursor: base64.RawURLEncoding.EncodeToString([]byte(`{"timestamp":1}`))}, wantErr: ErrInvalidCursor},
-		{name: "游标时间缺失", request: ListRequest{ProjectID: "project-1", Cursor: base64.RawURLEncoding.EncodeToString([]byte(`{"eventId":"event-1"}`))}, wantErr: ErrInvalidCursor},
-		{name: "游标包含未知字段", request: ListRequest{ProjectID: "project-1", Cursor: base64.RawURLEncoding.EncodeToString([]byte(`{"timestamp":1,"eventId":"event-1","extra":true}`))}, wantErr: ErrInvalidCursor},
 	}
 
 	for _, test := range tests {
@@ -146,6 +103,7 @@ func (a *stubProjectAuthorizer) CanAccess(_ context.Context, _, _ string) (bool,
 }
 
 type stubStore struct {
+	total        uint64
 	events       []EventSummary
 	err          error
 	calls        int
@@ -165,8 +123,8 @@ func (s *stubStore) Get(_ context.Context, projectID, eventID string) (EventDeta
 	return s.detail, s.found, s.getErr
 }
 
-func (s *stubStore) List(_ context.Context, filter ListFilter) ([]EventSummary, error) {
+func (s *stubStore) List(_ context.Context, filter ListFilter) ([]EventSummary, uint64, error) {
 	s.calls++
 	s.filter = filter
-	return s.events, s.err
+	return s.events, s.total, s.err
 }

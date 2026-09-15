@@ -42,17 +42,17 @@ func TestDetailReturnsSummaryAndOccurrences(t *testing.T) {
 			Message:    "profile failed",
 			ReceivedAt: time.UnixMilli(2_100),
 		}},
-		NextCursor: "next",
+		PageInfo: telemetry.PageInfo{Page: 2, PageSize: 20, Total: 45},
 	}}
 
 	recorder := performDetailRequest(
 		NewHandler(service),
-		"/api/v1/projects/project-1/issues/"+handlerTestIssueID+"?limit=20&from=0&to=4102444800000",
+		"/api/v1/projects/project-1/issues/"+handlerTestIssueID+"?pageSize=20&from=0&to=4102444800000",
 	)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d: %s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
-	if service.detailRequest.UserID != "user-1" || service.detailRequest.IssueID != handlerTestIssueID || service.detailRequest.Limit != 20 {
+	if service.detailRequest.UserID != "user-1" || service.detailRequest.IssueID != handlerTestIssueID || service.detailRequest.PageSize != 20 {
 		t.Fatalf("request = %#v", service.detailRequest)
 	}
 	if service.detailRequest.TimeRange != (telemetry.TimeRange{From: 0, To: 4102444800000}) {
@@ -63,7 +63,7 @@ func TestDetailReturnsSummaryAndOccurrences(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if response.Data.Issue.EventCount != 3 || len(response.Data.Occurrences) != 1 || response.Data.NextCursor != "next" {
+	if response.Data.Issue.EventCount != 3 || len(response.Data.Occurrences) != 1 || response.Data.Total != 45 || response.Data.Page != 2 || response.Data.PageSize != 20 {
 		t.Fatalf("response = %#v", response)
 	}
 }
@@ -81,7 +81,7 @@ func TestDetailMapsErrors(t *testing.T) {
 		{name: "invalid issue ID", err: issuedomain.ErrInvalidIssueID, url: "/api/v1/projects/project-1/issues/invalid?from=0&to=4102444800000", wantStatus: http.StatusBadRequest, wantCode: "INVALID_PATH", wantField: "issueId"},
 		{name: "missing time", url: "/api/v1/projects/project-1/issues/" + handlerTestIssueID, wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "timeRange"},
 		{name: "invalid time", url: "/api/v1/projects/project-1/issues/" + handlerTestIssueID + "?from=100&to=10", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "timeRange"},
-		{name: "invalid cursor", err: issuedomain.ErrInvalidCursor, url: "/api/v1/projects/project-1/issues/" + handlerTestIssueID + "?from=0&to=4102444800000", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "cursor"},
+		{name: "invalid page", err: telemetry.ErrInvalidPage, url: "/api/v1/projects/project-1/issues/" + handlerTestIssueID + "?from=0&to=4102444800000", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "page"},
 		{name: "missing issue", err: issuedomain.ErrIssueNotFound, url: "/api/v1/projects/project-1/issues/" + handlerTestIssueID + "?from=0&to=4102444800000", wantStatus: http.StatusNotFound, wantCode: "ISSUE_NOT_FOUND"},
 		{name: "missing project", err: issuedomain.ErrProjectNotFound, url: "/api/v1/projects/project-1/issues/" + handlerTestIssueID + "?from=0&to=4102444800000", wantStatus: http.StatusNotFound, wantCode: "PROJECT_NOT_FOUND"},
 		{name: "storage failure", err: errors.New("clickhouse password leaked"), url: "/api/v1/projects/project-1/issues/" + handlerTestIssueID + "?from=0&to=4102444800000", wantStatus: http.StatusInternalServerError, wantCode: "INTERNAL_ERROR", forbiddenText: "password"},

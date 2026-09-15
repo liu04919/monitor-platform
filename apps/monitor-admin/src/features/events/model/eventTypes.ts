@@ -1,3 +1,5 @@
+import type { PageInfo } from '@/shared/lib/pagination'
+
 export type EventCategory = 'error' | 'performance' | 'behavior' | 'stability' | 'ai'
 export type SendType = 'fetch' | 'beacon'
 export type EventLevel = 'error' | 'warning'
@@ -34,9 +36,8 @@ export interface EventDetail extends Omit<EventSummary, 'message'> {
   message?: string
 }
 
-export interface EventListData {
+export interface EventListData extends PageInfo {
   events: EventSummary[]
-  nextCursor: string
 }
 
 export interface EventFilters {

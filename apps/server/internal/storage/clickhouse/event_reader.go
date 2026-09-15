@@ -20,6 +20,13 @@ const eventMessageExpression = `coalesce(
 			''
 		)`
 
+const telemetryEventsFromSQL = `
+	FROM telemetry_events
+	WHERE project_id = ?
+		AND event_timestamp >= fromUnixTimestamp64Milli(?)
+		AND event_timestamp < fromUnixTimestamp64Milli(?)
+`
+
 const listTelemetryEventsSQL = `
 	SELECT
 		batch_id,
@@ -33,10 +40,6 @@ const listTelemetryEventsSQL = `
 		level,
 		` + eventMessageExpression + ` AS message,
 		received_at
-	FROM telemetry_events
-	WHERE project_id = ?
-		AND event_timestamp >= fromUnixTimestamp64Milli(?)
-		AND event_timestamp < fromUnixTimestamp64Milli(?)
 `
 
 const getTelemetryEventSQL = `
@@ -78,9 +81,9 @@ func NewEventReader(conn driver.Conn) *EventReader {
 func (r *EventReader) List(
 	ctx context.Context,
 	filter event.ListFilter,
-) ([]event.EventSummary, error) {
+) ([]event.EventSummary, uint64, error) {
 	query := strings.Builder{}
-	query.WriteString(listTelemetryEventsSQL)
+	query.WriteString(telemetryEventsFromSQL)
 	arguments := []any{filter.ProjectID, filter.TimeRange.From, filter.TimeRange.To}
 
 	if filter.Category != "" {
@@ -91,18 +94,23 @@ func (r *EventReader) List(
 		query.WriteString("\tAND event_type = ?\n")
 		arguments = append(arguments, filter.EventType)
 	}
-	if filter.Before != nil {
-		// 显式按 Unix 毫秒恢复 DateTime64(3)，避免驱动参数推断丢失毫秒精度。
-		query.WriteString("\tAND (event_timestamp, event_id) < (fromUnixTimestamp64Milli(?), ?)\n")
-		arguments = append(arguments, filter.Before.Timestamp.UnixMilli(), filter.Before.EventID)
+
+	var total uint64
+	if err := r.conn.QueryRow(ctx, "SELECT count()"+query.String(), arguments...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("统计 ClickHouse 事件总数: %w", err)
+	}
+	if uint64(filter.Offset) >= total {
+		return []event.EventSummary{}, total, nil
 	}
 
-	query.WriteString("\tORDER BY event_timestamp DESC, event_id DESC\n\tLIMIT ?")
-	arguments = append(arguments, filter.Limit)
+	// 数据页与总数复用同一组筛选条件；时间相同时用事件 ID 保证顺序确定。
+	pageSQL := listTelemetryEventsSQL + query.String() +
+		"\tORDER BY event_timestamp DESC, event_id DESC\n\tLIMIT ? OFFSET ?"
+	arguments = append(arguments, filter.Limit, filter.Offset)
 
-	rows, err := r.conn.Query(ctx, query.String(), arguments...)
+	rows, err := r.conn.Query(ctx, pageSQL, arguments...)
 	if err != nil {
-		return nil, fmt.Errorf("执行 ClickHouse 事件列表查询: %w", err)
+		return nil, 0, fmt.Errorf("执行 ClickHouse 事件列表查询: %w", err)
 	}
 	defer rows.Close()
 
@@ -128,7 +136,7 @@ func (r *EventReader) List(
 			&event.Message,
 			&event.ReceivedAt,
 		); err != nil {
-			return nil, fmt.Errorf("扫描 ClickHouse 事件列表: %w", err)
+			return nil, 0, fmt.Errorf("扫描 ClickHouse 事件列表: %w", err)
 		}
 
 		event.SendType = telemetry.SendType(sendType)
@@ -140,10 +148,10 @@ func (r *EventReader) List(
 		events = append(events, event)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("遍历 ClickHouse 事件列表: %w", err)
+		return nil, 0, fmt.Errorf("遍历 ClickHouse 事件列表: %w", err)
 	}
 
-	return events, nil
+	return events, total, nil
 }
 
 func (r *EventReader) Get(

@@ -3,7 +3,6 @@ package issue
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -20,9 +19,9 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
-	limit, err := parseOptionalLimit(c.Query("limit"))
+	pagination, err := telemetry.ParsePagination(c.Query("page"), c.Query("pageSize"))
 	if err != nil {
-		writeQueryError(c, issuedomain.ErrInvalidLimit)
+		writeQueryError(c, err)
 		return
 	}
 
@@ -32,11 +31,10 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 	page, err := h.service.List(c.Request.Context(), issuedomain.ListRequest{
-		TimeRange: timeRange,
-		UserID:    user.ID,
-		ProjectID: c.Param("projectId"),
-		Limit:     limit,
-		Cursor:    c.Query("cursor"),
+		TimeRange:  timeRange,
+		UserID:     user.ID,
+		ProjectID:  c.Param("projectId"),
+		Pagination: pagination,
 	})
 	if err != nil {
 		writeListError(c, err)
@@ -49,22 +47,9 @@ func (h *Handler) List(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, listEnvelope{Data: listData{
-		Issues:     issues,
-		NextCursor: page.NextCursor,
+		Issues:   issues,
+		PageInfo: page.PageInfo,
 	}})
-}
-
-func parseOptionalLimit(value string) (int, error) {
-	if value == "" {
-		return 0, nil
-	}
-
-	limit, err := strconv.Atoi(value)
-	if err != nil || limit < 1 || limit > issuedomain.MaxLimit {
-		return 0, issuedomain.ErrInvalidLimit
-	}
-
-	return limit, nil
 }
 
 func writeListError(c *gin.Context, err error) {
@@ -73,10 +58,8 @@ func writeListError(c *gin.Context, err error) {
 		writeQueryError(c, err)
 	case errors.Is(err, issuedomain.ErrProjectIDRequired):
 		writeQueryError(c, issuedomain.ErrProjectIDRequired)
-	case errors.Is(err, issuedomain.ErrInvalidLimit):
-		writeQueryError(c, issuedomain.ErrInvalidLimit)
-	case errors.Is(err, issuedomain.ErrInvalidCursor):
-		writeQueryError(c, issuedomain.ErrInvalidCursor)
+	case errors.Is(err, telemetry.ErrInvalidPage), errors.Is(err, telemetry.ErrInvalidPageSize):
+		writeQueryError(c, err)
 	case errors.Is(err, issuedomain.ErrProjectNotFound):
 		response.WriteError(c, http.StatusNotFound, "PROJECT_NOT_FOUND", "project was not found", nil)
 	default:
@@ -95,12 +78,12 @@ func writeQueryError(c *gin.Context, err error) {
 	case errors.Is(err, issuedomain.ErrProjectIDRequired):
 		field = "projectId"
 		message = "projectId is required"
-	case errors.Is(err, issuedomain.ErrInvalidLimit):
-		field = "limit"
-		message = "limit must be an integer between 1 and 100"
-	case errors.Is(err, issuedomain.ErrInvalidCursor):
-		field = "cursor"
-		message = "cursor is invalid"
+	case errors.Is(err, telemetry.ErrInvalidPage):
+		field = "page"
+		message = err.Error()
+	case errors.Is(err, telemetry.ErrInvalidPageSize):
+		field = "pageSize"
+		message = err.Error()
 	}
 
 	response.WriteError(c, http.StatusBadRequest, "INVALID_QUERY", message, &response.ErrorDetails{Field: field})
@@ -111,8 +94,8 @@ type listEnvelope struct {
 }
 
 type listData struct {
-	Issues     []listItem `json:"issues"`
-	NextCursor string     `json:"nextCursor"`
+	Issues []listItem `json:"issues"`
+	telemetry.PageInfo
 }
 
 type listItem struct {

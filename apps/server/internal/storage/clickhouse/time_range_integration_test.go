@@ -63,60 +63,89 @@ func TestTimeRangeQueriesShareBoundariesAndAggregation(t *testing.T) {
 	}
 
 	events := event.NewService(clickhousestore.NewEventReader(conn), allowAllProjects{})
-	request := event.ListRequest{UserID: "test", ProjectID: projectID, TimeRange: rangeValue, Limit: 2, Category: telemetry.CategoryError, EventType: "js_error"}
+	request := event.ListRequest{UserID: "test", ProjectID: projectID, TimeRange: rangeValue, Pagination: telemetry.Pagination{PageSize: 2}, Category: telemetry.CategoryError, EventType: "js_error"}
 	first, err := events.List(ctx, request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertEventIDs(t, first.Events, "c-tie", "b-tie")
-	if first.NextCursor == "" {
-		t.Fatal("第一页应有游标")
+	if first.Total != 4 || first.Page != 1 || first.PageSize != 2 {
+		t.Fatalf("第一页 = %#v", first)
 	}
-	request.Cursor = first.NextCursor
+	request.Page = 2
 	second, err := events.List(ctx, request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertEventIDs(t, second.Events, "d-other", "a-lower")
-	if second.NextCursor != "" {
-		t.Fatal("不应包含区间外的下一页")
+	if second.Total != 4 || second.Page != 2 {
+		t.Fatalf("第二页 = %#v", second)
 	}
 
 	issues := issue.NewService(clickhousestore.NewIssueReader(conn), allowAllProjects{})
-	listRequest := issue.ListRequest{UserID: "test", ProjectID: projectID, TimeRange: rangeValue, Limit: 1}
+	listRequest := issue.ListRequest{UserID: "test", ProjectID: projectID, TimeRange: rangeValue, Pagination: telemetry.Pagination{PageSize: 1}}
 	page, err := issues.List(ctx, listRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Issues) != 1 || page.Issues[0].ID != issueA || page.NextCursor == "" {
+	if len(page.Issues) != 1 || page.Issues[0].ID != issueA || page.Total != 2 || page.Page != 1 {
 		t.Fatalf("第一页问题 = %#v", page)
 	}
 	summary := page.Issues[0]
 	if summary.EventCount != 3 || summary.AffectedUsers != 2 || summary.FirstSeen.UnixMilli() != base+1 || summary.LastSeen.UnixMilli() != base+2 || summary.LatestEventID != "c-tie" || summary.Title != "c-tie" {
 		t.Fatalf("区间聚合不一致: %#v", summary)
 	}
-	listRequest.Cursor = page.NextCursor
+	listRequest.Page = 2
 	page, err = issues.List(ctx, listRequest)
-	if err != nil || len(page.Issues) != 1 || page.Issues[0].ID != issueB || page.NextCursor != "" {
+	if err != nil || len(page.Issues) != 1 || page.Issues[0].ID != issueB || page.Total != 2 || page.Page != 2 {
 		t.Fatalf("第二页问题 = %#v, %v", page, err)
 	}
 
-	detailRequest := issue.DetailRequest{UserID: "test", ProjectID: projectID, IssueID: issueA, TimeRange: rangeValue, Limit: 2}
+	detailRequest := issue.DetailRequest{UserID: "test", ProjectID: projectID, IssueID: issueA, TimeRange: rangeValue, Pagination: telemetry.Pagination{PageSize: 2}}
 	detail, err := issues.Detail(ctx, detailRequest)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if detail.Issue != summary || len(detail.Occurrences) != 2 || detail.Occurrences[0].EventID != "c-tie" || detail.Occurrences[1].EventID != "b-tie" || detail.NextCursor == "" {
+	if detail.Issue != summary || len(detail.Occurrences) != 2 || detail.Occurrences[0].EventID != "c-tie" || detail.Occurrences[1].EventID != "b-tie" || detail.Total != 3 || detail.Page != 1 {
 		t.Fatalf("详情第一页 = %#v", detail)
 	}
-	detailRequest.Cursor = detail.NextCursor
+	detailRequest.Page = 2
 	detail, err = issues.Detail(ctx, detailRequest)
-	if err != nil || len(detail.Occurrences) != 1 || detail.Occurrences[0].EventID != "a-lower" || detail.NextCursor != "" {
+	if err != nil || len(detail.Occurrences) != 1 || detail.Occurrences[0].EventID != "a-lower" || detail.Total != 3 || detail.Page != 2 {
 		t.Fatalf("详情第二页 = %#v, %v", detail, err)
 	}
 
+	// 任意跳页不依赖之前的请求；越界保留总数，方便用户回到有效页。
+	request.Page, request.PageSize = 3, 1
+	jumped, err := events.List(ctx, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertEventIDs(t, jumped.Events, "d-other")
+	request.Page = 99
+	outside, err := events.List(ctx, request)
+	if err != nil || outside.Total != 4 || len(outside.Events) != 0 {
+		t.Fatalf("越界页 = %#v, %v", outside, err)
+	}
+	listRequest.Page = 99
+	outsideIssues, err := issues.List(ctx, listRequest)
+	if err != nil || outsideIssues.Total != 2 || len(outsideIssues.Issues) != 0 {
+		t.Fatalf("问题越界页 = %#v, %v", outsideIssues, err)
+	}
+	detailRequest.Page = 99
+	outsideDetail, err := issues.Detail(ctx, detailRequest)
+	if err != nil || outsideDetail.Total != 3 || len(outsideDetail.Occurrences) != 0 {
+		t.Fatalf("发生记录越界页 = %#v, %v", outsideDetail, err)
+	}
+	request.Page = 1
+	request.EventType = "resource_error"
+	empty, err := events.List(ctx, request)
+	if err != nil || empty.Total != 0 || len(empty.Events) != 0 {
+		t.Fatalf("空筛选 = %#v, %v", empty, err)
+	}
+
 	// 改变窗口后重新从第一页查，计数、去重用户和最近事件一起变化。
-	detailRequest.Cursor = ""
+	detailRequest.Page = 1
 	detailRequest.TimeRange = telemetry.TimeRange{From: base + 3, To: base + 4}
 	detail, err = issues.Detail(ctx, detailRequest)
 	if err != nil || detail.Issue.EventCount != 1 || detail.Issue.AffectedUsers != 1 || detail.Issue.LatestEventID != "upper" {

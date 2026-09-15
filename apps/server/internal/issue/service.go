@@ -1,34 +1,21 @@
-// issue 包负责稳定错误指纹、Issue 聚合、项目授权和游标分页规则。
+// issue 包负责稳定错误指纹、Issue 聚合、项目授权和页码分页规则。
 package issue
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
-const (
-	DefaultLimit         = 30
-	MaxLimit             = 100
-	maxFingerprintLength = 64
-	fingerprintLength    = 32
-	maxEventIDLength     = 128
-)
+const fingerprintLength = 32
 
 var (
 	ErrProjectIDRequired = errors.New("project ID is required")
-	ErrInvalidLimit      = errors.New("invalid issue list limit")
-	ErrInvalidCursor     = errors.New("invalid issue list cursor")
 	ErrInvalidIssueID    = errors.New("invalid issue ID")
 	ErrIssueNotFound     = errors.New("issue not found")
 	ErrProjectNotFound   = errors.New("project not found")
@@ -48,12 +35,6 @@ type Summary struct {
 	LatestPageURL string
 }
 
-// CursorKey 是按最近发生时间倒序分页时的最后一条 Issue 位置。
-type CursorKey struct {
-	LastSeen time.Time
-	IssueID  string
-}
-
 // Occurrence 是一个 Issue 下的单次错误事件摘要。
 type Occurrence struct {
 	EventID    string
@@ -65,16 +46,10 @@ type Occurrence struct {
 	ReceivedAt time.Time
 }
 
-// OccurrenceCursorKey 是发生记录按事件时间倒序分页时的最后一条位置。
-type OccurrenceCursorKey struct {
-	Timestamp time.Time
-	EventID   string
-}
-
 type ListFilter struct {
 	TimeRange telemetry.TimeRange
 	ProjectID string
-	Before    *CursorKey
+	Offset    int64
 	Limit     int
 }
 
@@ -82,12 +57,12 @@ type OccurrenceFilter struct {
 	TimeRange telemetry.TimeRange
 	ProjectID string
 	IssueID   string
-	Before    *OccurrenceCursorKey
+	Offset    int64
 	Limit     int
 }
 
 type Store interface {
-	ListIssues(ctx context.Context, filter ListFilter) ([]Summary, error)
+	ListIssues(ctx context.Context, filter ListFilter) ([]Summary, uint64, error)
 	GetIssue(ctx context.Context, projectID, issueID string, timeRange telemetry.TimeRange) (Summary, bool, error)
 	ListOccurrences(ctx context.Context, filter OccurrenceFilter) ([]Occurrence, error)
 }
@@ -97,31 +72,29 @@ type ProjectAuthorizer interface {
 }
 
 type ListRequest struct {
+	telemetry.Pagination
 	TimeRange telemetry.TimeRange
 	UserID    string
 	ProjectID string
-	Limit     int
-	Cursor    string
 }
 
 type ListPage struct {
-	Issues     []Summary
-	NextCursor string
+	Issues []Summary
+	telemetry.PageInfo
 }
 
 type DetailRequest struct {
+	telemetry.Pagination
 	TimeRange telemetry.TimeRange
 	UserID    string
 	ProjectID string
 	IssueID   string
-	Limit     int
-	Cursor    string
 }
 
 type DetailPage struct {
 	Issue       Summary
 	Occurrences []Occurrence
-	NextCursor  string
+	telemetry.PageInfo
 }
 
 type Service struct {
@@ -147,49 +120,25 @@ func (s *Service) List(ctx context.Context, request ListRequest) (ListPage, erro
 		return ListPage{}, ErrProjectNotFound
 	}
 
-	limit := request.Limit
-	if limit == 0 {
-		limit = DefaultLimit
-	}
-	if limit < 1 || limit > MaxLimit {
-		return ListPage{}, ErrInvalidLimit
-	}
-
-	var before *CursorKey
-	if request.Cursor != "" {
-		decoded, err := decodeCursor(request.Cursor)
-		if err != nil {
-			return ListPage{}, fmt.Errorf("%w: %v", ErrInvalidCursor, err)
-		}
-		before = &decoded
+	pagination, err := request.Pagination.Normalize()
+	if err != nil {
+		return ListPage{}, err
 	}
 
 	if err := request.TimeRange.Validate(); err != nil {
 		return ListPage{}, err
 	}
-	issues, err := s.store.ListIssues(ctx, ListFilter{
+	issues, total, err := s.store.ListIssues(ctx, ListFilter{
 		TimeRange: request.TimeRange,
 		ProjectID: projectID,
-		Before:    before,
-		Limit:     limit + 1,
+		Offset:    pagination.Offset(),
+		Limit:     pagination.PageSize,
 	})
 	if err != nil {
 		return ListPage{}, fmt.Errorf("查询 Issue 列表: %w", err)
 	}
 
-	page := ListPage{Issues: issues}
-	if len(issues) <= limit {
-		return page, nil
-	}
-
-	page.Issues = issues[:limit]
-	lastIssue := page.Issues[len(page.Issues)-1]
-	page.NextCursor = encodeCursor(CursorKey{
-		LastSeen: lastIssue.LastSeen,
-		IssueID:  lastIssue.ID,
-	})
-
-	return page, nil
+	return ListPage{PageInfo: pagination.Info(total), Issues: issues}, nil
 }
 
 func (s *Service) Detail(ctx context.Context, request DetailRequest) (DetailPage, error) {
@@ -211,21 +160,9 @@ func (s *Service) Detail(ctx context.Context, request DetailRequest) (DetailPage
 		return DetailPage{}, ErrInvalidIssueID
 	}
 
-	limit := request.Limit
-	if limit == 0 {
-		limit = DefaultLimit
-	}
-	if limit < 1 || limit > MaxLimit {
-		return DetailPage{}, ErrInvalidLimit
-	}
-
-	var before *OccurrenceCursorKey
-	if request.Cursor != "" {
-		decoded, err := decodeOccurrenceCursor(request.Cursor)
-		if err != nil {
-			return DetailPage{}, fmt.Errorf("%w: %v", ErrInvalidCursor, err)
-		}
-		before = &decoded
+	pagination, err := request.Pagination.Normalize()
+	if err != nil {
+		return DetailPage{}, err
 	}
 
 	if err := request.TimeRange.Validate(); err != nil {
@@ -243,117 +180,14 @@ func (s *Service) Detail(ctx context.Context, request DetailRequest) (DetailPage
 		TimeRange: request.TimeRange,
 		ProjectID: projectID,
 		IssueID:   issueID,
-		Before:    before,
-		Limit:     limit + 1,
+		Offset:    pagination.Offset(),
+		Limit:     pagination.PageSize,
 	})
 	if err != nil {
 		return DetailPage{}, fmt.Errorf("查询 Issue 发生记录: %w", err)
 	}
 
-	page := DetailPage{Issue: summary, Occurrences: occurrences}
-	if len(occurrences) <= limit {
-		return page, nil
-	}
-
-	page.Occurrences = occurrences[:limit]
-	lastOccurrence := page.Occurrences[len(page.Occurrences)-1]
-	page.NextCursor = encodeOccurrenceCursor(OccurrenceCursorKey{
-		Timestamp: lastOccurrence.Timestamp,
-		EventID:   lastOccurrence.EventID,
-	})
-
-	return page, nil
-}
-
-type cursorPayload struct {
-	LastSeen *int64 `json:"lastSeen"`
-	IssueID  string `json:"issueId"`
-}
-
-func encodeCursor(key CursorKey) string {
-	lastSeen := key.LastSeen.UnixMilli()
-	payload, err := json.Marshal(cursorPayload{LastSeen: &lastSeen, IssueID: key.IssueID})
-	if err != nil {
-		panic(fmt.Sprintf("编码 Issue 游标: %v", err))
-	}
-
-	return base64.RawURLEncoding.EncodeToString(payload)
-}
-
-func decodeCursor(value string) (CursorKey, error) {
-	decoded, err := base64.RawURLEncoding.DecodeString(value)
-	if err != nil {
-		return CursorKey{}, fmt.Errorf("Base64 解码失败: %w", err)
-	}
-
-	decoder := json.NewDecoder(bytes.NewReader(decoded))
-	decoder.DisallowUnknownFields()
-
-	var payload cursorPayload
-	if err := decoder.Decode(&payload); err != nil {
-		return CursorKey{}, fmt.Errorf("JSON 解码失败: %w", err)
-	}
-	if err := ensureJSONEnd(decoder); err != nil {
-		return CursorKey{}, err
-	}
-	if payload.LastSeen == nil || *payload.LastSeen < 0 {
-		return CursorKey{}, errors.New("lastSeen 无效")
-	}
-	if strings.TrimSpace(payload.IssueID) == "" || utf8.RuneCountInString(payload.IssueID) > maxFingerprintLength {
-		return CursorKey{}, errors.New("issueId 无效")
-	}
-
-	return CursorKey{
-		LastSeen: time.UnixMilli(*payload.LastSeen).UTC(),
-		IssueID:  payload.IssueID,
-	}, nil
-}
-
-type occurrenceCursorPayload struct {
-	Timestamp *int64 `json:"timestamp"`
-	EventID   string `json:"eventId"`
-}
-
-func encodeOccurrenceCursor(key OccurrenceCursorKey) string {
-	timestamp := key.Timestamp.UnixMilli()
-	payload, err := json.Marshal(occurrenceCursorPayload{
-		Timestamp: &timestamp,
-		EventID:   key.EventID,
-	})
-	if err != nil {
-		panic(fmt.Sprintf("编码 Issue 发生记录游标: %v", err))
-	}
-
-	return base64.RawURLEncoding.EncodeToString(payload)
-}
-
-func decodeOccurrenceCursor(value string) (OccurrenceCursorKey, error) {
-	decoded, err := base64.RawURLEncoding.DecodeString(value)
-	if err != nil {
-		return OccurrenceCursorKey{}, fmt.Errorf("Base64 解码失败: %w", err)
-	}
-
-	decoder := json.NewDecoder(bytes.NewReader(decoded))
-	decoder.DisallowUnknownFields()
-
-	var payload occurrenceCursorPayload
-	if err := decoder.Decode(&payload); err != nil {
-		return OccurrenceCursorKey{}, fmt.Errorf("JSON 解码失败: %w", err)
-	}
-	if err := ensureJSONEnd(decoder); err != nil {
-		return OccurrenceCursorKey{}, err
-	}
-	if payload.Timestamp == nil || *payload.Timestamp < 0 {
-		return OccurrenceCursorKey{}, errors.New("timestamp 无效")
-	}
-	if strings.TrimSpace(payload.EventID) == "" || utf8.RuneCountInString(payload.EventID) > maxEventIDLength {
-		return OccurrenceCursorKey{}, errors.New("eventId 无效")
-	}
-
-	return OccurrenceCursorKey{
-		Timestamp: time.UnixMilli(*payload.Timestamp).UTC(),
-		EventID:   payload.EventID,
-	}, nil
+	return DetailPage{PageInfo: pagination.Info(summary.EventCount), Issue: summary, Occurrences: occurrences}, nil
 }
 
 func isValidIssueID(value string) bool {
@@ -362,12 +196,4 @@ func isValidIssueID(value string) bool {
 	}
 	_, err := hex.DecodeString(value)
 	return err == nil
-}
-
-func ensureJSONEnd(decoder *json.Decoder) error {
-	var trailing json.RawMessage
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		return errors.New("游标必须只包含一个 JSON 值")
-	}
-	return nil
 }

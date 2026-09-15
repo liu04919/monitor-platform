@@ -32,9 +32,9 @@ func TestListReturnsIssueSummary(t *testing.T) {
 			LatestEventID: "event-3",
 			LatestPageURL: "https://example.com/profile",
 		}},
-		NextCursor: "next",
+		PageInfo: telemetry.PageInfo{Page: 2, PageSize: 20, Total: 45},
 	}}
-	recorder := performListRequest(NewHandler(service), "/api/v1/projects/project-1/issues?limit=20&from=0&to=4102444800000")
+	recorder := performListRequest(NewHandler(service), "/api/v1/projects/project-1/issues?pageSize=20&from=0&to=4102444800000")
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
@@ -46,7 +46,7 @@ func TestListReturnsIssueSummary(t *testing.T) {
 	if len(response.Data.Issues) != 1 || response.Data.Issues[0].EventCount != 3 {
 		t.Fatalf("response = %#v", response)
 	}
-	if service.request.UserID != "user-1" || service.request.Limit != 20 {
+	if service.request.UserID != "user-1" || service.request.PageSize != 20 {
 		t.Fatalf("request = %#v", service.request)
 	}
 	if service.request.TimeRange != (telemetry.TimeRange{From: 0, To: 4102444800000}) {
@@ -62,10 +62,10 @@ func TestListMapsErrors(t *testing.T) {
 		wantStatus int
 		wantCode   string
 	}{
-		{name: "invalid limit", url: "/api/v1/projects/project-1/issues?limit=0&from=0&to=4102444800000", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY"},
+		{name: "invalid page size", url: "/api/v1/projects/project-1/issues?pageSize=0&from=0&to=4102444800000", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY"},
 		{name: "missing time", url: "/api/v1/projects/project-1/issues", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY"},
 		{name: "invalid time", url: "/api/v1/projects/project-1/issues?from=20&to=10", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY"},
-		{name: "invalid cursor", serviceErr: issuedomain.ErrInvalidCursor, url: "/api/v1/projects/project-1/issues?from=0&to=4102444800000", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY"},
+		{name: "invalid page", serviceErr: telemetry.ErrInvalidPage, url: "/api/v1/projects/project-1/issues?from=0&to=4102444800000", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY"},
 		{name: "foreign project", serviceErr: issuedomain.ErrProjectNotFound, url: "/api/v1/projects/project-1/issues?from=0&to=4102444800000", wantStatus: http.StatusNotFound, wantCode: "PROJECT_NOT_FOUND"},
 		{name: "storage failure", serviceErr: errors.New("secret dsn"), url: "/api/v1/projects/project-1/issues?from=0&to=4102444800000", wantStatus: http.StatusInternalServerError, wantCode: "INTERNAL_ERROR"},
 	}

@@ -66,7 +66,7 @@ func TestIssueReaderAggregatesMatchingFingerprints(t *testing.T) {
 
 	reader := clickhousestore.NewIssueReader(conn)
 	timeRange := telemetry.TimeRange{From: now.UnixMilli(), To: now.Add(time.Second).UnixMilli()}
-	issues, err := reader.ListIssues(ctx, issue.ListFilter{
+	issues, total, err := reader.ListIssues(ctx, issue.ListFilter{
 		TimeRange: timeRange,
 		ProjectID: projectID,
 		Limit:     30,
@@ -75,7 +75,7 @@ func TestIssueReaderAggregatesMatchingFingerprints(t *testing.T) {
 		t.Fatalf("ListIssues() error = %v", err)
 	}
 
-	if len(issues) != 1 {
+	if len(issues) != 1 || total != 1 {
 		t.Fatalf("len(issues) = %d, want 1", len(issues))
 	}
 	for _, summary := range issues {
@@ -112,11 +112,8 @@ func TestIssueReaderAggregatesMatchingFingerprints(t *testing.T) {
 		TimeRange: timeRange,
 		ProjectID: projectID,
 		IssueID:   issueID,
-		Before: &issue.OccurrenceCursorKey{
-			Timestamp: firstPage[0].Timestamp,
-			EventID:   firstPage[0].EventID,
-		},
-		Limit: 1,
+		Offset:    1,
+		Limit:     1,
 	})
 	if err != nil {
 		t.Fatalf("ListOccurrences() second page error = %v", err)

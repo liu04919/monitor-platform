@@ -8,7 +8,7 @@ import { IssuesPage } from '@/pages/issues/IssuesPage'
 import { ProjectSettingsPage } from '@/pages/project-settings/ProjectSettingsPage'
 import { RegisterPage } from '@/pages/register/RegisterPage'
 import { AppShell } from '@/widgets/app-shell/AppShell'
-import { timeRangeLoader } from '@/features/time-range/model/timeRangeRouting'
+import { listQueryLoader } from '@/app/listQueryLoader'
 
 export const appRoutes: RouteObject[] = [
   {
@@ -26,9 +26,9 @@ export const appRoutes: RouteObject[] = [
         element: <AppShell />,
         children: [
           { index: true, element: <Navigate to="/issues" replace /> },
-          { path: 'issues', loader: timeRangeLoader, element: <IssuesPage /> },
-          { path: 'issues/:issueId', loader: timeRangeLoader, element: <IssueDetailPage /> },
-          { path: 'events', loader: timeRangeLoader, element: <EventsPage /> },
+          { path: 'issues', loader: listQueryLoader, element: <IssuesPage /> },
+          { path: 'issues/:issueId', loader: listQueryLoader, element: <IssueDetailPage /> },
+          { path: 'events', loader: listQueryLoader, element: <EventsPage /> },
           { path: 'events/:eventId', element: <EventDetailPage /> },
           { path: 'projects/:projectId/settings', element: <ProjectSettingsPage /> },
           { path: '*', element: <Navigate to="/issues" replace /> },

@@ -71,3 +71,11 @@ pnpm check
 pnpm test
 pnpm build
 ```
+
+## 列表分页
+
+事件流、Issue 列表和发生记录统一使用页码分页。每页默认 30 条，可选择 10、30、50、100 条，支持页码、首尾页及输入页码跳转。
+`from/to` 固定时间范围，`page/pageSize` 写入 URL 和 TanStack Query 缓存键；只展示当前页数据。
+切换时间、筛选条件、项目或每页条数时从第一页开始；刷新自定义时间范围保留页码。
+详情返回保留来源列表页码，Issue 列表页码通过 `issuesPage/issuesPageSize` 与发生记录的 `page/pageSize` 区分。
+分页接口和总数含义见 [管理 API 契约](../../contracts/management-api-v1.md)。

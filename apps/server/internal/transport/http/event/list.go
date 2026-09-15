@@ -3,7 +3,6 @@ package event
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -20,9 +19,9 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 
-	limit, err := parseOptionalLimit(c.Query("limit"))
+	pagination, err := telemetry.ParsePagination(c.Query("page"), c.Query("pageSize"))
 	if err != nil {
-		writeEventListQueryError(c, eventdomain.ErrInvalidLimit)
+		writeEventListQueryError(c, err)
 		return
 	}
 
@@ -32,13 +31,12 @@ func (h *Handler) List(c *gin.Context) {
 		return
 	}
 	page, err := h.service.List(c.Request.Context(), eventdomain.ListRequest{
-		TimeRange: timeRange,
-		UserID:    user.ID,
-		ProjectID: c.Param("projectId"),
-		Category:  telemetry.Category(c.Query("category")),
-		EventType: c.Query("eventType"),
-		Limit:     limit,
-		Cursor:    c.Query("cursor"),
+		TimeRange:  timeRange,
+		UserID:     user.ID,
+		ProjectID:  c.Param("projectId"),
+		Category:   telemetry.Category(c.Query("category")),
+		EventType:  c.Query("eventType"),
+		Pagination: pagination,
 	})
 	if err != nil {
 		writeEventListError(c, err)
@@ -64,23 +62,10 @@ func (h *Handler) List(c *gin.Context) {
 
 	c.JSON(http.StatusOK, eventListEnvelope{
 		Data: eventListData{
-			Events:     events,
-			NextCursor: page.NextCursor,
+			Events:   events,
+			PageInfo: page.PageInfo,
 		},
 	})
-}
-
-func parseOptionalLimit(value string) (int, error) {
-	if value == "" {
-		return 0, nil
-	}
-
-	limit, err := strconv.Atoi(value)
-	if err != nil || limit < 1 || limit > eventdomain.MaxLimit {
-		return 0, eventdomain.ErrInvalidLimit
-	}
-
-	return limit, nil
 }
 
 func writeEventListError(c *gin.Context, err error) {
@@ -91,10 +76,8 @@ func writeEventListError(c *gin.Context, err error) {
 		writeEventListQueryError(c, eventdomain.ErrProjectIDRequired)
 	case errors.Is(err, eventdomain.ErrInvalidCategory):
 		writeEventListQueryError(c, eventdomain.ErrInvalidCategory)
-	case errors.Is(err, eventdomain.ErrInvalidLimit):
-		writeEventListQueryError(c, eventdomain.ErrInvalidLimit)
-	case errors.Is(err, eventdomain.ErrInvalidCursor):
-		writeEventListQueryError(c, eventdomain.ErrInvalidCursor)
+	case errors.Is(err, telemetry.ErrInvalidPage), errors.Is(err, telemetry.ErrInvalidPageSize):
+		writeEventListQueryError(c, err)
 	case errors.Is(err, eventdomain.ErrProjectNotFound):
 		response.WriteError(c, http.StatusNotFound, "PROJECT_NOT_FOUND", "project was not found", nil)
 	default:
@@ -122,12 +105,12 @@ func writeEventListQueryError(c *gin.Context, err error) {
 	case errors.Is(err, eventdomain.ErrInvalidCategory):
 		field = "category"
 		message = "category is not supported"
-	case errors.Is(err, eventdomain.ErrInvalidLimit):
-		field = "limit"
-		message = "limit must be an integer between 1 and 100"
-	case errors.Is(err, eventdomain.ErrInvalidCursor):
-		field = "cursor"
-		message = "cursor is invalid"
+	case errors.Is(err, telemetry.ErrInvalidPage):
+		field = "page"
+		message = err.Error()
+	case errors.Is(err, telemetry.ErrInvalidPageSize):
+		field = "pageSize"
+		message = err.Error()
 	}
 
 	response.WriteError(
@@ -144,8 +127,8 @@ type eventListEnvelope struct {
 }
 
 type eventListData struct {
-	Events     []eventListItem `json:"events"`
-	NextCursor string          `json:"nextCursor"`
+	Events []eventListItem `json:"events"`
+	telemetry.PageInfo
 }
 
 type eventListItem struct {

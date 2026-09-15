@@ -1,4 +1,4 @@
-import { Badge, Button } from '@mantine/core'
+import { Badge } from '@mantine/core'
 import { Link, useSearchParams } from 'react-router-dom'
 import { listSearch } from '@/features/time-range/model/timeRange'
 import type { IssueSummary } from '@/features/issues/model/issueTypes'
@@ -10,19 +10,15 @@ const numberFormatter = new Intl.NumberFormat('zh-CN')
 
 interface IssueTableProps {
   issues: IssueSummary[]
-  hasNextPage: boolean
-  isFetchingNextPage: boolean
-  onLoadMore: () => void
 }
 
-export function IssueTable({
-  issues,
-  hasNextPage,
-  isFetchingNextPage,
-  onLoadMore,
-}: IssueTableProps) {
+export function IssueTable({ issues }: IssueTableProps) {
   const [params] = useSearchParams()
-  const search = listSearch(params)
+  const detailParams = new URLSearchParams(listSearch(params))
+  detailParams.set('issuesPage', params.get('page') || '1')
+  detailParams.set('issuesPageSize', params.get('pageSize') || '30')
+  detailParams.delete('page')
+  const search = `?${detailParams}`
   return (
     <>
       <div className={`${styles.row} ${styles.header}`} aria-hidden="true">
@@ -71,25 +67,6 @@ export function IssueTable({
           </Link>
         </article>
       ))}
-      <footer className={styles.footer}>
-        <span>
-          已加载 <strong>{issues.length}</strong> 个问题
-        </span>
-        {hasNextPage ? (
-          <Button
-            variant="default"
-            size="compact-sm"
-            type="button"
-            onClick={onLoadMore}
-            loading={isFetchingNextPage}
-            rightSection={<ChevronIcon />}
-          >
-            加载更多
-          </Button>
-        ) : (
-          <span>已经到底了</span>
-        )}
-      </footer>
     </>
   )
 }

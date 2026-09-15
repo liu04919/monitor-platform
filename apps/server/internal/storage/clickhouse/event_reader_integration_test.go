@@ -17,7 +17,7 @@ import (
 	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
-func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
+func TestEventReaderListsWithStablePagesAndFilters(t *testing.T) {
 	dsn := os.Getenv("TEST_CLICKHOUSE_DSN")
 	if dsn == "" {
 		t.Skip("未设置 TEST_CLICKHOUSE_DSN，跳过事件查询集成测试")
@@ -61,31 +61,30 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 
 	service := event.NewService(clickhousestore.NewEventReader(conn), allowAllProjects{})
 	timeRange := telemetry.TimeRange{From: now.Add(-time.Hour).UnixMilli(), To: now.Add(time.Hour).UnixMilli()}
-	firstPage, err := service.List(ctx, event.ListRequest{TimeRange: timeRange, UserID: "user-1", ProjectID: projectID, Limit: 2})
+	firstPage, err := service.List(ctx, event.ListRequest{TimeRange: timeRange, UserID: "user-1", ProjectID: projectID, Pagination: telemetry.Pagination{PageSize: 2}})
 	if err != nil {
 		t.Fatalf("查询第一页失败: %v", err)
 	}
 	assertEventIDs(t, firstPage.Events, "event-d-"+suffix, "event-c-"+suffix)
-	if firstPage.NextCursor == "" {
-		t.Fatal("第一页 NextCursor 为空")
+	if firstPage.Total != 4 {
+		t.Fatalf("total = %d, want 4", firstPage.Total)
 	}
 	if firstPage.Events[0].Message != "latest performance" {
 		t.Fatalf("第一页首条 Message = %q", firstPage.Events[0].Message)
 	}
 
 	secondPage, err := service.List(ctx, event.ListRequest{
-		TimeRange: timeRange,
-		UserID:    "user-1",
-		ProjectID: projectID,
-		Limit:     2,
-		Cursor:    firstPage.NextCursor,
+		TimeRange:  timeRange,
+		UserID:     "user-1",
+		ProjectID:  projectID,
+		Pagination: telemetry.Pagination{Page: 2, PageSize: 2},
 	})
 	if err != nil {
 		t.Fatalf("查询第二页失败: %v", err)
 	}
 	assertEventIDs(t, secondPage.Events, "event-b-"+suffix, "event-a-"+suffix)
-	if secondPage.NextCursor != "" {
-		t.Fatalf("第二页 NextCursor = %q, want empty", secondPage.NextCursor)
+	if secondPage.Total != 4 || secondPage.Page != 2 {
+		t.Fatalf("page = %#v", secondPage)
 	}
 
 	errorPage, err := service.List(ctx, event.ListRequest{
@@ -99,6 +98,9 @@ func TestEventReaderListsWithStableCursorAndFilters(t *testing.T) {
 		t.Fatalf("按错误类型筛选失败: %v", err)
 	}
 	assertEventIDs(t, errorPage.Events, "event-c-"+suffix, "event-a-"+suffix)
+	if errorPage.Total != 2 {
+		t.Fatalf("filtered total = %d, want 2", errorPage.Total)
+	}
 	if errorPage.Events[0].Level == nil || *errorPage.Events[0].Level != telemetry.LevelError {
 		t.Fatalf("错误事件 Level = %#v", errorPage.Events[0].Level)
 	}

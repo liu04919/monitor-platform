@@ -39,13 +39,13 @@ func TestEventHandlerReturnsPage(t *testing.T) {
 					ReceivedAt: timestamp.Add(time.Second),
 				},
 			},
-			NextCursor: "next-cursor",
+			PageInfo: telemetry.PageInfo{Page: 2, PageSize: 20, Total: 45},
 		},
 	}
 
 	recorder := performEventListRequest(
 		NewHandler(service),
-		"/api/v1/projects/project-1/events?category=error&eventType=js_error&limit=20&cursor=current-cursor&from=0&to=4102444800000",
+		"/api/v1/projects/project-1/events?category=error&eventType=js_error&pageSize=20&page=2&from=0&to=4102444800000",
 	)
 
 	if recorder.Code != http.StatusOK {
@@ -60,8 +60,8 @@ func TestEventHandlerReturnsPage(t *testing.T) {
 	if service.request.ProjectID != "project-1" ||
 		service.request.Category != telemetry.CategoryError ||
 		service.request.EventType != "js_error" ||
-		service.request.Limit != 20 ||
-		service.request.Cursor != "current-cursor" {
+		service.request.PageSize != 20 ||
+		service.request.Page != 2 {
 		t.Fatalf("request = %#v", service.request)
 	}
 
@@ -75,8 +75,8 @@ func TestEventHandlerReturnsPage(t *testing.T) {
 	if response.Data.Events[0].Timestamp != timestamp.UnixMilli() || response.Data.Events[0].ReceivedAt != timestamp.Add(time.Second).UnixMilli() {
 		t.Fatalf("event timestamps = %#v", response.Data.Events[0])
 	}
-	if response.Data.NextCursor != "next-cursor" {
-		t.Fatalf("nextCursor = %q", response.Data.NextCursor)
+	if response.Data.Page != 2 || response.Data.PageSize != 20 || response.Data.Total != 45 {
+		t.Fatalf("pagination = %#v", response.Data.PageInfo)
 	}
 }
 
@@ -92,12 +92,12 @@ func TestEventHandlerMapsListErrors(t *testing.T) {
 		wantCalls     int
 		forbiddenText string
 	}{
-		{name: "limit syntax", url: "/api/v1/projects/project-1/events?limit=abc&from=0&to=4102444800000", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "limit"},
+		{name: "page size syntax", url: "/api/v1/projects/project-1/events?pageSize=abc&from=0&to=4102444800000", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "pageSize"},
 		{name: "missing time", url: "/api/v1/projects/project-1/events", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "timeRange"},
 		{name: "reversed time", url: "/api/v1/projects/project-1/events?from=100&to=99", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "timeRange"},
 		{name: "invalid milliseconds", url: "/api/v1/projects/project-1/events?from=abc&to=100", wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "timeRange"},
 		{name: "invalid category", url: "/api/v1/projects/project-1/events?from=0&to=4102444800000", serviceError: eventdomain.ErrInvalidCategory, wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "category", wantCalls: 1},
-		{name: "invalid cursor", url: "/api/v1/projects/project-1/events?from=0&to=4102444800000", serviceError: eventdomain.ErrInvalidCursor, wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "cursor", wantCalls: 1},
+		{name: "invalid page", url: "/api/v1/projects/project-1/events?from=0&to=4102444800000", serviceError: telemetry.ErrInvalidPage, wantStatus: http.StatusBadRequest, wantCode: "INVALID_QUERY", wantField: "page", wantCalls: 1},
 		{name: "project not found", url: "/api/v1/projects/project-1/events?from=0&to=4102444800000", serviceError: eventdomain.ErrProjectNotFound, wantStatus: http.StatusNotFound, wantCode: "PROJECT_NOT_FOUND", wantCalls: 1},
 		{name: "storage failure", url: "/api/v1/projects/project-1/events?from=0&to=4102444800000", serviceError: internalError, wantStatus: http.StatusInternalServerError, wantCode: "INTERNAL_ERROR", wantCalls: 1, forbiddenText: "password"},
 	}

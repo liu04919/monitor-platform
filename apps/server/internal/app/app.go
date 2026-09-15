@@ -91,7 +91,7 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	projectHandler := projecthttp.NewHandler(projectService)          // HTTP Handler：项目查询与创建接口
 	eventService := event.NewService(eventReader, projectService)     // 事件查询业务：项目授权、列表与详情查询
 	eventHandler := eventhttp.NewHandler(eventService)                // HTTP Handler：事件列表与详情接口
-	issueService := issue.NewService(issueReader, projectService)     // Issue 查询业务：项目授权、聚合详情与游标分页
+	issueService := issue.NewService(issueReader, projectService)     // Issue 查询业务：项目授权、聚合详情与页码分页
 	issueHandler := issuehttp.NewHandler(issueService)                // HTTP Handler：Issue 聚合列表与详情接口
 	authService := auth.NewService(
 		userStore,

@@ -4,40 +4,21 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
 func TestServiceListPaginatesIssues(t *testing.T) {
-	store := &stubStore{issues: []Summary{
-		{ID: "issue-3", LastSeen: time.UnixMilli(3_000)},
-		{ID: "issue-2", LastSeen: time.UnixMilli(2_000)},
-		{ID: "issue-1", LastSeen: time.UnixMilli(1_000)},
-	}}
-
+	store := &stubStore{issues: []Summary{{ID: "issue-1"}}, total: 61}
 	page, err := NewService(store, allowProject{}).List(context.Background(), ListRequest{
-		TimeRange: telemetry.TimeRange{From: 1000, To: 4000},
-		UserID:    "user-1",
-		ProjectID: "project-1",
-		Limit:     2,
+		ProjectID: "project-1", TimeRange: telemetry.TimeRange{From: 1000, To: 4000},
+		Pagination: telemetry.Pagination{Page: 3, PageSize: 30},
 	})
 	if err != nil {
-		t.Fatalf("List() error = %v", err)
+		t.Fatal(err)
 	}
-	if len(page.Issues) != 2 || page.NextCursor == "" {
-		t.Fatalf("List() page = %#v", page)
-	}
-
-	cursor, err := decodeCursor(page.NextCursor)
-	if err != nil {
-		t.Fatalf("decodeCursor() error = %v", err)
-	}
-	if cursor.IssueID != "issue-2" || cursor.LastSeen.UnixMilli() != 2_000 {
-		t.Fatalf("cursor = %#v", cursor)
-	}
-	if store.filter.Limit != 3 {
-		t.Fatalf("store limit = %d, want 3", store.filter.Limit)
+	if page.Page != 3 || page.PageSize != 30 || page.Total != 61 || len(page.Issues) != 1 || store.filter.Offset != 60 || store.filter.Limit != 30 {
+		t.Fatalf("page = %#v, filter = %#v", page, store.filter)
 	}
 }
 
@@ -49,8 +30,8 @@ func TestServiceListValidatesInputAndAuthorization(t *testing.T) {
 		wantErr    error
 	}{
 		{name: "missing project", request: ListRequest{}, authorizer: allowProject{}, wantErr: ErrProjectIDRequired},
-		{name: "invalid limit", request: ListRequest{ProjectID: "project-1", Limit: MaxLimit + 1}, authorizer: allowProject{}, wantErr: ErrInvalidLimit},
-		{name: "invalid cursor", request: ListRequest{ProjectID: "project-1", Cursor: "invalid"}, authorizer: allowProject{}, wantErr: ErrInvalidCursor},
+		{name: "invalid page size", request: ListRequest{ProjectID: "project-1", Pagination: telemetry.Pagination{PageSize: 101}}, authorizer: allowProject{}, wantErr: telemetry.ErrInvalidPageSize},
+		{name: "invalid page", request: ListRequest{ProjectID: "project-1", Pagination: telemetry.Pagination{Page: -1}}, authorizer: allowProject{}, wantErr: telemetry.ErrInvalidPage},
 		{name: "foreign project", request: ListRequest{ProjectID: "project-1"}, authorizer: denyProject{}, wantErr: ErrProjectNotFound},
 	}
 
@@ -66,39 +47,16 @@ func TestServiceListValidatesInputAndAuthorization(t *testing.T) {
 
 func TestServiceDetailPaginatesOccurrences(t *testing.T) {
 	issueID := "0123456789abcdef0123456789abcdef"
-	store := &stubStore{
-		issue: Summary{ID: issueID, Title: "profile failed"},
-		found: true,
-		occurrences: []Occurrence{
-			{EventID: "event-3", Timestamp: time.UnixMilli(3_000)},
-			{EventID: "event-2", Timestamp: time.UnixMilli(2_000)},
-			{EventID: "event-1", Timestamp: time.UnixMilli(1_000)},
-		},
-	}
-
+	store := &stubStore{issue: Summary{ID: issueID, EventCount: 61}, found: true, occurrences: []Occurrence{{EventID: "event-1"}}}
 	page, err := NewService(store, allowProject{}).Detail(context.Background(), DetailRequest{
-		TimeRange: telemetry.TimeRange{From: 1000, To: 4000},
-		UserID:    "user-1",
-		ProjectID: "project-1",
-		IssueID:   issueID,
-		Limit:     2,
+		ProjectID: "project-1", IssueID: issueID, TimeRange: telemetry.TimeRange{From: 1000, To: 4000},
+		Pagination: telemetry.Pagination{Page: 3, PageSize: 30},
 	})
 	if err != nil {
-		t.Fatalf("Detail() error = %v", err)
+		t.Fatal(err)
 	}
-	if page.Issue.ID != issueID || len(page.Occurrences) != 2 || page.NextCursor == "" {
-		t.Fatalf("Detail() page = %#v", page)
-	}
-
-	cursor, err := decodeOccurrenceCursor(page.NextCursor)
-	if err != nil {
-		t.Fatalf("decodeOccurrenceCursor() error = %v", err)
-	}
-	if cursor.EventID != "event-2" || cursor.Timestamp.UnixMilli() != 2_000 {
-		t.Fatalf("cursor = %#v", cursor)
-	}
-	if store.occurrenceFilter.Limit != 3 || store.occurrenceFilter.IssueID != issueID {
-		t.Fatalf("occurrence filter = %#v", store.occurrenceFilter)
+	if page.Page != 3 || page.PageSize != 30 || page.Total != 61 || len(page.Occurrences) != 1 || store.occurrenceFilter.Offset != 60 || store.occurrenceFilter.Limit != 30 || store.occurrenceFilter.IssueID != issueID {
+		t.Fatalf("page = %#v, filter = %#v", page, store.occurrenceFilter)
 	}
 }
 
@@ -113,8 +71,8 @@ func TestServiceDetailValidatesInputAuthorizationAndExistence(t *testing.T) {
 	}{
 		{name: "missing project", request: DetailRequest{}, store: &stubStore{}, authorizer: allowProject{}, wantErr: ErrProjectIDRequired},
 		{name: "invalid issue ID", request: DetailRequest{ProjectID: "project-1", IssueID: "not-a-fingerprint"}, store: &stubStore{}, authorizer: allowProject{}, wantErr: ErrInvalidIssueID},
-		{name: "invalid limit", request: DetailRequest{ProjectID: "project-1", IssueID: issueID, Limit: MaxLimit + 1}, store: &stubStore{}, authorizer: allowProject{}, wantErr: ErrInvalidLimit},
-		{name: "invalid cursor", request: DetailRequest{ProjectID: "project-1", IssueID: issueID, Cursor: "invalid"}, store: &stubStore{}, authorizer: allowProject{}, wantErr: ErrInvalidCursor},
+		{name: "invalid page size", request: DetailRequest{ProjectID: "project-1", IssueID: issueID, Pagination: telemetry.Pagination{PageSize: 101}}, store: &stubStore{}, authorizer: allowProject{}, wantErr: telemetry.ErrInvalidPageSize},
+		{name: "invalid page", request: DetailRequest{ProjectID: "project-1", IssueID: issueID, Pagination: telemetry.Pagination{Page: -1}}, store: &stubStore{}, authorizer: allowProject{}, wantErr: telemetry.ErrInvalidPage},
 		{name: "foreign project", request: DetailRequest{ProjectID: "project-1", IssueID: issueID}, store: &stubStore{}, authorizer: denyProject{}, wantErr: ErrProjectNotFound},
 		{name: "missing issue", request: DetailRequest{ProjectID: "project-1", IssueID: issueID, TimeRange: telemetry.TimeRange{From: 1000, To: 4000}}, store: &stubStore{}, authorizer: allowProject{}, wantErr: ErrIssueNotFound},
 	}
@@ -130,6 +88,7 @@ func TestServiceDetailValidatesInputAuthorizationAndExistence(t *testing.T) {
 }
 
 type stubStore struct {
+	total            uint64
 	issues           []Summary
 	issue            Summary
 	found            bool
@@ -140,9 +99,9 @@ type stubStore struct {
 	summaryRange     telemetry.TimeRange
 }
 
-func (s *stubStore) ListIssues(_ context.Context, filter ListFilter) ([]Summary, error) {
+func (s *stubStore) ListIssues(_ context.Context, filter ListFilter) ([]Summary, uint64, error) {
 	s.filter = filter
-	return s.issues, s.err
+	return s.issues, s.total, s.err
 }
 
 func (s *stubStore) GetIssue(_ context.Context, _, _ string, timeRange telemetry.TimeRange) (Summary, bool, error) {

@@ -1,6 +1,8 @@
+import { usePagination } from '@/shared/hooks/usePagination'
+import { EmptyPage, PaginationFooter } from '@/shared/ui/pagination/PaginationFooter'
 import { ActionIcon, Badge, Button, Group, Paper, Stack, Text, ThemeIcon } from '@mantine/core'
 import { APIError } from '@/shared/api/apiClient'
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { IssueDetailSkeleton } from '@/features/issues/components/IssueDetailSkeleton/IssueDetailSkeleton'
 import { IssueOccurrenceList } from '@/features/issues/components/IssueOccurrenceList/IssueOccurrenceList'
@@ -19,7 +21,8 @@ export function IssueDetailPage() {
   const { issueId = '' } = useParams()
   const projectId = useAdminStore((state) => state.projectId)
   const { range, setRange, refresh } = useTimeRange()
-  const query = useInfiniteQuery(issueDetailQueryOptions(projectId, issueId, range))
+  const { pagination, setPagination } = usePagination()
+  const query = useQuery(issueDetailQueryOptions(projectId, issueId, range, pagination))
   const toolbar = (
     <Group justify="space-between" mb="lg">
       <BackToIssues />
@@ -79,8 +82,8 @@ export function IssueDetailPage() {
     )
   }
 
-  const issue = query.data.pages[0].issue
-  const occurrences = query.data.pages.flatMap((page) => page.occurrences)
+  const issue = query.data.issue
+  const occurrences = query.data.occurrences
 
   return (
     <section className={styles.page}>
@@ -110,16 +113,21 @@ export function IssueDetailPage() {
 
       <div className={styles.content}>
         <IssueOverview issue={issue} />
-        <IssueOccurrenceList
-          occurrences={occurrences}
-          hasNextPage={query.hasNextPage}
-          isFetchingNextPage={query.isFetchingNextPage}
-          onLoadMore={() => void query.fetchNextPage()}
-        />
-        {query.isFetchNextPageError ? (
+        <div className={styles.occurrences}>
+          <IssueOccurrenceList occurrences={occurrences} />
+          {occurrences.length === 0 ? (
+            <EmptyPage onFirstPage={() => setPagination({ ...pagination, page: 1 })} />
+          ) : null}
+          <PaginationFooter
+            info={query.data}
+            disabled={query.isFetching}
+            onChange={setPagination}
+          />
+        </div>
+        {query.isError && query.data ? (
           <InlineError
             message={issueErrorMessage(query.error)}
-            onRetry={() => void query.fetchNextPage()}
+            onRetry={() => void query.refetch()}
           />
         ) : null}
       </div>
@@ -129,11 +137,16 @@ export function IssueDetailPage() {
 
 function BackToIssues() {
   const [params] = useSearchParams()
+  const listParams = new URLSearchParams(listSearch(params))
+  listParams.set('page', params.get('issuesPage') || '1')
+  if (params.has('issuesPageSize')) listParams.set('pageSize', params.get('issuesPageSize')!)
+  listParams.delete('issuesPage')
+  listParams.delete('issuesPageSize')
   return (
     <Button
       component={Link}
       className={styles.backLink}
-      to={`/issues${listSearch(params)}`}
+      to={`/issues?${listParams}`}
       variant="subtle"
       color="gray"
       size="compact-sm"

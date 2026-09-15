@@ -1,3 +1,5 @@
+import type { PageInfo } from '@/shared/lib/pagination'
+
 export interface IssueSummary {
   id: string
   title: string
@@ -11,9 +13,8 @@ export interface IssueSummary {
   latestPageUrl: string
 }
 
-export interface IssueListData {
+export interface IssueListData extends PageInfo {
   issues: IssueSummary[]
-  nextCursor: string
 }
 
 export interface IssueOccurrence {
@@ -26,8 +27,7 @@ export interface IssueOccurrence {
   receivedAt: number
 }
 
-export interface IssueDetailData {
+export interface IssueDetailData extends PageInfo {
   issue: IssueSummary
   occurrences: IssueOccurrence[]
-  nextCursor: string
 }

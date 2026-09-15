@@ -160,10 +160,16 @@ function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
                       },
                     }
                   : url.includes(`/issues/${issueSummary.id}?`)
-                    ? { issue: issueSummary, occurrences: [issueOccurrence], nextCursor: '' }
+                    ? {
+                        issue: issueSummary,
+                        occurrences: [issueOccurrence],
+                        page: 1,
+                        pageSize: 30,
+                        total: 1,
+                      }
                     : url.includes('/issues?')
-                      ? { issues: [issueSummary], nextCursor: '' }
-                      : { events: [eventSummary], nextCursor: '' }
+                      ? { issues: [issueSummary], page: 1, pageSize: 30, total: 1 }
+                      : { events: [eventSummary], page: 1, pageSize: 30, total: 1 }
 
   return Promise.resolve({
     ok: true,
@@ -221,7 +227,7 @@ describe('admin event routes', () => {
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: () => Promise.resolve({ data: { issues: [], nextCursor: '' } }),
+            json: () => Promise.resolve({ data: { issues: [], page: 1, pageSize: 30, total: 0 } }),
           } as Response)
         }
         return successfulFetch(input, init)
@@ -276,7 +282,7 @@ describe('admin event routes', () => {
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: () => Promise.resolve({ data: { events: [], nextCursor: '' } }),
+            json: () => Promise.resolve({ data: { events: [], page: 1, pageSize: 30, total: 0 } }),
           } as Response)
         }
         return successfulFetch(input, init)
@@ -621,7 +627,7 @@ describe('时间范围与查询导航', () => {
         const url = new URL(String(input), 'http://localhost')
         if (url.pathname.endsWith('/events')) {
           calls.push(url.searchParams)
-          const nextPage = url.searchParams.has('cursor')
+          const nextPage = url.searchParams.get('page') === '2'
           return Promise.resolve({
             ok: true,
             status: 200,
@@ -634,7 +640,9 @@ describe('时间范围与查询导航', () => {
                     message: nextPage ? '第二页错误' : '第一页错误',
                   },
                 ],
-                nextCursor: nextPage ? '' : 'cursor-1',
+                page: nextPage ? 2 : 1,
+                pageSize: 30,
+                total: 31,
               },
             }),
           } as Response)
@@ -644,15 +652,15 @@ describe('时间范围与查询导航', () => {
     )
     renderRoute('/events?' + fixed + '&category=error')
     await screen.findByText('第一页错误')
-    fireEvent.click(screen.getByRole('button', { name: '加载更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
     await screen.findByText('第二页错误')
-    expect(calls[1].get('cursor')).toBe('cursor-1')
+    expect(calls[1].get('page')).toBe('2')
     expect(calls[1].get('from')).toBe(calls[0].get('from'))
     expect(calls[1].get('to')).toBe(calls[0].get('to'))
     fireEvent.click(screen.getByRole('button', { name: '时间范围：自定义时间' }))
     fireEvent.click(screen.getByRole('button', { name: '最近 1 小时' }))
     await waitFor(() => expect(calls).toHaveLength(3))
-    expect(calls[2].has('cursor')).toBe(false)
+    expect(calls[2].get('page')).toBe('1')
     expect(calls[2].get('category')).toBe('error')
     expect(Number(calls[2].get('to')) - Number(calls[2].get('from'))).toBe(3600000)
     expect(screen.queryByText('第二页错误')).not.toBeInTheDocument()
@@ -684,7 +692,7 @@ describe('时间范围与查询导航', () => {
     await screen.findByRole('heading', { name: '发生记录' })
     fireEvent.click(screen.getByRole('link', { name: '返回问题列表' }))
     await screen.findByRole('heading', { name: '问题' })
-    expect(router.state.location.search).toBe('?' + fixed)
+    expect(router.state.location.search).toBe('?' + fixed + '&page=1&pageSize=30')
     for (const [input] of fetchMock.mock.calls) {
       const url = new URL(String(input), 'http://localhost')
       if (url.pathname.includes('/issues')) {
@@ -730,5 +738,162 @@ describe('时间范围与查询导航', () => {
     fireEvent.click(screen.getByRole('button', { name: '时间范围：选择时间' }))
     fireEvent.click(screen.getByRole('button', { name: '最近 7 天' }))
     await screen.findByText('Cannot read profile')
+  })
+})
+
+describe('页码分页', () => {
+  const fixed = 'from=1787060000123&to=1787068800456&range=custom'
+
+  function pagedFetch(input: RequestInfo | URL, init?: RequestInit) {
+    const url = new URL(String(input), 'http://localhost')
+    const page = Number(url.searchParams.get('page') || 1)
+    const pageSize = Number(url.searchParams.get('pageSize') || 30)
+    const total = url.searchParams.has('category') ? 7 : 65
+    const start = (page - 1) * pageSize
+    const events = Array.from({ length: total }, (_, index) => ({
+      ...eventSummary,
+      eventId: index === 0 ? 'event-1' : `event-${index + 1}`,
+      message: index === 0 ? 'Cannot read profile' : `测试错误 ${index + 1}`,
+    })).slice(start, start + pageSize)
+    const info = { page, pageSize, total }
+    const data = url.pathname.endsWith('/events')
+      ? { events, ...info }
+      : url.pathname.endsWith('/issues')
+        ? {
+            issues: events.map((item) => ({
+              ...issueSummary,
+              id: item.eventId === 'event-1' ? issueSummary.id : item.eventId,
+              title: item.message,
+            })),
+            ...info,
+          }
+        : url.pathname.endsWith('/issues/' + issueSummary.id)
+          ? { issue: { ...issueSummary, eventCount: total }, occurrences: events, ...info }
+          : null
+    return data
+      ? Promise.resolve({ ok: true, status: 200, json: async () => ({ data }) } as Response)
+      : successfulFetch(input, init)
+  }
+
+  beforeEach(() => {
+    useAdminStore.setState({ projectId: primaryProjectId })
+    vi.restoreAllMocks()
+  })
+
+  it.each(['/events', '/issues', '/issues/' + issueSummary.id])(
+    '%s 可跳到末页、回到首页，且只显示当前页',
+    async (path) => {
+      const user = userEvent.setup()
+      const fetchMock = vi.fn(pagedFetch)
+      vi.stubGlobal('fetch', fetchMock)
+      const { router } = renderRoute(path + '?' + fixed)
+      await screen.findByRole('link', { name: '测试错误 30' })
+      expect(screen.queryByRole('link', { name: '测试错误 31' })).not.toBeInTheDocument()
+      expect(screen.getByLabelText('列表分页')).toHaveTextContent('共 65 条')
+      await user.clear(screen.getByLabelText('跳转页码'))
+      await user.type(screen.getByLabelText('跳转页码'), '3')
+      await user.click(screen.getByRole('button', { name: '跳转' }))
+      await screen.findByRole('link', { name: '测试错误 65' })
+      expect(screen.queryByRole('link', { name: '测试错误 30' })).not.toBeInTheDocument()
+      expect(screen.getByLabelText('列表分页')).toHaveTextContent('第 61–65 条')
+      expect(new URLSearchParams(router.state.location.search).get('page')).toBe('3')
+      expect(
+        fetchMock.mock.calls.some(([input]) => {
+          const url = new URL(String(input), 'http://localhost')
+          return url.pathname.endsWith(path) && url.searchParams.get('page') === '2'
+        }),
+      ).toBe(false)
+      await user.click(screen.getByRole('button', { name: '第一页' }))
+      await screen.findByRole('link', { name: '测试错误 30' })
+      expect(new URLSearchParams(router.state.location.search).get('page')).toBe('1')
+    },
+  )
+
+  it('修改每页条数或分类回到第一页，浏览器后退恢复原页', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('fetch', vi.fn(pagedFetch))
+    const { router } = renderRoute('/events?' + fixed + '&page=3')
+    await screen.findByRole('link', { name: '测试错误 65' })
+    await user.click(screen.getByRole('combobox', { name: '每页条数' }))
+    await user.click(screen.getByRole('option', { name: '10 条/页' }))
+    await screen.findByRole('link', { name: '测试错误 10' })
+    expect(screen.queryByRole('link', { name: '测试错误 11' })).not.toBeInTheDocument()
+    expect(new URLSearchParams(router.state.location.search).get('page')).toBe('1')
+    expect(new URLSearchParams(router.state.location.search).get('pageSize')).toBe('10')
+    await act(async () => {
+      await router.navigate(-1)
+    })
+    await screen.findByRole('link', { name: '测试错误 65' })
+    await user.click(screen.getByRole('combobox', { name: '事件分类' }))
+    await user.click(screen.getByRole('option', { name: '错误' }))
+    await user.click(screen.getByRole('button', { name: '应用筛选' }))
+    await screen.findByRole('link', { name: '测试错误 7' })
+    expect(screen.getByLabelText('列表分页')).toHaveTextContent('共 7 条')
+    expect(new URLSearchParams(router.state.location.search).get('page')).toBeNull()
+  })
+
+  it('越界页仍提供总数和回首页入口', async () => {
+    vi.stubGlobal('fetch', vi.fn(pagedFetch))
+    renderRoute('/events?' + fixed + '&page=99')
+    await screen.findByText('当前页暂无数据')
+    expect(screen.getByLabelText('列表分页')).toHaveTextContent('共 65 条')
+    fireEvent.click(screen.getByRole('button', { name: '返回第一页' }))
+    await screen.findByRole('link', { name: '测试错误 30' })
+  })
+
+  it('翻页失败不展示上一页的数据，重试仍请求目标页', async () => {
+    let fail = true
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input), 'http://localhost')
+      if (url.pathname.endsWith('/events') && url.searchParams.get('page') === '2' && fail) {
+        return Promise.resolve({
+          ok: false,
+          status: 500,
+          json: async () => ({ error: { code: 'INTERNAL_ERROR', message: 'failed' } }),
+        } as Response)
+      }
+      return pagedFetch(input, init)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const { router } = renderRoute('/events?' + fixed)
+    await screen.findByRole('link', { name: '测试错误 30' })
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+    await screen.findByRole('alert')
+    expect(screen.queryByRole('link', { name: '测试错误 30' })).not.toBeInTheDocument()
+    expect(new URLSearchParams(router.state.location.search).get('page')).toBe('2')
+    fail = false
+    fireEvent.click(screen.getByRole('button', { name: '重新加载' }))
+    await screen.findByRole('link', { name: '测试错误 60' })
+  })
+
+  it('事件详情往返保留当前页，Issue 列表与发生记录使用各自页码', async () => {
+    vi.stubGlobal('fetch', vi.fn(pagedFetch))
+    const { router } = renderRoute('/events?' + fixed + '&page=1&pageSize=10')
+    fireEvent.click(await screen.findByRole('link', { name: 'Cannot read profile' }))
+    await screen.findByRole('heading', { name: 'Cannot read profile' })
+    fireEvent.click(screen.getByRole('link', { name: '返回事件流' }))
+    await screen.findByRole('link', { name: '测试错误 10' })
+    expect(router.state.location.search).toBe('?' + fixed + '&page=1&pageSize=10')
+
+    await act(async () => {
+      await router.navigate(
+        '/issues/' +
+          issueSummary.id +
+          '?' +
+          fixed +
+          '&issuesPage=3&issuesPageSize=20&page=2&pageSize=10',
+      )
+    })
+    await screen.findByRole('link', { name: '测试错误 20' })
+    fireEvent.click(screen.getByRole('link', { name: '查看最近事件' }))
+    await screen.findByRole('heading', { name: 'Cannot read profile' })
+    fireEvent.click(screen.getByRole('link', { name: '返回问题详情' }))
+    await screen.findByRole('link', { name: '测试错误 20' })
+    expect(new URLSearchParams(router.state.location.search).get('page')).toBe('2')
+    fireEvent.click(screen.getByRole('link', { name: '返回问题列表' }))
+    await screen.findByRole('link', { name: '测试错误 60' })
+    expect(new URLSearchParams(router.state.location.search).get('pageSize')).toBe('20')
+    expect(new URLSearchParams(router.state.location.search).get('page')).toBe('3')
+    expect(new URLSearchParams(router.state.location.search).has('issuesPage')).toBe(false)
   })
 })

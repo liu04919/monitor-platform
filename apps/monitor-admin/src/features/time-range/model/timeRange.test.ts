@@ -8,17 +8,22 @@ import {
   timePresets,
   withTimeRange,
 } from './timeRange'
-import { timeRangeLoader } from './timeRangeRouting'
+import { listQueryLoader } from '@/app/listQueryLoader'
 
 describe('time range', () => {
   it('预设固定绝对时间，URL 往返保留毫秒', () => {
     for (const item of timePresets) {
       const range = presetTimeRange(item.value, 1789444800123)
       expect(range.to - range.from).toBe(item.duration)
-      const params = withTimeRange(new URLSearchParams('category=error&cursor=old'), range)
+      const params = withTimeRange(
+        new URLSearchParams('category=error&page=4&pageSize=50&issuesPage=3'),
+        range,
+      )
       expect(readTimeRange(params)).toEqual(range)
       expect(params.get('category')).toBe('error')
-      expect(params.has('cursor')).toBe(false)
+      expect(params.has('page')).toBe(false)
+      expect(params.has('issuesPage')).toBe(false)
+      expect(params.get('pageSize')).toBe('50')
     }
   })
 
@@ -40,7 +45,7 @@ describe('time range', () => {
   })
 
   it('缺省入口先写入最近 24 小时，已有时间不重算', () => {
-    const result = timeRangeLoader({
+    const result = listQueryLoader({
       request: new Request('http://localhost/events?category=error'),
     }) as Response
     const url = new URL(result.headers.get('Location')!, 'http://localhost')
@@ -48,7 +53,7 @@ describe('time range', () => {
     expect(readTimeRange(url.searchParams)?.preset).toBe('24h')
     expect(url.searchParams.get('category')).toBe('error')
     expect(
-      timeRangeLoader({
+      listQueryLoader({
         request: new Request('http://localhost/events?from=100&to=200'),
       }),
     ).toBeNull()
@@ -58,10 +63,10 @@ describe('time range', () => {
     expect(
       listSearch(
         new URLSearchParams(
-          'from=100&to=200&range=custom&category=error&eventType=js_error&view=replay&issueId=abc&cursor=old',
+          'from=100&to=200&range=custom&category=error&eventType=js_error&view=replay&issueId=abc&page=4&pageSize=50',
         ),
       ),
-    ).toBe('?from=100&to=200&range=custom&category=error&eventType=js_error')
+    ).toBe('?from=100&to=200&range=custom&category=error&eventType=js_error&page=4&pageSize=50')
   })
 
   it('自定义时间按本地时区转换，不默默归一化无效日期', () => {

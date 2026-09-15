@@ -123,13 +123,13 @@ ClickHouse 显式使用 `fromUnixTimestamp64Milli` 保留毫秒精度。不是�
 
 管理端默认最近 24 小时，支持最近 1 小时、7 天和自定义本地时间。选择预设时先固定绝对起止时间，
 再写入 URL；翻页和查看详情沿用同一区间。刷新预设时重新计算区间，刷新自定义范围时保持原区间。
-查询接口只接收绝对时间，不在每一页请求时计算“当前时间”。修改筛选条件后必须丢弃旧游标。
+查询接口只接收绝对时间，不在每一页请求时计算“当前时间”。修改筛选条件或每页条数后回到第一页。
 
 Issue 的 `eventCount`、`affectedUsers`、`firstSeen`、`lastSeen` 和最近事件字段都只统计所选区间。
 列表和详情使用同一个过滤口径；区间内没有发生记录时，详情返回 `404 ISSUE_NOT_FOUND`。
 单个事件详情仍按 `eventId` 读取，不要求时间参数。
 
-示例：`?from=1787328000000&to=1787414400000&limit=30`。
+示例：`?from=1787328000000&to=1787414400000&page=1&pageSize=30`。
 
 ## Issue 列表
 
@@ -142,9 +142,9 @@ Issue 只聚合 `category=error` 的事件。Go 在事件写入 ClickHouse 前�
 
 查询参数：
 
-- `limit`：可选，默认 `30`，范围 `1..100`
+- `pageSize`：可选，默认 `30`，范围 `1..100`
 - `from`、`to`：必填，见「查询时间范围」
-- `cursor`：可选，上一页返回的不透明游标
+- `page`：可选，从 `1` 开始，默认 `1`，范围 `1..1000000`
 
 ```json
 {
@@ -163,13 +163,15 @@ Issue 只聚合 `category=error` 的事件。Go 在事件写入 ClickHouse 前�
         "latestPageUrl": "https://example.com/profile"
       }
     ],
-    "nextCursor": "opaque_cursor_or_empty_string"
+    "page": 1,
+    "pageSize": 30,
+    "total": 1
   }
 }
 ```
 
 结果按 `(lastSeen DESC, id DESC)` 稳定排序。项目不存在或不属于当前用户返回
-`404 PROJECT_NOT_FOUND`；非法 `limit` 或 `cursor` 返回 `400 INVALID_QUERY`；ClickHouse 故障
+`404 PROJECT_NOT_FOUND`；非法 `page` 或 `pageSize` 返回 `400 INVALID_QUERY`；ClickHouse 故障
 返回不暴露内部错误的 `500 INTERNAL_ERROR`。
 
 ## Issue 详情
@@ -183,9 +185,9 @@ GET /api/v1/projects/{projectId}/issues/{issueId}
 
 查询参数：
 
-- `limit`：可选，发生记录每页数量，默认 `30`，范围 `1..100`
+- `pageSize`：可选，发生记录每页数量，默认 `30`，范围 `1..100`
 - `from`、`to`：必填，摘要和发生记录共用该时间区间
-- `cursor`：可选，上一页返回的不透明发生记录游标
+- `page`：可选，从 `1` 开始，默认 `1`，范围 `1..1000000`
 
 ```json
 {
@@ -213,12 +215,14 @@ GET /api/v1/projects/{projectId}/issues/{issueId}
         "receivedAt": 1787328060100
       }
     ],
-    "nextCursor": "opaque_cursor_or_empty_string"
+    "page": 1,
+    "pageSize": 30,
+    "total": 3
   }
 }
 ```
 
-发生记录按 `(timestamp DESC, eventId DESC)` 键集分页。非法 `issueId` 返回 `400 INVALID_PATH`；
+发生记录按 `(timestamp DESC, eventId DESC)` 稳定排序并按页码分页。非法 `issueId` 返回 `400 INVALID_PATH`；
 Issue 不存在返回 `404 ISSUE_NOT_FOUND`；项目归属和内部错误遵循列表接口相同的边界。
 
 ## 事件列表
@@ -234,10 +238,10 @@ GET /api/v1/projects/{projectId}/events
 | `from`、`to` | 是 | 事件发生时间区间 `[from, to)`，Unix 毫秒整数。 |
 | `category` | 否 | `error`、`performance`、`behavior`、`stability` 或 `ai`。 |
 | `eventType` | 否 | category 下的具体事件类型。 |
-| `limit` | 否 | 每页数量，默认 50，范围 1 到 100。 |
-| `cursor` | 否 | 上一页返回的不透明游标，调用方不应自行解析或修改。 |
+| `pageSize` | 否 | 每页数量，默认 30，范围 1 到 100。 |
+| `page` | 否 | 页码，从 1 开始，默认 1，范围 1 到 1000000。 |
 
-事件按 `(event_timestamp DESC, event_id DESC)` 排序，使用键集分页，不使用 `OFFSET`。
+事件按 `(event_timestamp DESC, event_id DESC)` 排序，使用 `LIMIT pageSize OFFSET (page - 1) * pageSize`。
 列表只返回摘要字段，完整 payload、breadcrumbs 和 replay data 留给后续详情接口。
 
 ```json
@@ -258,12 +262,19 @@ GET /api/v1/projects/{projectId}/events
         "receivedAt": 1787068800100
       }
     ],
-    "nextCursor": "opaque-cursor-value"
+    "page": 1,
+    "pageSize": 30,
+    "total": 1
   }
 }
 ```
 
-没有下一页时，`nextCursor` 是空字符串。查询参数非法返回 `400 INVALID_QUERY`；数据库等
+`total` 是当前项目和筛选条件内的总条数，不是本页条数；总页数为 `ceil(total / pageSize)`。
+空结果返回 `total: 0` 和空数组；页码超出总页数时仍返回请求的页码、正确总数和空数组，不自动改为最后一页。
+Issue 列表的总数按指纹去重；Issue 详情的总数为该 Issue 在所选区间内的发生次数。
+总数与数据页是独立查询，不承诺快照一致性；窗口内迟到事件或数据删除可能影响重新查询的结果。
+
+查询参数非法返回 `400 INVALID_QUERY`；数据库等
 内部故障返回不暴露内部错误的 `500 INTERNAL_ERROR`。
 
 列表和详情中的 `message` 是从 SDK payload 读取的展示摘要：优先使用顶层

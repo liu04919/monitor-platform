@@ -1,3 +1,5 @@
+import { usePagination } from '@/shared/hooks/usePagination'
+import { EmptyPage, PaginationFooter } from '@/shared/ui/pagination/PaginationFooter'
 import {
   ActionIcon,
   Alert,
@@ -9,7 +11,7 @@ import {
   ThemeIcon,
   Title,
 } from '@mantine/core'
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { IssueTable } from '@/features/issues/components/IssueTable/IssueTable'
 import { issuesQueryOptions } from '@/features/issues/model/issueQueries'
 import { issueErrorMessage } from '@/features/issues/model/issueFormatters'
@@ -26,8 +28,9 @@ const loadingRows = Array.from({ length: 5 }, (_, index) => index)
 export function IssuesPage() {
   const projectId = useAdminStore((state) => state.projectId)
   const { range, setRange, refresh } = useTimeRange()
-  const query = useInfiniteQuery(issuesQueryOptions(projectId, range))
-  const issues = query.data?.pages.flatMap((page) => page.issues) || []
+  const { pagination, setPagination } = usePagination()
+  const query = useQuery(issuesQueryOptions(projectId, range, pagination))
+  const issues = query.data?.issues || []
 
   return (
     <section className={styles.page}>
@@ -84,7 +87,7 @@ export function IssuesPage() {
             </Button>
           </Alert>
         ) : null}
-        {!query.isPending && !query.isError && issues.length === 0 ? (
+        {!query.isPending && !query.isError && query.data?.total === 0 ? (
           <Stack className={styles.empty} align="center" justify="center" gap="xs">
             <ThemeIcon variant="light" color="gray" size={52} radius="md">
               <EmptyIcon />
@@ -92,19 +95,22 @@ export function IssuesPage() {
             <Title order={2}>所选时段暂无问题</Title>
           </Stack>
         ) : null}
-        {issues.length > 0 ? (
-          <IssueTable
-            issues={issues}
-            hasNextPage={query.hasNextPage}
-            isFetchingNextPage={query.isFetchingNextPage}
-            onLoadMore={() => void query.fetchNextPage()}
+        {issues.length > 0 ? <IssueTable issues={issues} /> : null}
+        {query.data && issues.length === 0 && query.data.total > 0 ? (
+          <EmptyPage onFirstPage={() => setPagination({ ...pagination, page: 1 })} />
+        ) : null}
+        {query.data ? (
+          <PaginationFooter
+            info={query.data}
+            disabled={query.isFetching}
+            onChange={setPagination}
           />
         ) : null}
       </div>
-      {query.isFetchNextPageError ? (
+      {query.isError && query.data ? (
         <InlineError
           message={issueErrorMessage(query.error)}
-          onRetry={() => void query.fetchNextPage()}
+          onRetry={() => void query.refetch()}
         />
       ) : null}
     </section>

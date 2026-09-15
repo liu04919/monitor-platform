@@ -1,4 +1,4 @@
-import { Badge, Button } from '@mantine/core'
+import { Badge } from '@mantine/core'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { listSearch } from '@/features/time-range/model/timeRange'
 import type { IssueOccurrence } from '@/features/issues/model/issueTypes'
@@ -8,17 +8,9 @@ import styles from './IssueOccurrenceList.module.css'
 
 interface IssueOccurrenceListProps {
   occurrences: IssueOccurrence[]
-  hasNextPage: boolean
-  isFetchingNextPage: boolean
-  onLoadMore: () => void
 }
 
-export function IssueOccurrenceList({
-  occurrences,
-  hasNextPage,
-  isFetchingNextPage,
-  onLoadMore,
-}: IssueOccurrenceListProps) {
+export function IssueOccurrenceList({ occurrences }: IssueOccurrenceListProps) {
   const [params] = useSearchParams()
   const { issueId = '' } = useParams()
   const eventParams = new URLSearchParams(listSearch(params))
@@ -30,7 +22,6 @@ export function IssueOccurrenceList({
         <div>
           <h2 id="occurrence-list-title">发生记录</h2>
         </div>
-        <span>已加载 {occurrences.length} 条</span>
       </header>
 
       <div className={`${styles.row} ${styles.columns}`} aria-hidden="true">
@@ -66,23 +57,6 @@ export function IssueOccurrenceList({
           </Link>
         </article>
       ))}
-
-      <footer className={styles.footer}>
-        {hasNextPage ? (
-          <Button
-            variant="default"
-            size="compact-sm"
-            type="button"
-            onClick={onLoadMore}
-            loading={isFetchingNextPage}
-            rightSection={<ChevronIcon />}
-          >
-            加载更多发生记录
-          </Button>
-        ) : (
-          <span>已经加载全部发生记录</span>
-        )}
-      </footer>
     </section>
   )
 }

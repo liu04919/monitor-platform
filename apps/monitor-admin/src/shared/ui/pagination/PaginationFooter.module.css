@@ -1,0 +1,24 @@
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 68px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--line);
+}
+
+.controls,
+.jump {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.pageSize {
+  width: 112px;
+}
+.pageInput {
+  width: 64px;
+}

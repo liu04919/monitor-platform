@@ -1,4 +1,4 @@
-import { ActionIcon, Badge, Button } from '@mantine/core'
+import { ActionIcon, Badge } from '@mantine/core'
 import { Link, useSearchParams } from 'react-router-dom'
 import { listSearch } from '@/features/time-range/model/timeRange'
 import type { EventSummary } from '@/features/events/model/eventTypes'
@@ -10,17 +10,9 @@ import styles from './EventTable.module.css'
 
 interface EventTableProps {
   events: EventSummary[]
-  hasNextPage: boolean
-  isFetchingNextPage: boolean
-  onLoadMore: () => void
 }
 
-export function EventTable({
-  events,
-  hasNextPage,
-  isFetchingNextPage,
-  onLoadMore,
-}: EventTableProps) {
+export function EventTable({ events }: EventTableProps) {
   const [params] = useSearchParams()
   const search = listSearch(params)
   return (
@@ -78,25 +70,6 @@ export function EventTable({
           </div>
         </article>
       ))}
-      <footer className={styles.footer}>
-        <span>
-          已加载 <strong>{events.length}</strong> 条事件
-        </span>
-        {hasNextPage ? (
-          <Button
-            variant="default"
-            size="compact-sm"
-            type="button"
-            onClick={onLoadMore}
-            loading={isFetchingNextPage}
-            rightSection={<ChevronIcon />}
-          >
-            加载更多
-          </Button>
-        ) : (
-          <span>已经到底了</span>
-        )}
-      </footer>
     </>
   )
 }

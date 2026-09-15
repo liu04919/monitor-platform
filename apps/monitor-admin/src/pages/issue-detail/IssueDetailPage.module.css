@@ -58,3 +58,10 @@
   display: grid;
   gap: 20px;
 }
+
+.occurrences {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}

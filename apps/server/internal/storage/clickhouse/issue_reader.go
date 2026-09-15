@@ -11,6 +11,15 @@ import (
 	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
 
+const issueEventsFromSQL = `
+		FROM telemetry_events
+		WHERE project_id = ?
+			AND event_timestamp >= fromUnixTimestamp64Milli(?)
+			AND event_timestamp < fromUnixTimestamp64Milli(?)
+			AND category = 'error'
+			AND issue_fingerprint != ''
+`
+
 const listIssuesSQL = `
 	SELECT
 		issue_fingerprint,
@@ -35,13 +44,7 @@ const listIssuesSQL = `
 			tuple(event_timestamp, event_id) AS sort_key,
 			` + eventMessageExpression + ` AS message,
 			JSONExtractString(payload_json, 'exception', 'name') AS exception_type
-		FROM telemetry_events
-		WHERE project_id = ?
-			AND event_timestamp >= fromUnixTimestamp64Milli(?)
-			AND event_timestamp < fromUnixTimestamp64Milli(?)
-			AND category = 'error'
-			AND issue_fingerprint != ''
-	)
+` + issueEventsFromSQL + `	)
 	GROUP BY issue_fingerprint
 `
 
@@ -75,22 +78,25 @@ func NewIssueReader(conn driver.Conn) *IssueReader {
 func (r *IssueReader) ListIssues(
 	ctx context.Context,
 	filter issue.ListFilter,
-) ([]issue.Summary, error) {
+) ([]issue.Summary, uint64, error) {
 	query := strings.Builder{}
 	query.WriteString(listIssuesSQL)
 	arguments := []any{filter.ProjectID, filter.TimeRange.From, filter.TimeRange.To}
 
-	if filter.Before != nil {
-		query.WriteString("\tHAVING (last_seen, issue_fingerprint) < (fromUnixTimestamp64Milli(?), ?)\n")
-		arguments = append(arguments, filter.Before.LastSeen.UnixMilli(), filter.Before.IssueID)
+	var total uint64
+	if err := r.conn.QueryRow(ctx, "SELECT uniqExact(issue_fingerprint)"+issueEventsFromSQL, arguments...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("统计 ClickHouse Issue 总数: %w", err)
+	}
+	if uint64(filter.Offset) >= total {
+		return []issue.Summary{}, total, nil
 	}
 
-	query.WriteString("\tORDER BY last_seen DESC, issue_fingerprint DESC\n\tLIMIT ?")
-	arguments = append(arguments, filter.Limit)
+	query.WriteString("\tORDER BY last_seen DESC, issue_fingerprint DESC\n\tLIMIT ? OFFSET ?")
+	arguments = append(arguments, filter.Limit, filter.Offset)
 
 	rows, err := r.conn.Query(ctx, query.String(), arguments...)
 	if err != nil {
-		return nil, fmt.Errorf("执行 ClickHouse Issue 列表查询: %w", err)
+		return nil, 0, fmt.Errorf("执行 ClickHouse Issue 列表查询: %w", err)
 	}
 	defer rows.Close()
 
@@ -109,15 +115,15 @@ func (r *IssueReader) ListIssues(
 			&issue.LatestEventID,
 			&issue.LatestPageURL,
 		); err != nil {
-			return nil, fmt.Errorf("扫描 ClickHouse Issue 列表: %w", err)
+			return nil, 0, fmt.Errorf("扫描 ClickHouse Issue 列表: %w", err)
 		}
 		issues = append(issues, issue)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("遍历 ClickHouse Issue 列表: %w", err)
+		return nil, 0, fmt.Errorf("遍历 ClickHouse Issue 列表: %w", err)
 	}
 
-	return issues, nil
+	return issues, total, nil
 }
 
 func (r *IssueReader) GetIssue(
@@ -167,13 +173,8 @@ func (r *IssueReader) ListOccurrences(
 	query.WriteString(listIssueOccurrencesSQL)
 	arguments := []any{filter.ProjectID, filter.IssueID, filter.TimeRange.From, filter.TimeRange.To}
 
-	if filter.Before != nil {
-		query.WriteString("\tAND (event_timestamp, event_id) < (fromUnixTimestamp64Milli(?), ?)\n")
-		arguments = append(arguments, filter.Before.Timestamp.UnixMilli(), filter.Before.EventID)
-	}
-
-	query.WriteString("\tORDER BY event_timestamp DESC, event_id DESC\n\tLIMIT ?")
-	arguments = append(arguments, filter.Limit)
+	query.WriteString("\tORDER BY event_timestamp DESC, event_id DESC\n\tLIMIT ? OFFSET ?")
+	arguments = append(arguments, filter.Limit, filter.Offset)
 
 	rows, err := r.conn.Query(ctx, query.String(), arguments...)
 	if err != nil {

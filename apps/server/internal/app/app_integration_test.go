@@ -323,7 +323,7 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 		server.URL,
 		projectID,
 		sessionCookie,
-		url.Values{"limit": {"1"}},
+		url.Values{"pageSize": {"1"}},
 	)
 	if status != http.StatusOK {
 		t.Fatalf("查询第一页状态码 = %d, want %d, code = %q", status, http.StatusOK, eventList.Error.Code)
@@ -331,8 +331,8 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	if len(eventList.Data.Events) != 1 || eventList.Data.Events[0].EventID != batch.Events[1].EventID {
 		t.Fatalf("查询第一页事件 = %#v", eventList.Data.Events)
 	}
-	if eventList.Data.NextCursor == "" {
-		t.Fatal("查询第一页 nextCursor 为空")
+	if eventList.Data.Total != 2 || eventList.Data.Page != 1 {
+		t.Fatalf("第一页 = %#v", eventList.Data)
 	}
 
 	status, secondPage := getApplicationEvents(
@@ -341,8 +341,8 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 		projectID,
 		sessionCookie,
 		url.Values{
-			"limit":  {"1"},
-			"cursor": {eventList.Data.NextCursor},
+			"pageSize": {"1"},
+			"page":     {"2"},
 		},
 	)
 	if status != http.StatusOK {
@@ -351,8 +351,8 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	if len(secondPage.Data.Events) != 1 || secondPage.Data.Events[0].EventID != batch.Events[0].EventID {
 		t.Fatalf("查询第二页事件 = %#v", secondPage.Data.Events)
 	}
-	if secondPage.Data.NextCursor != "" {
-		t.Fatalf("查询第二页 nextCursor = %q, want empty", secondPage.Data.NextCursor)
+	if secondPage.Data.Total != 2 || secondPage.Data.Page != 2 {
+		t.Fatalf("第二页 = %#v", secondPage.Data)
 	}
 
 	status, eventDetail := getApplicationEventDetail(
@@ -677,7 +677,7 @@ type applicationEventListResponse struct {
 			EventType string             `json:"eventType"`
 			Timestamp int64              `json:"timestamp"`
 		} `json:"events"`
-		NextCursor string `json:"nextCursor"`
+		telemetry.PageInfo
 	} `json:"data"`
 	Error struct {
 		Code string `json:"code"`
@@ -883,10 +883,13 @@ func getApplicationEvents(
 ) (int, applicationEventListResponse) {
 	t.Helper()
 
-	endpoint := serverURL + "/api/v1/projects/" + url.PathEscape(projectID) + "/events"
-	if len(query) > 0 {
-		endpoint += "?" + query.Encode()
+	// 每个列表请求都带显式时间窗口，避免参数错误遮住项目授权断言。
+	if query == nil {
+		query = url.Values{}
 	}
+	query.Set("from", "0")
+	query.Set("to", "4102444800000")
+	endpoint := serverURL + "/api/v1/projects/" + url.PathEscape(projectID) + "/events?" + query.Encode()
 	request, err := http.NewRequest(http.MethodGet, endpoint, nil)
 	if err != nil {
 		t.Fatalf("创建事件列表请求失败: %v", err)

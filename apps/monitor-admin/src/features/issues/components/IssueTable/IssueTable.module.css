@@ -112,23 +112,3 @@
   width: 16px;
   height: 16px;
 }
-.footer {
-  min-width: 930px;
-  min-height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 20px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.footer strong {
-  color: var(--ink);
-  font-weight: 500;
-}
-.footer button svg {
-  width: 12px;
-  height: 12px;
-  transform: rotate(90deg);
-}

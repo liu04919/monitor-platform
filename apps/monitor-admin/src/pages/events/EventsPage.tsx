@@ -1,6 +1,8 @@
+import { usePagination } from '@/shared/hooks/usePagination'
+import { EmptyPage, PaginationFooter } from '@/shared/ui/pagination/PaginationFooter'
 import { useMemo } from 'react'
 import { ActionIcon, Group } from '@mantine/core'
-import { useInfiniteQuery } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { EventFilters } from '@/features/events/components/EventFilters/EventFilters'
 import { EventTable } from '@/features/events/components/EventTable/EventTable'
@@ -38,15 +40,16 @@ export function EventsPage() {
     : ''
   const filters = useMemo<Filters>(() => ({ category, eventType }), [category, eventType])
   const { range, setRange, refresh } = useTimeRange()
-  const query = useInfiniteQuery(eventsQueryOptions(projectId, filters, range))
-  const events = query.data?.pages.flatMap((page) => page.events) || []
+  const { pagination, setPagination } = usePagination()
+  const query = useQuery(eventsQueryOptions(projectId, filters, range, pagination))
+  const events = query.data?.events || []
   const hasFilters = Boolean(category || eventType)
 
   const applyFilters = (nextFilters: Filters) => {
     const next = new URLSearchParams(searchParams)
     next.delete('category')
     next.delete('eventType')
-    next.delete('cursor')
+    next.delete('page')
     if (nextFilters.category) next.set('category', nextFilters.category)
     if (nextFilters.eventType) next.set('eventType', nextFilters.eventType)
     setSearchParams(next)
@@ -90,22 +93,25 @@ export function EventsPage() {
             onRetry={() => void query.refetch()}
           />
         ) : null}
-        {!query.isPending && !query.isError && events.length === 0 ? (
+        {!query.isPending && !query.isError && query.data?.total === 0 ? (
           <EmptyState filtered={hasFilters} />
         ) : null}
-        {events.length > 0 ? (
-          <EventTable
-            events={events}
-            hasNextPage={query.hasNextPage}
-            isFetchingNextPage={query.isFetchingNextPage}
-            onLoadMore={() => void query.fetchNextPage()}
+        {events.length > 0 ? <EventTable events={events} /> : null}
+        {query.data && events.length === 0 && query.data.total > 0 ? (
+          <EmptyPage onFirstPage={() => setPagination({ ...pagination, page: 1 })} />
+        ) : null}
+        {query.data ? (
+          <PaginationFooter
+            info={query.data}
+            disabled={query.isFetching}
+            onChange={setPagination}
           />
         ) : null}
       </div>
-      {query.isFetchNextPageError ? (
+      {query.isError && query.data ? (
         <InlineError
           message={eventErrorMessage(query.error)}
-          onRetry={() => void query.fetchNextPage()}
+          onRetry={() => void query.refetch()}
         />
       ) : null}
     </section>
