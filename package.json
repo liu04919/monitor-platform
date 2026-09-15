@@ -1,0 +1,20 @@
+{
+  "name": "monitor-platform",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm dev:prepare && concurrently --kill-others --names server,admin,demo --prefix-colors blue,magenta,green \"pnpm dev:server\" \"pnpm dev:admin\" \"pnpm dev:demo\"",
+    "dev:prepare": "node scripts/prepare-dev.mjs",
+    "dev:server": "go -C apps/server run ./cmd/server",
+    "dev:admin": "pnpm --dir apps/monitor-admin dev",
+    "dev:demo": "pnpm --dir apps/monitor-demo dev",
+    "install:apps": "pnpm --dir packages/monitor-sdk install --frozen-lockfile && pnpm --dir apps/monitor-admin install --frozen-lockfile && pnpm --dir apps/monitor-demo install --frozen-lockfile"
+  },
+  "devDependencies": {
+    "concurrently": "10.0.5"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@10.14.0"
+}
