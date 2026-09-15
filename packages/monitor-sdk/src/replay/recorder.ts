@@ -1,5 +1,5 @@
 import { record } from 'rrweb'
-import { zip } from '../common/utils'
+import { encodeReplay } from './codec'
 
 type RecordOptions = NonNullable<Parameters<typeof record>[0]>
 type RecordedEvent = Parameters<NonNullable<RecordOptions['emit']>>[0]
@@ -8,7 +8,7 @@ interface RecordScope {
   eventList: RecordedEvent[]
 }
 
-// 本轮仅独立录制模块；分段与随诊断事件携带的协议保持不变。
+// 按完整快照分段，错误发生时截取最近两段。
 export class RecordScreen {
   public eventList: RecordScope[] = [{ scope: `${Date.now()}-`, eventList: [] }]
 
@@ -54,5 +54,5 @@ export class RecordScreen {
 }
 
 export function replaySnapshot(recorder: RecordScreen): string {
-  return zip(recorder.eventList.slice(-2).flatMap((segment) => segment.eventList))
+  return encodeReplay(recorder.eventList.slice(-2).flatMap((segment) => segment.eventList))
 }

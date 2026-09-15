@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { appRoutes } from '@/app/router'
 import { monitorTheme } from '@/app/theme'
 import { useAdminStore } from '@/store/adminStore'
+import { decodeReplay } from '@/features/replay/model/decodeReplay'
 
 const eventSummary = {
   batchId: 'batch-1',
@@ -59,7 +60,7 @@ const replayFixture = gzipSync(
         data: { node: { type: 0, id: 1, childNodes: [] }, initialOffset: { top: 0, left: 0 } },
       },
     ]),
-  ).toString('base64'),
+  ),
 ).toString('base64')
 
 function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
@@ -185,6 +186,10 @@ function renderRoute(path: string) {
 }
 
 describe('admin event routes', () => {
+  it('录屏接口夹具可被当前播放器解码', () => {
+    expect(decodeReplay(replayFixture).events).toHaveLength(2)
+  })
+
   beforeEach(() => {
     useAdminStore.setState({ projectId: primaryProjectId })
     vi.restoreAllMocks()

@@ -20,6 +20,10 @@ function renderPanel(value: string | null = 'recording') {
 }
 async function readyPlayer() {
   const frame = (await screen.findByTitle('录屏回放画面')) as HTMLIFrameElement
+  // iframe 出现在 DOM 时，React 可能还没安装消息监听器；先完成 effect，再模拟 ready。
+  await act(async () => {
+    await Promise.resolve()
+  })
   act(() =>
     window.dispatchEvent(
       new MessageEvent('message', {
@@ -28,6 +32,7 @@ async function readyPlayer() {
       }),
     ),
   )
+  expect(screen.getByRole('button', { name: /^播放$/ })).toBeEnabled()
   return frame
 }
 

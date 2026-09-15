@@ -20,7 +20,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
 export function decodeReplay(encoded: string): ReplayClip {
   if (encoded.length > MAX_ENCODED_LENGTH) throw new Error('录屏文件过大，无法播放。')
 
-  // 对应 SDK zip：外层 Base64 → gzip → 内层 Base64 → UTF-8 JSON。只有这一种格式。
+  // 与 SDK 一致：Base64 → gzip → UTF-8 JSON，不猜测其他编码格式。
   const compressed = fromBase64(encoded)
   if (compressed[0] !== 0x1f || compressed[1] !== 0x8b) {
     throw new Error('录屏压缩数据无效，无法播放。')
@@ -50,8 +50,7 @@ export function decodeReplay(encoded: string): ReplayClip {
 
   let value: unknown
   try {
-    const innerBase64 = new TextDecoder('utf-8', { fatal: true }).decode(inflated)
-    const json = new TextDecoder('utf-8', { fatal: true }).decode(fromBase64(innerBase64))
+    const json = new TextDecoder('utf-8', { fatal: true }).decode(inflated)
     value = JSON.parse(json)
   } catch {
     throw new Error('录屏内容损坏，无法播放。')

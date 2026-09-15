@@ -78,7 +78,7 @@ Fetch 使用 `application/json`；跨源 `sendBeacon` 使用 CORS 简单请求�
 | --- | --- | --- | --- |
 | `level` | string | 是 | `error` 或 `warning`。 |
 | `breadcrumbs` | array | 是 | 错误发生前的有限操作轨迹，没有数据时传空数组。 |
-| `replayData` | string | 否 | 压缩后的 rrweb 数据。它可能较大，也属于潜在敏感数据，必须受请求大小和数据保留策略约束。 |
+| `replayData` | string | 否 | rrweb 事件数组 → UTF-8 JSON → gzip → Base64，仅一层 Base64。它可能较大，也属于潜在敏感数据，必须受请求大小和数据保留策略约束。 |
 
 服务端必须保留完整 `payload`，第一版不要求把每一种 payload 都拆成数据库列。服务端仍需校验公共字段以及已知事件类型所要求的最小字段，不能把任意 JSON 当作合法事件直接入库。
 

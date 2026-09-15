@@ -15,9 +15,9 @@ const snapshot = {
 }
 const last = { type: 5, timestamp: 4000, data: { tag: '点击保存', payload: { text: '中文与🙂' } } }
 
-// 与真实 SDK 相同的双层 Base64 + gzip，不用手写 JSON 假装录屏协议。
+// 用独立的 gzip 实现生成夹具：直接压缩 UTF-8 JSON，再转一层 Base64。
 export function encodeFixture(value: unknown) {
-  return gzipSync(Buffer.from(JSON.stringify(value), 'utf8').toString('base64')).toString('base64')
+  return gzipSync(Buffer.from(JSON.stringify(value), 'utf8')).toString('base64')
 }
 
 describe('decodeReplay', () => {
@@ -65,11 +65,17 @@ describe('decodeReplay', () => {
       decodeReplay(encodeFixture([{ ...meta, data: { width: 1e9, height: 900 } }, snapshot])),
     ).toThrow(/视口/)
   })
-  it('拒绝无法解析的内层内容', () => {
+  it('拒绝非法 JSON 和无效 UTF-8', () => {
     expect(() => decodeReplay(gzipSync('!!!').toString('base64'))).toThrow(/损坏/)
-    expect(() =>
-      decodeReplay(gzipSync(Buffer.from('not json').toString('base64')).toString('base64')),
-    ).toThrow(/损坏/)
+    expect(() => decodeReplay(gzipSync(Buffer.from([0xc3, 0x28])).toString('base64'))).toThrow(
+      /损坏/,
+    )
+  })
+  it('拒绝 gzip 内额外包裹的 Base64，不保留双格式读取', () => {
+    const innerBase64 = Buffer.from(JSON.stringify([meta, snapshot, last]), 'utf8').toString(
+      'base64',
+    )
+    expect(() => decodeReplay(gzipSync(innerBase64).toString('base64'))).toThrow(/损坏/)
   })
   it('在解压过程中限制展开大小', () => {
     const bomb = gzipSync('A'.repeat(16 * 1024 * 1024 + 1)).toString('base64')

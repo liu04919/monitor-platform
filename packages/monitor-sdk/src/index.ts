@@ -19,6 +19,6 @@ export type {
   TransportOptions,
   ReportDrop,
 } from './types'
-export { unzipRecordscreen } from './common/utils'
+export { unzipRecordscreen } from './replay/codec'
 
 export { createMonitor as default } from './core'

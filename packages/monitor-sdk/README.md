@@ -28,6 +28,14 @@ React 插件安装后，通过 `monitor.getCapability('error:react-boundary')` �
 
 同一 Monitor 按插件名称去重，销毁时移除浏览器监听器并恢复仍由 SDK 接管的 Vue 错误处理器。需要录屏时另行安装 `recordScreenPlugin()`，错误上报时读取当前实例的录屏和 breadcrumbs 快照。
 
+## 录屏编码
+
+`src/replay/codec.ts` 将 rrweb 事件数组序列化为 UTF-8 JSON，直接 gzip 压缩，最后只编码一层 Base64，放入事件的 `replayData` 字符串。中文和 emoji 由 UTF-8 处理，压缩前不再包裹 Base64。
+
+导出的 `unzipRecordscreen()` 反向解码同一格式。管理端在 Worker 中解码，并额外限制解压大小、检查事件结构。SDK 和管理端只使用这一条编码链路，不读取 gzip 内额外包裹 Base64 的数据；本地旧测试录屏需要重新采集。
+
+录屏仍随错误等诊断事件一起通过 JSON 批次发送，Go 原样存储 `replayData`。本次编码调整不改变 rrweb 的录制分段、事件结构或上传接口。
+
 ## React 渲染统计
 
 `reactProfilerPlugin()` 通过 React 的 `<Profiler>` 收集被包裹子树的渲染耗时，产生 `performance / react_render`。安装插件不会自动包裹应用；应在模块初始化时取得包装组件，不要在组件渲染中反复创建 Monitor 或包装组件。
