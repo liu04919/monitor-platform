@@ -51,25 +51,9 @@ export function observeStreamResponse(
     return response
   }
 
-  const transform = new TransformStream<Uint8Array, Uint8Array>({
-    transform(chunk, controller) {
-      safely(() => measurement.chunk(chunk))
-      controller.enqueue(chunk)
-    },
-  })
-  const transformWriter = transform.writable.getWriter()
-  const transformReader = transform.readable.getReader()
-  let sourceReader: ReadableStreamDefaultReader<Uint8Array>
   let bodyController: ReadableStreamDefaultController<Uint8Array>
   let bodyEnded = false
-  let isPulling = false
   let readError: { reason: unknown } | undefined
-
-  function releaseLocks() {
-    safely(() => sourceReader.releaseLock())
-    safely(() => transformReader.releaseLock())
-    safely(() => transformWriter.releaseLock())
-  }
 
   function failBody(error: unknown) {
     if (bodyEnded) return
@@ -77,79 +61,57 @@ export function observeStreamResponse(
     readError = { reason: error }
     measurement.finish('error', error)
     bodyController.error(error)
-    safely(() => transformReader.cancel(error))
-    if (!isPulling) releaseLocks()
+    safely(() => sourceReader.releaseLock())
   }
 
-  // 取消或释放锁会拒绝 closed；错误通过 pull / 原始 reader 统一处理。
-  void transformReader.closed.catch(() => {})
-  void transformWriter.closed.catch(() => {})
-
+  // 业务读取一块，就从原始响应读取一块，统计后直接交还，不额外预读。
   const body = new ReadableStream<Uint8Array>(
     {
       start(controller) {
         bodyController = controller
       },
       async pull(controller) {
-        isPulling = true
         measurement.startWaiting()
         try {
           const chunk = await sourceReader.read()
-          measurement.stopWaiting()
           if (bodyEnded) return
           if (chunk.done) {
-            await transformWriter.close()
-            if (bodyEnded) return
             bodyEnded = true
             measurement.finish('end')
             controller.close()
-            return
+            sourceReader.releaseLock()
+          } else {
+            safely(() => measurement.chunk(chunk.value))
+            controller.enqueue(chunk.value)
           }
-          // 先写入 Transform，同时读取它的输出，避免背压下等待 write 导致死锁。
-          // 不用 pipeThrough 自动泵送：业务请求下一块时才读取上游。
-          const writeTask = transformWriter.write(chunk.value)
-          const readTask = transformReader.read()
-          const results = await Promise.all([writeTask, readTask])
-          const transformedChunk = results[1]
-          if (!bodyEnded && !transformedChunk.done) controller.enqueue(transformedChunk.value)
         } catch (error) {
           failBody(error)
         } finally {
           measurement.stopWaiting()
-          isPulling = false
-          if (bodyEnded) releaseLocks()
         }
       },
       cancel(reason) {
         bodyEnded = true
         measurement.finish('cancel', reason)
-        safely(() => transformReader.cancel(reason))
-        // 保留业务取消的 reason 和原始取消结果，不在 SDK 销毁时执行这里。
-        return sourceReader.cancel(reason).finally(() => {
-          if (!isPulling) releaseLocks()
-        })
+        // 保留业务传入的 reason，并等待原始流的取消结果。
+        return sourceReader.cancel(reason).finally(() => sourceReader.releaseLock())
       },
     },
     { highWaterMark: 0 },
   )
 
-  try {
-    // 所有可能失败的 Response 准备都放在锁定源流之前，失败可安全返回原响应。
-    const wrapped = keepResponseMetadata(
-      new Response(body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-      }),
-      response,
-      () => readError,
-    )
-    sourceReader = response.body.getReader()
-    // 即使业务暂停读取，原始流报错也能收尾，不必等错误穿过 Transform。
-    void sourceReader.closed.catch(failBody)
-    return wrapped
-  } catch (error) {
-    releaseLocks()
-    throw error
-  }
+  // Response 准备完成后才锁定源流；准备失败时入口可直接返回原始响应。
+  const wrapped = keepResponseMetadata(
+    new Response(body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    }),
+    response,
+    () => readError,
+  )
+  const sourceReader = response.body.getReader()
+  // 业务暂停读取时也能观察到断流，不必等下一次 read。
+  void sourceReader.closed.catch(failBody)
+  return wrapped
 }

@@ -232,22 +232,24 @@ const monitor = createMonitor({
 实现集中在 `aiPerformance/stream/`，三个文件共同实现一个 `aiStreamPlugin`：
 
 - `index.ts`：插件入口，处理配置、请求匹配和 Fetch 安装 / 销毁；请求信息准备与业务 Fetch 流程分开。
-- `body.ts`：外层 `ReadableStream` 按需读取原始 reader，再通过 `TransformStream` 统计并原样透传。`sourceReader` 读取原始响应，`transformWriter` / `transformReader` 分别写入 / 读取 Transform。两者同时启动，避免背压死锁；没有 clone 分支或自动读完整段响应的循环。
+- `body.ts`：只包装一层 `ReadableStream`。业务读取时，直接从原始 reader 读取、统计并原样交还 chunk；正常结束、断流和取消在同一层收尾。不使用 TransformStream、pipeThrough 或 clone 观测分支。
 - `measurement.ts`：统计、等待计时与事件构建，不保存回答正文。只用于此插件的小函数放在各自文件，不再单独散落在外层 `utils.ts`。
 
-外层 `highWaterMark` 为 0，只有消费方请求下一块时才读取上游。`stream_stall` 从本次原始 `reader.read()` 开始计时，达到门槛上报一次；同一次等待不重复上报，收到结果后清理计时器，下一次读取重新计时。未开始消费、暂停处理上一块、等待响应头都不计作流分片停顿。默认门槛 2000ms，必须为大于 0 且不超过 2147483647 的有限数字。
+包装流的 `highWaterMark` 为 0，业务请求下一块时才读取原始 reader；SDK 不额外预读或自行读完整条流。浏览器底层网络缓冲仍由浏览器管理。
 
-`stream_metric` 在读到 EOF、原始流报错、主动取消或 Fetch 失败时汇总一次，`endReason` 为 `end` / `error` / `cancel`；HTTP 非 2xx 即使读完正文，`success` 仍是 false。通过原始 reader 的 `closed` 观察错误，业务暂停读取时也能收尾。只停止读取但未取消的流不会被主动耗尽，也不会伪造完成事件。`destroy()` 清理监控计时器并停止报告，不取消业务请求。
+`stream_stall` 从业务触发的本次 `sourceReader.read()` 开始计时。达到门槛上报一次；同一次等待不重复上报，收到结果后清理计时器，下一次业务读取重新计时。未开始消费、暂停处理上一块、等待响应头都不计作流分片停顿。默认门槛 2000ms，必须为大于 0 且不超过 2147483647 的有限数字。
+
+`stream_metric` 在业务读到 EOF、原始流报错、主动取消或 Fetch 失败时汇总一次，`endReason` 为 `end` / `error` / `cancel`；HTTP 非 2xx 即使读完正文，`success` 仍是 false。通过原始 reader 的 `closed` 观察错误，业务暂停读取时也能收尾。只停止读取但未取消时，不会伪造完成事件。取消只调用一次原始 reader，并等待它的取消结果；`destroy()` 只清理监控计时器和停止报告，不取消业务请求。
 
 指标沿用 TTFB / TTFT / TTLT / TTLB 命名，单位为毫秒。以浏览器响应和分片时刻近似测量，不解析 SSE 或模型协议：
 
 | attributes 字段 | 含义 |
 | --- | --- |
 | `ttfb` | 请求开始到 Fetch 返回 Response 的耗时，近似首字节耗时。 |
-| `ttft` / `ttlt` | 请求开始到 Transform 观察到首块 / 尾块的耗时，近似首 token / 尾 token 耗时。分片不等于 token，首块也可能只有元信息。 |
+| `ttft` / `ttlt` | 请求开始到 reader 读到首块 / 尾块的耗时，近似首 token / 尾 token 耗时。分片不等于 token，首块也可能只有元信息。 |
 | `ttlb` | 请求开始到本次流观测结束的耗时，也是最终事件的 `payload.value`。正常结束表示读取完成；取消或报错时表示截至中断的耗时，结合 `endReason` 判断。 |
 | `chunkCount` / `totalBytes` | 观察到的块数和字节总量，不保存块内容。 |
-| `averageChunkInterval` / `maxChunkInterval` | Transform 观察到的相邻块间隔，可能包含业务消费暂停。少于两块时省略。 |
+| `averageChunkInterval` / `maxChunkInterval` | reader 读到的相邻块间隔，可能包含业务消费暂停。少于两块时省略。 |
 
 不存在的响应头、首块和尾块时刻及耗时省略，不填 0。原始 `requestStart`、`responseStart`、`firstChunkTime`、`lastChunkTime`、`streamEndTime` 以及停顿事件的 `waitStart` 使用本页面 `performance.now()` 毫秒时间轴，不能与事件 `timestamp` 的 Unix 毫秒直接相减。浏览器缓冲、主线程调度和业务消费速度都会影响观测，不能仅凭这些数值判定模型或服务端卡顿。
 

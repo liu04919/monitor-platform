@@ -155,6 +155,36 @@ describe('AI 流统计与背压', () => {
     await response.body!.cancel()
   })
 
+  it('只随业务读取拉取上游，暂停时不预读，chunk 对象原样透传', async () => {
+    const s = source()
+    const produced: Uint8Array[] = []
+    s.pull.mockImplementation((controller: ReadableStreamDefaultController<Uint8Array>) => {
+      const chunk = bytes(`part${produced.length + 1}`)
+      produced.push(chunk)
+      controller.enqueue(chunk)
+      if (produced.length === 4) controller.close()
+    })
+    const { events } = setup({ stallThreshold: 100 })
+    const reader = (await window.fetch('/api/chat')).body!.getReader()
+    await wait(10_000)
+    expect(produced).toHaveLength(0)
+    expect(events).toEqual([])
+    expect(vi.getTimerCount()).toBe(0)
+
+    expect((await reader.read()).value).toBe(produced[0])
+    await wait(10_000)
+    expect(produced).toHaveLength(1)
+    expect(events).toEqual([])
+    expect(vi.getTimerCount()).toBe(0)
+    for (let index = 1; index < 4; index++) {
+      const chunk = await reader.read()
+      expect(chunk.value).toBe(produced[index])
+    }
+    expect((await reader.read()).done).toBe(true)
+    expect(attrs(events)).toMatchObject({ chunkCount: 4, totalBytes: 20, endReason: 'end' })
+    expect(events).toHaveLength(1)
+  })
+
   it('等待首块只报告一次，等待恢复后下一次 read 可再报一次', async () => {
     const s = source()
     const { events } = setup({ stallThreshold: 100 })
@@ -237,6 +267,49 @@ describe('AI 流统计与背压', () => {
 })
 
 describe('AI 流异常、取消与销毁', () => {
+  it('尚未消费时，上游错误立即收尾并保留错误对象', async () => {
+    const s = source()
+    const { events } = setup()
+    const response = await window.fetch('/api/chat')
+    s.controller.enqueue(bytes('queued'))
+    await wait()
+    const error = new Error('disconnected before consumption')
+    s.controller.error(error)
+    await wait()
+    expect(events).toHaveLength(1)
+    expect(attrs(events)).toMatchObject({ endReason: 'error', chunkCount: 0 })
+    await expect(response.text()).rejects.toBe(error)
+    expect(s.response.body!.locked).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('取消等待原始取消完成，且只取消一次上游', async () => {
+    const s = source()
+    let complete!: () => void
+    s.cancel.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          complete = resolve
+        }),
+    )
+    const { events } = setup()
+    const response = await window.fetch('/api/chat')
+    let settled = false
+    const cancellation = response.body!.cancel('stop').then(() => {
+      settled = true
+    })
+    await wait()
+    expect(settled).toBe(false)
+    expect(s.cancel).toHaveBeenCalledExactlyOnceWith('stop')
+    complete()
+    await cancellation
+    await wait()
+    expect(s.cancel).toHaveBeenCalledTimes(1)
+    expect(events).toHaveLength(1)
+    expect(attrs(events).endReason).toBe('cancel')
+    expect(s.response.body!.locked).toBe(false)
+  })
+
   it('Fetch 失败保留原始错误，不填不存在的响应头和首块耗时', async () => {
     const error = new Error('offline')
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(error))
@@ -390,6 +463,16 @@ describe('AI 流异常、取消与销毁', () => {
 })
 
 describe('AI 流采集隔离与配置', () => {
+  it('没有 TransformStream 也可以采集流指标', async () => {
+    vi.stubGlobal('TransformStream', undefined)
+    const s = source()
+    s.controller.enqueue(bytes('business'))
+    s.controller.close()
+    const { events } = setup()
+    expect(await (await window.fetch('/api/chat')).text()).toBe('business')
+    expect(attrs(events)).toMatchObject({ chunkCount: 1, totalBytes: 8, endReason: 'end' })
+  })
+
   it('异步 getMeta 的拒绝被隔离，不作为同步结果使用', async () => {
     const fetch = vi.fn(async () => new Response('ok'))
     vi.stubGlobal('fetch', fetch)
@@ -472,13 +555,15 @@ describe('AI 流采集隔离与配置', () => {
     expect(attrs(events)).toMatchObject({ success: true, endReason: 'end' })
   })
 
-  it('正常持有 body 锁时原生消费方法仍拒绝，不提前拉取', async () => {
+  it('正常持有 body 锁时原生消费方法仍拒绝，不额外读取', async () => {
     const s = source()
     setup()
     const response = await window.fetch('/api/chat')
     const reader = response.body!.getReader()
+    await wait()
+    const pullsBefore = s.pull.mock.calls.length
     await expect(response.text()).rejects.toBeInstanceOf(TypeError)
-    expect(s.pull).not.toHaveBeenCalled()
+    expect(s.pull).toHaveBeenCalledTimes(pullsBefore)
     await reader.cancel()
   })
   it.each(['getMeta', 'getConfig', 'report'])('%s 抛错不改变业务数据或重复请求', async (hook) => {

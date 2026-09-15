@@ -50,7 +50,6 @@ export function aiStreamPlugin(input: AiStreamPluginOptions = {}): MonitorPlugin
       if (
         typeof window === 'undefined' ||
         typeof window.fetch !== 'function' ||
-        typeof TransformStream !== 'function' ||
         typeof ReadableStream !== 'function'
       )
         return

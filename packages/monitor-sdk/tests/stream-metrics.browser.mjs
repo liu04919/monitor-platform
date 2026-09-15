@@ -168,6 +168,9 @@ try {
       window.reader = window.response.body.getReader()
       await window.reader.read()
     })
+    // 业务尚未再次 read，不能因为下一块迟迟未到而计时或误报。
+    await page.waitForTimeout(450)
+    assert.deepEqual(await events(page), [])
     openResponses.get('/api/paused').write('second')
     await page.waitForTimeout(450)
     assert.deepEqual(await events(page), [])
@@ -202,6 +205,24 @@ try {
     const list = await events(page)
     assert.equal(metric(list).totalBytes, 6)
     assert.equal(list[0].payload.attributes.traceId, list[1].payload.attributes.traceId)
+  })
+
+  await run('connection failure before consumption', async (page) => {
+    await page.evaluate(async () => {
+      window.response = await fetch('/api/unread-broken')
+    })
+    openResponses.get('/api/unread-broken').write('queued')
+    await page.waitForTimeout(100)
+    openResponses.get('/api/unread-broken').destroy()
+    await waitCount(page, 1)
+    const list = await events(page)
+    assert.equal(list.length, 1)
+    assert.equal(metric(list).endReason, 'error')
+    assert.equal(metric(list).chunkCount, 0)
+    assert.equal(
+      await page.evaluate(() => window.response.text().catch((error) => error.name)),
+      'TypeError',
+    )
   })
 
   for (const pending of [false, true]) {
