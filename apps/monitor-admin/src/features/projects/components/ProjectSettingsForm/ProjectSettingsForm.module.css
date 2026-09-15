@@ -6,14 +6,3 @@
   min-height: 36px;
   padding-top: 2px;
 }
-
-@media (max-width: 520px) {
-  .actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .actions button {
-    width: 100%;
-  }
-}

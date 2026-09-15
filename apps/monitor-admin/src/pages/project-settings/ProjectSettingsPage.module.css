@@ -1,53 +1,33 @@
 .page {
-  width: min(960px, calc(100% - clamp(36px, 6vw, 88px)));
-  margin: 0 auto;
-  padding: 38px 0 64px;
+  composes: page from '../../shared/styles/layout.module.css';
+  max-width: 1040px;
 }
-
 .heading {
-  margin-bottom: 26px;
+  composes: heading from '../../shared/styles/layout.module.css';
 }
-
-.heading h1 {
-  margin: 0;
-  color: #101725;
-  font-size: 28px;
-  font-weight: 700;
-  line-height: 1.25;
-  text-wrap: balance;
-}
-
 .projectCard,
 .settingsCard,
 .sdkCard,
 .dangerCard {
   padding: 24px;
-  background: white;
-  box-shadow: 0 4px 18px rgb(28 41 60 / 3%);
+  background: var(--panel);
+  border-color: var(--line);
+  border-radius: var(--radius);
 }
-
 .settingsCard,
 .sdkCard,
 .dangerCard {
-  margin-top: 16px;
+  margin-top: 20px;
 }
-
 .settingsLayout {
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
+  grid-template-columns: 144px minmax(0, 1fr);
   align-items: start;
   gap: 32px;
 }
-
 .settingsLayout .sectionTitle {
   margin-bottom: 0;
 }
-
-.dangerCard {
-  border-color: #f0c9c9;
-  background: #fffafa;
-}
-
 .summaryHeading {
   display: flex;
   align-items: center;
@@ -56,113 +36,65 @@
   padding-bottom: 20px;
   border-bottom: 1px solid var(--line);
 }
-
 .summaryHeading h2,
 .sectionTitle,
 .dangerTitle {
   margin: 0;
-  color: #182235;
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.35;
-  text-wrap: balance;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
 }
-
 .summaryHeading h2 {
   min-width: 0;
   overflow-wrap: anywhere;
-  font-size: 22px;
+  font-size: 20px;
 }
-
-.dangerTitle {
-  color: #b42318;
-}
-
 .metadata {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr);
-  gap: 28px;
+  grid-template-columns: minmax(0, 2fr) minmax(170px, 1fr);
+  gap: 24px;
   margin: 0;
   padding-top: 20px;
 }
-
 .metadata > div {
   min-width: 0;
 }
-
 .metadata dt {
   margin-bottom: 8px;
   color: var(--muted);
   font-size: 12px;
-  font-weight: 600;
 }
-
 .metadata dd {
   margin: 0;
   color: var(--ink);
-  font-size: 14px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
-  line-height: 1.5;
+  line-height: 1.7;
 }
-
 .projectId {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
-
 .projectId code {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: #4d5b70;
-  font: 12px/1.6 var(--font-mono);
+  color: var(--muted);
+  font-size: 12px;
 }
-
 .projectId button {
   flex: 0 0 auto;
 }
-
 .projectId button svg {
   width: 14px;
   height: 14px;
 }
-
 .sectionTitle,
 .dangerTitle {
   margin-bottom: 20px;
 }
-
-@media (max-width: 760px) {
-  .page {
-    width: calc(100% - 28px);
-    padding-top: 27px;
-  }
-
-  .projectCard,
-  .settingsCard,
-  .sdkCard,
-  .dangerCard {
-    padding: 18px;
-  }
-
-  .settingsLayout {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-}
-
-@media (max-width: 640px) {
-  .metadata {
-    grid-template-columns: 1fr;
-    gap: 18px;
-  }
-
-  .projectId {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .projectId button {
-    width: fit-content;
-  }
+.dangerTitle {
+  color: #b33434;
 }

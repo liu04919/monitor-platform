@@ -56,16 +56,18 @@ export function ProjectSwitcher({
             }}
             classNames={{ label: styles.label, input: styles.input }}
           />
-          <p className={styles.projectId} title={selectedProject?.id || projectId} translate="no">
-            {isLoading ? '正在读取项目…' : isError ? '项目列表暂不可用' : selectedProject?.id || projectId}
-          </p>
+          {isError ? (
+            <p className={styles.label} role="alert">
+              项目列表暂不可用
+            </p>
+          ) : null}
           <button
             type="button"
             className={styles.createButton}
             onClick={onCreate}
             disabled={isLoading}
           >
-            新建项目
+            <span aria-hidden="true">＋</span>新建项目
           </button>
         </>
       )}

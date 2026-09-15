@@ -8,18 +8,36 @@ export function BreadcrumbTimeline({ breadcrumbs }: { breadcrumbs: Breadcrumb[] 
     <Paper component="section" className={styles.card} radius="md">
       <header>
         <Group gap="xs">
-          <Title order={2}>Breadcrumbs</Title>
-          <Badge variant="light" color="gray" size="xs">{breadcrumbs.length} 条轨迹</Badge>
+          <Title order={2}>行为轨迹</Title>
+          <Badge variant="light" color="gray" size="xs">
+            {breadcrumbs.length} 条轨迹
+          </Badge>
         </Group>
       </header>
-      {breadcrumbs.length === 0 ? <Text className={styles.empty}>此事件没有携带行为轨迹。</Text> : (
+      {breadcrumbs.length === 0 ? (
+        <Text className={styles.empty}>暂无行为轨迹</Text>
+      ) : (
         <div className={styles.list}>
           {breadcrumbs.map((breadcrumb, index) => (
             <article key={`${breadcrumb.timestamp}-${index}`}>
               <span className={`${styles.dot} ${styles[breadcrumb.category]}`} />
-              <time>{formatTime(breadcrumb.timestamp, false)}</time>
-              <Badge className={styles.category} variant="light" color="gray" size="xs">{breadcrumb.category}</Badge>
-              <div><strong>{breadcrumb.message || '未提供描述'}</strong>{breadcrumb.data != null ? <code>{JSON.stringify(breadcrumb.data)}</code> : null}</div>
+              <time dateTime={new Date(breadcrumb.timestamp).toISOString()}>
+                {formatTime(breadcrumb.timestamp, false)}
+              </time>
+              <Badge className={styles.category} variant="light" color="gray" size="xs">
+                {breadcrumb.category}
+              </Badge>
+              <div className={styles.message}>
+                <strong>{breadcrumb.message || '未提供描述'}</strong>
+                {breadcrumb.data != null ? (
+                  <details>
+                    <summary>查看数据</summary>
+                    <pre>
+                      <code>{JSON.stringify(breadcrumb.data, null, 2)}</code>
+                    </pre>
+                  </details>
+                ) : null}
+              </div>
             </article>
           ))}
         </div>

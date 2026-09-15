@@ -53,7 +53,9 @@ export function EventFilters({ value, onApply }: EventFiltersProps) {
         {...form.register('eventType')}
       />
       <Group className={styles.actions} gap="xs">
-        <Button type="submit" color="dark">应用筛选</Button>
+        <Button type="submit" variant="light">
+          应用筛选
+        </Button>
         {hasFilters ? (
           <Button
             variant="subtle"

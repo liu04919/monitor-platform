@@ -1,39 +1,90 @@
 :root {
-  color: #172033;
-  background: #f7f8fa;
+  --font-sans:
+    'Segoe UI', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: 'Cascadia Code', Consolas, 'SFMono-Regular', 'Microsoft YaHei UI', monospace;
+  --ink: #202838;
+  --muted: #627084;
+  --subtle: #758196;
+  --line: #e4e8ee;
+  --panel: #fff;
+  --page: #f6f7f9;
+  --blue: #2767e7;
+  --blue-soft: #eef4ff;
+  --sidebar: #151c27;
+  --sidebar-line: #2a3341;
+  --radius: 10px;
+  --page-gutter: 40px;
   font-family: var(--font-sans);
+  color: var(--ink);
+  background: var(--page);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --font-sans:
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    "Microsoft YaHei UI",
-    "Microsoft YaHei",
-    "PingFang SC",
-    sans-serif;
-  --font-mono: "Cascadia Code", Consolas, monospace;
-  --ink: #172033;
-  --muted: #6c778b;
-  --subtle: #9aa4b4;
-  --line: #e1e6ed;
-  --panel: #ffffff;
-  --page: #f7f8fa;
-  --blue: #2767e7;
-  --blue-soft: #edf4ff;
-  --sidebar: #0d131a;
-  --sidebar-line: #202832;
+  -webkit-font-smoothing: antialiased;
 }
 
-* { box-sizing: border-box; }
-html { min-width: 320px; background: var(--page); }
-body { margin: 0; min-width: 320px; min-height: 100vh; }
-button, input, select { font: inherit; }
-button, a, select { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid rgb(39 103 231 / 20%); outline-offset: 2px; }
-button:disabled { cursor: not-allowed; opacity: .58; }
+* {
+  box-sizing: border-box;
+}
+/* 管理端只保留桌面布局，较窄窗口通过横向滚动浏览。 */
+html {
+  min-width: 1280px;
+}
+body {
+  margin: 0;
+  min-width: 1280px;
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+  --mantine-color-dimmed: var(--muted);
+}
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+pre,
+code,
+kbd,
+samp {
+  font-family: var(--font-mono);
+}
+pre code {
+  font: inherit;
+}
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 3px solid rgb(39 103 231 / 38%);
+  outline-offset: 3px;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+::selection {
+  color: #163d82;
+  background: #dce9ff;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

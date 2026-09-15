@@ -56,68 +56,106 @@ function successfulFetch(input: RequestInfo | URL, init?: RequestInit) {
     return Promise.resolve({ ok: true, status: 204 } as Response)
   }
 
-  const updateBody = init?.method === 'PATCH' && init.body
-    ? JSON.parse(String(init.body)) as { name: string; enabled: boolean }
-    : undefined
-  const data = url.endsWith('/auth/me') || url.endsWith('/auth/login') || url.endsWith('/auth/register')
-    ? { id: 'user-1', email: 'user@example.com', createdAt: 1_787_068_600_000 }
-    : init?.method === 'POST' && url.endsWith('/projects')
-    ? {
-        id: createdProjectId,
-        name: 'Created Project',
-        enabled: true,
-        createdAt: 1_787_068_900_000,
-        publicKey: 'pk_created',
-      }
-    : init?.method === 'POST' && url.endsWith(`/projects/${projectId}/public-key/rotate`)
-    ? {
-        id: projectId,
-        name: projectId === secondProjectId ? 'Project Two' : 'Monitor Local',
-        enabled: true,
-        createdAt: 1_787_068_800_000,
-        publicKey: 'pk_rotated',
-      }
-    : init?.method === 'PATCH' && url.endsWith(`/projects/${projectId}`)
-    ? {
-        id: projectId,
-        name: updateBody?.name || 'Monitor Local',
-        enabled: updateBody?.enabled ?? true,
-        createdAt: 1_787_068_800_000,
-        publicKey: projectId === secondProjectId ? 'pk_project_two' : 'pk_monitor_local',
-      }
-    : url.endsWith('/projects')
-    ? {
-        projects: [
-          { id: primaryProjectId, name: 'Monitor Local', enabled: true, createdAt: 1_787_068_700_000 },
-          { id: secondProjectId, name: 'Project Two', enabled: true, createdAt: 1_787_068_800_000 },
-        ],
-      }
-    : url.endsWith(`/projects/${projectId}`)
-    ? {
-        id: projectId,
-        name: projectId === secondProjectId ? 'Project Two' : 'Monitor Local',
-        enabled: true,
-        createdAt: 1_787_068_800_000,
-        publicKey: projectId === secondProjectId ? 'pk_project_two' : 'pk_monitor_local',
-      }
-    : url.endsWith('/events/event-1')
-    ? {
-        ...eventSummary,
-        schemaVersion: 2,
-        projectId,
-        appName: 'monitor',
-        sentAt: 1_787_068_799_900,
-        breadcrumbs: [],
-        replayData: null,
-        payload: { message: 'Cannot read profile' },
-      }
-    : url.includes(`/issues/${issueSummary.id}?`)
-    ? { issue: issueSummary, occurrences: [issueOccurrence], nextCursor: '' }
-    : url.includes('/issues?')
-    ? { issues: [issueSummary], nextCursor: '' }
-    : { events: [eventSummary], nextCursor: '' }
+  const updateBody =
+    init?.method === 'PATCH' && init.body
+      ? (JSON.parse(String(init.body)) as { name: string; enabled: boolean })
+      : undefined
+  const data =
+    url.endsWith('/auth/me') || url.endsWith('/auth/login') || url.endsWith('/auth/register')
+      ? { id: 'user-1', email: 'user@example.com', createdAt: 1_787_068_600_000 }
+      : init?.method === 'POST' && url.endsWith('/projects')
+        ? {
+            id: createdProjectId,
+            name: 'Created Project',
+            enabled: true,
+            createdAt: 1_787_068_900_000,
+            publicKey: 'pk_created',
+          }
+        : init?.method === 'POST' && url.endsWith(`/projects/${projectId}/public-key/rotate`)
+          ? {
+              id: projectId,
+              name: projectId === secondProjectId ? 'Project Two' : 'Monitor Local',
+              enabled: true,
+              createdAt: 1_787_068_800_000,
+              publicKey: 'pk_rotated',
+            }
+          : init?.method === 'PATCH' && url.endsWith(`/projects/${projectId}`)
+            ? {
+                id: projectId,
+                name: updateBody?.name || 'Monitor Local',
+                enabled: updateBody?.enabled ?? true,
+                createdAt: 1_787_068_800_000,
+                publicKey: projectId === secondProjectId ? 'pk_project_two' : 'pk_monitor_local',
+              }
+            : url.endsWith('/projects')
+              ? {
+                  projects: [
+                    {
+                      id: primaryProjectId,
+                      name: 'Monitor Local',
+                      enabled: true,
+                      createdAt: 1_787_068_700_000,
+                    },
+                    {
+                      id: secondProjectId,
+                      name: 'Project Two',
+                      enabled: true,
+                      createdAt: 1_787_068_800_000,
+                    },
+                  ],
+                }
+              : url.endsWith(`/projects/${projectId}`)
+                ? {
+                    id: projectId,
+                    name: projectId === secondProjectId ? 'Project Two' : 'Monitor Local',
+                    enabled: true,
+                    createdAt: 1_787_068_800_000,
+                    publicKey:
+                      projectId === secondProjectId ? 'pk_project_two' : 'pk_monitor_local',
+                  }
+                : url.endsWith('/events/event-1')
+                  ? {
+                      ...eventSummary,
+                      schemaVersion: 2,
+                      projectId,
+                      appName: 'monitor',
+                      sentAt: 1_787_068_799_900,
+                      breadcrumbs: [
+                        {
+                          category: 'click',
+                          timestamp: 1_787_068_799_000,
+                          message: '点击保存',
+                          data: { selector: 'button.save' },
+                        },
+                      ],
+                      replayData: '[{"type":2,"timestamp":1787068790000}]',
+                      payload: {
+                        exception: {
+                          name: 'TypeError',
+                          message: 'Cannot read profile',
+                          stack: [
+                            {
+                              filename: 'https://example.com/profile.js',
+                              functionName: 'ProfileCard.render',
+                              line: 128,
+                              column: 19,
+                            },
+                          ],
+                        },
+                        mechanism: { type: 'window.onerror', handled: false },
+                      },
+                    }
+                  : url.includes(`/issues/${issueSummary.id}?`)
+                    ? { issue: issueSummary, occurrences: [issueOccurrence], nextCursor: '' }
+                    : url.includes('/issues?')
+                      ? { issues: [issueSummary], nextCursor: '' }
+                      : { events: [eventSummary], nextCursor: '' }
 
-  return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ data }) } as Response)
+  return Promise.resolve({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve({ data }),
+  } as Response)
 }
 
 function renderRoute(path: string) {
@@ -151,20 +189,25 @@ describe('admin event routes', () => {
     expect(await screen.findByRole('heading', { name: 'Cannot read profile' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: '发生记录' })).toBeInTheDocument()
     expect(screen.getByText('累计事件').nextElementSibling).toHaveTextContent('3')
-    expect(fetchMock.mock.calls.some(([input]) => String(input).includes(`/issues/${issueSummary.id}?`))).toBe(true)
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input).includes(`/issues/${issueSummary.id}?`)),
+    ).toBe(true)
   })
 
   it('问题为空时只展示当前状态', async () => {
-    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input).includes('/issues?')) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve({ data: { issues: [], nextCursor: '' } }),
-        } as Response)
-      }
-      return successfulFetch(input, init)
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes('/issues?')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ data: { issues: [], nextCursor: '' } }),
+          } as Response)
+        }
+        return successfulFetch(input, init)
+      }),
+    )
     renderRoute('/issues')
 
     expect(await screen.findByRole('heading', { name: '暂无问题' })).toBeInTheDocument()
@@ -178,21 +221,48 @@ describe('admin event routes', () => {
     fireEvent.click(await screen.findByRole('link', { name: 'Cannot read profile' }))
 
     expect(await screen.findByRole('heading', { name: 'Cannot read profile' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Payload' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '错误堆栈' })).toBeInTheDocument()
+    expect(screen.getByText('ProfileCard.render')).toBeInTheDocument()
+    expect(screen.getByText('https://example.com/profile.js:128:19')).toBeInTheDocument()
+    expect(screen.getByText('点击保存')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Payload' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Replay Data' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: '原始数据' }))
+    expect(await screen.findByRole('heading', { name: 'Payload' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Replay Data' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '完整事件信息' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '错误堆栈' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: '概览' }))
+    expect(await screen.findByRole('heading', { name: '错误堆栈' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Replay Data' })).not.toBeInTheDocument()
     expect(fetch).toHaveBeenCalledTimes(4)
   })
 
+  it('可以直接打开原始数据标签页', async () => {
+    vi.stubGlobal('fetch', vi.fn(successfulFetch))
+    renderRoute('/events/event-1?view=raw')
+
+    expect(await screen.findByRole('heading', { name: 'Payload' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '原始数据' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('heading', { name: '错误堆栈' })).not.toBeInTheDocument()
+  })
+
   it('事件为空时不展示测试环境或存储实现', async () => {
-    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input).includes('/events?')) {
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve({ data: { events: [], nextCursor: '' } }),
-        } as Response)
-      }
-      return successfulFetch(input, init)
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes('/events?')) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ data: { events: [], nextCursor: '' } }),
+          } as Response)
+        }
+        return successfulFetch(input, init)
+      }),
+    )
     renderRoute('/events')
 
     expect(await screen.findByRole('heading', { name: '暂无事件' })).toBeInTheDocument()
@@ -212,10 +282,12 @@ describe('admin event routes', () => {
     await user.click(screen.getByRole('button', { name: '应用筛选' }))
 
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some(([input]) => {
-        const url = String(input)
-        return url.includes('category=error') && url.includes('eventType=js_error')
-      })).toBe(true)
+      expect(
+        fetchMock.mock.calls.some(([input]) => {
+          const url = String(input)
+          return url.includes('category=error') && url.includes('eventType=js_error')
+        }),
+      ).toBe(true)
     })
   })
 
@@ -230,7 +302,11 @@ describe('admin event routes', () => {
     await user.click(await screen.findByRole('option', { name: 'Project Two' }))
 
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some(([input]) => String(input).includes(`/projects/${secondProjectId}/events?`))).toBe(true)
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          String(input).includes(`/projects/${secondProjectId}/events?`),
+        ),
+      ).toBe(true)
     })
     expect(useAdminStore.getState().projectId).toBe(secondProjectId)
   })
@@ -254,7 +330,11 @@ describe('admin event routes', () => {
       name: 'Created Project',
     })
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some(([input]) => String(input).includes(`/projects/${createdProjectId}/issues?`))).toBe(true)
+      expect(
+        fetchMock.mock.calls.some(([input]) =>
+          String(input).includes(`/projects/${createdProjectId}/issues?`),
+        ),
+      ).toBe(true)
     })
   })
 
@@ -286,7 +366,11 @@ describe('admin event routes', () => {
     expect(screen.getByRole('heading', { name: 'Project Two' })).toBeInTheDocument()
     expect(screen.getByText(/publicKey: 'pk_project_two'/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '复制配置' })).toBeInTheDocument()
-    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith(`/projects/${secondProjectId}`))).toBe(true)
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).endsWith(`/projects/${secondProjectId}`),
+      ),
+    ).toBe(true)
     await waitFor(() => expect(useAdminStore.getState().projectId).toBe(secondProjectId))
   })
 
@@ -344,24 +428,35 @@ describe('admin event routes', () => {
     await user.click(screen.getByRole('button', { name: '重新生成 publicKey' }))
 
     expect(screen.getByText('旧 publicKey 会立即失效')).toBeInTheDocument()
-    expect(fetchMock.mock.calls.every(([input]) => !String(input).endsWith('/public-key/rotate'))).toBe(true)
+    expect(
+      fetchMock.mock.calls.every(([input]) => !String(input).endsWith('/public-key/rotate')),
+    ).toBe(true)
     await user.click(screen.getByRole('button', { name: '确认重新生成' }))
 
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some(([input, init]) =>
-        String(input).endsWith(`/projects/${secondProjectId}/public-key/rotate`) && init?.method === 'POST',
-      )).toBe(true)
+      expect(
+        fetchMock.mock.calls.some(
+          ([input, init]) =>
+            String(input).endsWith(`/projects/${secondProjectId}/public-key/rotate`) &&
+            init?.method === 'POST',
+        ),
+      ).toBe(true)
     })
     expect(await screen.findByText(/publicKey: 'pk_rotated'/)).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('旧 publicKey 现在无法继续上报')
   })
 
   it('在登录状态失效时跳转到登录页', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
-      ok: false,
-      status: 401,
-      json: () => Promise.resolve({ error: { code: 'UNAUTHORIZED', message: 'unauthorized' } }),
-    } as Response)))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 401,
+          json: () => Promise.resolve({ error: { code: 'UNAUTHORIZED', message: 'unauthorized' } }),
+        } as Response),
+      ),
+    )
     renderRoute('/events')
 
     expect(await screen.findByRole('heading', { name: '登录管理端' })).toBeInTheDocument()
@@ -386,7 +481,11 @@ describe('admin event routes', () => {
     const user = userEvent.setup()
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).endsWith('/projects') && init?.method !== 'POST') {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ data: { projects: [] } }) } as Response)
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ data: { projects: [] } }),
+        } as Response)
       }
       return successfulFetch(input, init)
     })
@@ -409,7 +508,11 @@ describe('admin event routes', () => {
     const user = userEvent.setup()
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input).endsWith('/projects') && init?.method !== 'POST') {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ data: { projects: [] } }) } as Response)
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ data: { projects: [] } }),
+        } as Response)
       }
       return successfulFetch(input, init)
     })
@@ -458,8 +561,10 @@ describe('admin event routes', () => {
     await user.click(await screen.findByRole('button', { name: '退出登录' }))
 
     expect(await screen.findByRole('heading', { name: '登录管理端' })).toBeInTheDocument()
-    expect(fetchMock.mock.calls.some(([input, init]) =>
-      String(input).endsWith('/auth/logout') && init?.method === 'DELETE',
-    )).toBe(true)
+    expect(
+      fetchMock.mock.calls.some(
+        ([input, init]) => String(input).endsWith('/auth/logout') && init?.method === 'DELETE',
+      ),
+    ).toBe(true)
   })
 })

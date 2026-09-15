@@ -40,10 +40,9 @@ export function CreateProjectDialog({
       closeOnEscape={!isPending}
       withCloseButton={!isPending}
       centered
-      size="560px"
-      radius="lg"
+      size="520px"
+      radius="md"
       padding="xl"
-      overlayProps={{ backgroundOpacity: 0.58, blur: 4 }}
       classNames={{
         content: styles.dialog,
         header: styles.header,
@@ -54,9 +53,7 @@ export function CreateProjectDialog({
     >
       {createdProject ? (
         <Stack gap="md">
-          <Text className={styles.description}>
-            复制以下配置并用于 SDK 初始化。
-          </Text>
+          <Text className={styles.description}>复制以下配置并用于 SDK 初始化。</Text>
           <ProjectSDKConfig project={createdProject} />
           <Button onClick={onClose}>完成</Button>
         </Stack>
@@ -67,6 +64,7 @@ export function CreateProjectDialog({
             placeholder="例如 Monitor Web"
             autoFocus
             maxLength={128}
+            autoComplete="off"
             error={form.formState.errors.name?.message}
             {...form.register('name')}
           />

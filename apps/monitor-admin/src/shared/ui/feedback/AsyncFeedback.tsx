@@ -3,7 +3,7 @@ import { AlertIcon, EmptyIcon } from '@/shared/ui/icons/Icons'
 import styles from './AsyncFeedback.module.css'
 
 const loadingRows = Array.from({ length: 5 }, (_, index) => index)
-const loadingCells = Array.from({ length: 6 }, (_, index) => index)
+const loadingCells = Array.from({ length: 5 }, (_, index) => index)
 
 export function LoadingRows() {
   return (
@@ -26,7 +26,9 @@ export function LoadingRows() {
 export function EmptyState({ filtered }: { filtered: boolean }) {
   return (
     <Stack className={styles.emptyState} align="center" justify="center" gap="xs">
-      <ThemeIcon variant="light" color="gray" size={52} radius="md"><EmptyIcon /></ThemeIcon>
+      <ThemeIcon variant="light" color="gray" size={52} radius="md">
+        <EmptyIcon />
+      </ThemeIcon>
       <Title order={2}>{filtered ? '没有符合条件的事件' : '暂无事件'}</Title>
       {filtered ? <Text>请调整或清除筛选条件。</Text> : null}
     </Stack>
@@ -43,7 +45,9 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry: () 
       role="alert"
     >
       <Text size="sm">{message}</Text>
-      <Button variant="default" size="compact-sm" mt="sm" onClick={onRetry}>重新加载</Button>
+      <Button variant="default" size="compact-sm" mt="sm" onClick={onRetry}>
+        重新加载
+      </Button>
     </Alert>
   )
 }
@@ -53,7 +57,9 @@ export function InlineError({ message, onRetry }: { message: string; onRetry: ()
     <Alert className={styles.inlineError} color="red" icon={<AlertIcon />} role="alert">
       <div className={styles.inlineContent}>
         <span>{message}</span>
-        <Button variant="default" size="compact-xs" onClick={onRetry}>重试</Button>
+        <Button variant="default" size="compact-xs" onClick={onRetry}>
+          重试
+        </Button>
       </div>
     </Alert>
   )

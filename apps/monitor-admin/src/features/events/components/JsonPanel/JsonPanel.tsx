@@ -21,7 +21,9 @@ export function JsonPanel({ title, value }: { title: string; value: unknown }) {
           )}
         </CopyButton>
       </header>
-      <pre><code>{formatted}</code></pre>
+      <pre tabIndex={0} aria-label={`${title} JSON`}>
+        <code translate="no">{formatted}</code>
+      </pre>
     </Paper>
   )
 }

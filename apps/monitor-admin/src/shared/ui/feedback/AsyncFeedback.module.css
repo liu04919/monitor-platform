@@ -1,11 +1,11 @@
 .loadingRow {
-  min-width: 880px;
-  min-height: 74px;
+  min-width: 890px;
+  min-height: 78px;
   display: grid;
-  grid-template-columns: minmax(270px, 2.3fr) minmax(96px, 0.75fr) minmax(108px, 0.9fr) minmax(84px, 0.7fr) minmax(128px, 0.9fr) minmax(90px, 0.6fr);
+  grid-template-columns: minmax(330px, 1fr) 92px 108px 132px 92px;
   align-items: center;
-  column-gap: 12px;
-  padding: 0 18px;
+  column-gap: 20px;
+  padding: 0 20px;
   border-bottom: 1px solid #edf0f4;
 }
 
@@ -21,7 +21,7 @@
 }
 
 .emptyState {
-  min-height: 370px;
+  min-height: 320px;
   text-align: center;
 }
 
@@ -32,7 +32,8 @@
 
 .emptyState h2 {
   color: #263247;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 500;
 }
 
 .emptyState p {
@@ -66,17 +67,4 @@
 
 .inlineContent button {
   margin-left: auto;
-}
-
-@container (max-width: 879px) {
-  .loadingRow {
-    min-width: 0;
-    grid-template-columns: 1fr 1fr;
-    row-gap: 13px;
-    min-height: 98px;
-  }
-
-  .loadingRow span:nth-child(n + 3) {
-    display: none;
-  }
 }

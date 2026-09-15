@@ -1,90 +1,58 @@
 .switcher {
   min-width: 0;
-  margin: 34px 0 24px;
-  padding: 16px;
-  background: rgb(255 255 255 / 3.5%);
-  border: 1px solid var(--sidebar-line);
-  border-radius: 12px;
+  margin: 30px 0 24px;
+  padding: 0 4px 20px;
+  border-bottom: 1px solid var(--sidebar-line);
 }
-
 .label {
   margin: 0 0 8px;
-  color: #a8b3c0;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+  color: #97a7bc;
+  font-size: 12px;
+  font-weight: 400;
 }
-
+.input {
+  color: #e6edf6;
+  background: #1e2939;
+  border-color: #364459;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.input:focus {
+  border-color: #7097d6;
+}
 .emptyProject {
-  min-height: 68px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  padding: 12px 14px;
-  color: #d9e2ec;
-  background: #161e27;
-  border: 1px dashed #3a4653;
-  border-radius: 8px;
+  padding: 10px 12px;
+  color: #b4c1d2;
+  background: #1e2939;
+  border: 1px dashed #3c4c62;
+  border-radius: 7px;
 }
-
 .emptyProject strong {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 400;
 }
-
-.input {
-  color: #eef3f8;
-  background: #161e27;
-  border-color: #34404c;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.input:focus-visible {
-  border-color: #5792f3;
-}
-
-.projectId {
-  width: 100%;
-  min-width: 0;
-  margin: 8px 0 0;
-  overflow: hidden;
-  color: #8f9baa;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  word-break: normal;
-  font: 11px/1.5 "Cascadia Code", Consolas, monospace;
-}
-
 .createButton {
   width: 100%;
-  min-height: 38px;
-  margin-top: 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #d9e9ff;
-  background: #172538;
-  border: 1px solid #395371;
-  border-radius: 8px;
+  min-height: 32px;
+  margin-top: 8px;
+  padding: 0 10px;
+  color: #abbcd2;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 12px;
+  text-align: left;
   transition:
-    color 0.15s ease,
-    background-color 0.15s ease,
-    border-color 0.15s ease;
+    color 0.15s,
+    background-color 0.15s;
 }
-
+.createButton > span {
+  margin-right: 8px;
+  font-size: 16px;
+}
 .createButton:hover:not(:disabled) {
   color: white;
-  background: #203653;
-  border-color: #5e83ad;
-}
-
-.createButton:focus-visible {
-  outline: 3px solid rgb(87 146 243 / 35%);
-  outline-offset: 2px;
+  background: #202d40;
 }

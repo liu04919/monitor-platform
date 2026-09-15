@@ -14,22 +14,53 @@ interface EventTableProps {
   onLoadMore: () => void
 }
 
-export function EventTable({ events, hasNextPage, isFetchingNextPage, onLoadMore }: EventTableProps) {
+export function EventTable({
+  events,
+  hasNextPage,
+  isFetchingNextPage,
+  onLoadMore,
+}: EventTableProps) {
   return (
     <>
-      <div className={`${styles.row} ${styles.header}`} aria-hidden="true"><span>事件</span><span>分类</span><span>事件类型</span><span>用户</span><span>发生时间</span><span>传输</span></div>
+      <div className={`${styles.row} ${styles.header}`} aria-hidden="true">
+        <span>事件</span>
+        <span>分类</span>
+        <span>用户</span>
+        <span>发生时间</span>
+        <span>传输</span>
+      </div>
       {events.map((event) => (
         <article className={`${styles.row} ${styles.item}`} key={event.eventId}>
           <div className={styles.identity}>
-            <span className={`${styles.severity} ${styles[event.category]}`}><AlertIcon /></span>
-            <div><Link to={`/events/${encodeURIComponent(event.eventId)}`}>{displayEventName(event)}</Link><span title={event.pageUrl}>{event.pageUrl || '未记录页面地址'}</span></div>
+            <span className={`${styles.severity} ${styles[event.category]}`}>
+              <AlertIcon />
+            </span>
+            <div>
+              <Link
+                to={`/events/${encodeURIComponent(event.eventId)}`}
+                title={displayEventName(event)}
+              >
+                {displayEventName(event)}
+              </Link>
+              <div className={styles.secondary}>
+                <code className={styles.eventType}>{event.eventType}</code>
+                <span title={event.pageUrl}>{event.pageUrl || '未记录页面地址'}</span>
+              </div>
+            </div>
           </div>
-          <div><EventCategoryBadge category={event.category} /></div>
-          <code className={styles.eventType}>{event.eventType}</code>
+          <div>
+            <EventCategoryBadge category={event.category} />
+          </div>
           <span className={styles.mutedCell}>{event.userId || '匿名'}</span>
-          <time dateTime={new Date(event.timestamp).toISOString()}>{formatTime(event.timestamp)}</time>
+          <time dateTime={new Date(event.timestamp).toISOString()}>
+            {formatTime(event.timestamp)}
+          </time>
           <div className={styles.transportCell}>
-            <Badge color={event.sendType === 'beacon' ? 'violet' : 'gray'} variant="light" size="xs">
+            <Badge
+              color={event.sendType === 'beacon' ? 'violet' : 'gray'}
+              variant="light"
+              size="xs"
+            >
               {event.sendType}
             </Badge>
             <ActionIcon
@@ -45,7 +76,9 @@ export function EventTable({ events, hasNextPage, isFetchingNextPage, onLoadMore
         </article>
       ))}
       <footer className={styles.footer}>
-        <span>已加载 <strong>{events.length}</strong> 条事件</span>
+        <span>
+          已加载 <strong>{events.length}</strong> 条事件
+        </span>
         {hasNextPage ? (
           <Button
             variant="default"
@@ -57,7 +90,9 @@ export function EventTable({ events, hasNextPage, isFetchingNextPage, onLoadMore
           >
             加载更多
           </Button>
-        ) : <span>已经到底了</span>}
+        ) : (
+          <span>已经到底了</span>
+        )}
       </footer>
     </>
   )

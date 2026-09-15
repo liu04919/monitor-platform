@@ -1,9 +1,35 @@
+.panel {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #303e50;
+  border-radius: 8px;
+  background: #192231;
+}
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #303e50;
+  color: #aabbd2;
+  font-size: 12px;
+}
+.toolbar button {
+  color: #d9e6f8;
+}
+.toolbar button:hover {
+  background: #29394e;
+}
+.toolbar svg {
+  width: 14px;
+  height: 14px;
+}
 .config {
   margin: 0;
-  padding: 16px;
+  padding: 20px;
   overflow: auto;
-  color: #c8e1b8;
-  background: #101820;
-  border-radius: 10px;
-  font: 11px/1.65 "Cascadia Code", Consolas, monospace;
+  color: #d4deed;
+  font: 13px/1.8 var(--font-mono);
+  tab-size: 2;
 }

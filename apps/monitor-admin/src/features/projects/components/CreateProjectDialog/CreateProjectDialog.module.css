@@ -1,31 +1,26 @@
 .dialog {
   border: 1px solid var(--line);
-  box-shadow: 0 28px 80px rgb(9 22 42 / 28%);
+  box-shadow: 0 20px 64px rgb(9 22 42 / 16%);
 }
-
 .header {
-  align-items: flex-start;
-  padding-bottom: 8px;
+  align-items: center;
+  padding-bottom: 22px;
 }
-
 .body {
-  padding-top: 4px;
+  padding-top: 0;
 }
-
 .title {
-  color: #101725;
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.035em;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.4px;
 }
-
 .description {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.6;
 }
-
 .form {
   display: grid;
-  gap: 17px;
+  gap: 24px;
 }

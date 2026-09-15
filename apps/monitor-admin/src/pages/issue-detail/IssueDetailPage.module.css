@@ -1,94 +1,60 @@
 .page {
-  width: min(1320px, calc(100% - clamp(36px, 6vw, 88px)));
-  margin: 0 auto;
-  padding: 38px 0 64px;
+  composes: page from '../../shared/styles/layout.module.css';
 }
-
 .backLink {
-  margin-bottom: 25px;
-  margin-left: -10px;
-  color: #718095;
-  font-size: 10px;
-  font-weight: 600;
+  margin: 0 0 20px -8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
 }
-
 .backLink svg {
   width: 14px;
   height: 14px;
 }
-
 .heading {
   display: flex;
   align-items: flex-start;
-  gap: 15px;
-  margin-bottom: 30px;
+  gap: 14px;
+  margin-bottom: 26px;
 }
-
 .issueIcon {
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   flex: 0 0 auto;
   margin-top: 2px;
+  border-radius: 11px;
 }
-
 .issueIcon svg {
-  width: 22px;
-  height: 22px;
+  width: 21px;
+  height: 21px;
 }
-
 .heading > div:last-child {
   min-width: 0;
 }
-
 .badges {
   flex-wrap: wrap;
   margin-bottom: 10px;
 }
-
 .heading h1 {
-  max-width: 980px;
+  max-width: 1080px;
   margin: 0;
   overflow-wrap: anywhere;
-  color: #101725;
-  font-size: clamp(24px, 3vw, 36px);
-  font-weight: 700;
-  letter-spacing: -.035em;
-  line-height: 1.2;
+  color: var(--ink);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  line-height: 1.4;
+  text-wrap: pretty;
 }
-
-.heading code {
+.heading > div > code {
   display: block;
-  margin-top: 9px;
-  overflow: hidden;
-  color: #8a95a5;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 10px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
-
 .content {
+  min-width: 0;
   display: grid;
-  gap: 16px;
-}
-
-@media (max-width: 760px) {
-  .page {
-    width: calc(100% - 28px);
-    padding-top: 27px;
-  }
-}
-
-@media (max-width: 520px) {
-  .heading {
-    gap: 11px;
-  }
-
-  .issueIcon {
-    width: 38px;
-    height: 38px;
-  }
-
-  .heading h1 {
-    font-size: 22px;
-  }
+  gap: 20px;
 }

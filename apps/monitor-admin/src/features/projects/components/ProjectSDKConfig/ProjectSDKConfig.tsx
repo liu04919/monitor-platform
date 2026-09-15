@@ -1,6 +1,7 @@
-import { Button, CopyButton, Group, Stack } from '@mantine/core'
+import { Button, CopyButton } from '@mantine/core'
 import { buildSDKConfig } from '@/features/projects/model/buildSDKConfig'
 import type { ProjectDetail } from '@/features/projects/model/projectTypes'
+import { CopyIcon } from '@/shared/ui/icons/Icons'
 import styles from './ProjectSDKConfig.module.css'
 
 interface ProjectSDKConfigProps {
@@ -11,17 +12,20 @@ export function ProjectSDKConfig({ project }: ProjectSDKConfigProps) {
   const sdkConfig = buildSDKConfig(project)
 
   return (
-    <Stack gap="md">
-      <Group justify="flex-end">
+    <div className={styles.panel}>
+      <div className={styles.toolbar}>
+        <span>JavaScript</span>
         <CopyButton value={sdkConfig} timeout={1_600}>
           {({ copied, copy }) => (
-            <Button variant="default" size="compact-sm" onClick={copy}>
+            <Button variant="subtle" size="compact-sm" leftSection={<CopyIcon />} onClick={copy}>
               {copied ? '已复制' : '复制配置'}
             </Button>
           )}
         </CopyButton>
-      </Group>
-      <pre className={styles.config}><code>{sdkConfig}</code></pre>
-    </Stack>
+      </div>
+      <pre className={styles.config} tabIndex={0} aria-label="SDK 初始化代码">
+        <code translate="no">{sdkConfig}</code>
+      </pre>
+    </div>
   )
 }

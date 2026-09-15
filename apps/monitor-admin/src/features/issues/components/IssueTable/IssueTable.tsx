@@ -33,11 +33,19 @@ export function IssueTable({
       {issues.map((issue) => (
         <article className={`${styles.row} ${styles.item}`} key={issue.id}>
           <div className={styles.identity}>
-            <span className={styles.severity}><AlertIcon /></span>
+            <span className={styles.severity}>
+              <AlertIcon />
+            </span>
             <div>
-              <Link to={`/issues/${encodeURIComponent(issue.id)}`}>{issue.title}</Link>
+              <Link to={`/issues/${encodeURIComponent(issue.id)}`} title={issue.title}>
+                {issue.title}
+              </Link>
               <div className={styles.tags}>
-                {issue.exceptionType ? <Badge color="red" variant="light" size="xs">{issue.exceptionType}</Badge> : null}
+                {issue.exceptionType ? (
+                  <Badge color="red" variant="light" size="xs">
+                    {issue.exceptionType}
+                  </Badge>
+                ) : null}
                 <code>{issue.eventType}</code>
               </div>
               <span title={issue.latestPageUrl}>{issue.latestPageUrl || '未记录页面地址'}</span>
@@ -45,8 +53,12 @@ export function IssueTable({
           </div>
           <strong className={styles.count}>{numberFormatter.format(issue.eventCount)}</strong>
           <span className={styles.users}>{numberFormatter.format(issue.affectedUsers)}</span>
-          <time dateTime={new Date(issue.firstSeen).toISOString()}>{formatTime(issue.firstSeen)}</time>
-          <time dateTime={new Date(issue.lastSeen).toISOString()}>{formatTime(issue.lastSeen)}</time>
+          <time dateTime={new Date(issue.firstSeen).toISOString()}>
+            {formatTime(issue.firstSeen)}
+          </time>
+          <time dateTime={new Date(issue.lastSeen).toISOString()}>
+            {formatTime(issue.lastSeen)}
+          </time>
           <Link
             className={styles.latestLink}
             to={`/issues/${encodeURIComponent(issue.id)}`}
@@ -57,7 +69,9 @@ export function IssueTable({
         </article>
       ))}
       <footer className={styles.footer}>
-        <span>已加载 <strong>{issues.length}</strong> 个问题</span>
+        <span>
+          已加载 <strong>{issues.length}</strong> 个问题
+        </span>
         {hasNextPage ? (
           <Button
             variant="default"
@@ -69,7 +83,9 @@ export function IssueTable({
           >
             加载更多
           </Button>
-        ) : <span>已经到底了</span>}
+        ) : (
+          <span>已经到底了</span>
+        )}
       </footer>
     </>
   )

@@ -1,16 +1,93 @@
-.page { width: min(1320px, calc(100% - clamp(36px, 6vw, 88px))); margin: 0 auto; padding: 38px 0 64px; }
-.backLink { margin-bottom: 25px; margin-left: -10px; color: #718095; font-size: 10px; font-weight: 600; }
-.backLink svg { width: 14px; height: 14px; }
-.heading { display: flex; align-items: flex-start; gap: 15px; margin-bottom: 30px; }
-.detailIcon { width: 44px; height: 44px; flex: 0 0 auto; margin-top: 2px; }
-.detailIcon svg { width: 22px; height: 22px; }
-.heading > div { min-width: 0; }
-.badges { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
-.heading h1 { max-width: 980px; margin: 0; overflow-wrap: anywhere; color: #101725; font-size: clamp(24px, 3vw, 36px); font-weight: 700; letter-spacing: -.035em; line-height: 1.2; }
-.pageUrl { max-width: 800px; display: inline-flex; align-items: center; gap: 6px; margin-top: 9px; overflow: hidden; color: #718095; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
-.pageUrl svg { width: 12px; height: 12px; flex: 0 0 auto; }
-.missingUrl { display: block; margin-top: 9px; color: #9aa4b1; font-size: 10px; }
-.columns { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, .7fr); gap: 15px; }
-@media (max-width: 1080px) { .columns { grid-template-columns: 1fr; } }
-@media (max-width: 760px) { .page { width: calc(100% - 28px); padding-top: 27px; } }
-@media (max-width: 520px) { .heading { gap: 11px; } .detailIcon { width: 38px; height: 38px; } .heading h1 { font-size: 22px; } }
+.page {
+  composes: page from '../../shared/styles/layout.module.css';
+}
+.backLink {
+  margin: 0 0 20px -8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.backLink svg {
+  width: 14px;
+  height: 14px;
+}
+.heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 26px;
+}
+.detailIcon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  margin-top: 2px;
+  border-radius: 11px;
+}
+.detailIcon svg {
+  width: 21px;
+  height: 21px;
+}
+.heading > div:last-child {
+  min-width: 0;
+}
+.badges {
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.heading h1 {
+  max-width: 1080px;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+.pageUrl {
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 12px;
+}
+.pageUrl:hover {
+  color: var(--blue);
+}
+.pageUrl svg {
+  width: 13px;
+  height: 13px;
+  flex: 0 0 auto;
+}
+.missingUrl,
+.heading > div > code {
+  display: block;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.tabs {
+  margin-bottom: 20px;
+}
+.tabs button {
+  padding: 12px 18px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 288px;
+  gap: 20px;
+  align-items: start;
+}
+.primary {
+  min-width: 0;
+  display: grid;
+  gap: 20px;
+}

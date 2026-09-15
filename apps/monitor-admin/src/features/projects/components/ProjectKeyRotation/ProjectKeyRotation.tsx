@@ -17,7 +17,10 @@ export function ProjectKeyRotation({ projectId }: ProjectKeyRotationProps) {
   const mutation = useMutation({
     mutationFn: () => rotateProjectPublicKey(projectId),
     onSuccess: (updatedProject) => {
-      queryClient.setQueryData<ProjectDetail>(projectDetailQueryKey(updatedProject.id), updatedProject)
+      queryClient.setQueryData<ProjectDetail>(
+        projectDetailQueryKey(updatedProject.id),
+        updatedProject,
+      )
       setOpened(false)
     },
   })
@@ -30,16 +33,23 @@ export function ProjectKeyRotation({ projectId }: ProjectKeyRotationProps) {
   return (
     <div className={styles.rotation}>
       <div className={styles.description}>
-        <Text fw={700}>重新生成 publicKey</Text>
+        <Text size="sm" fw={500}>
+          重新生成 publicKey
+        </Text>
         <Text size="sm" c="dimmed">
-          仅在当前 key 泄露或需要主动失效时使用。项目和历史事件不会受到影响。
+          旧 publicKey 将立即失效，需同步更新 SDK 配置。
         </Text>
       </div>
       <Button color="red" variant="light" onClick={openConfirmation}>
         重新生成 publicKey
       </Button>
       {mutation.isSuccess ? (
-        <Alert className={styles.feedback} color="green" title="新的 publicKey 已生成" role="status">
+        <Alert
+          className={styles.feedback}
+          color="green"
+          title="新的 publicKey 已生成"
+          role="status"
+        >
           SDK 初始化配置已更新，旧 publicKey 现在无法继续上报。
         </Alert>
       ) : null}
@@ -62,7 +72,11 @@ export function ProjectKeyRotation({ projectId }: ProjectKeyRotationProps) {
             </Alert>
           ) : null}
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setOpened(false)} disabled={mutation.isPending}>
+            <Button
+              variant="default"
+              onClick={() => setOpened(false)}
+              disabled={mutation.isPending}
+            >
               取消
             </Button>
             <Button color="red" loading={mutation.isPending} onClick={() => mutation.mutate()}>
