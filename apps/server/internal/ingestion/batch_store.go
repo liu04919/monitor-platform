@@ -19,9 +19,10 @@ type BatchReservation struct {
 	EventCount  int
 }
 
-// BatchReservationResult 表示批次账本中是否已经存在完成记录。
+// BatchReservationResult 区分已见过的批次和已完成入库的批次。
 type BatchReservationResult struct {
-	Duplicate bool
+	Existing  bool
+	Completed bool
 }
 
 // BatchReceiptStore 负责批次身份、内容冲突和完成状态的持久化。
@@ -77,7 +78,7 @@ func (s *persistentBatchStore) Save(
 	if err != nil {
 		return BatchStoreResult{}, fmt.Errorf("预留批次记录: %w", err)
 	}
-	if reservationResult.Duplicate {
+	if reservationResult.Completed {
 		return BatchStoreResult{Duplicate: true}, nil
 	}
 

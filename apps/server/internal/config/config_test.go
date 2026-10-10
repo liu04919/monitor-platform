@@ -13,6 +13,9 @@ func TestLoad(t *testing.T) {
 	t.Setenv("CLICKHOUSE_DSN", " clickhouse://monitor:password@localhost:9000/monitor_platform ")
 	t.Setenv("REDIS_URL", " redis://localhost:6379/0 ")
 	t.Setenv("SESSION_TTL", "24h")
+	t.Setenv("KAFKA_BROKERS", " localhost:9092, kafka:19092 ")
+	t.Setenv("KAFKA_TELEMETRY_TOPIC", " events-test ")
+	t.Setenv("KAFKA_CONSUMER_GROUP", " writer-test ")
 
 	cfg, err := Load()
 	if err != nil {
@@ -40,6 +43,9 @@ func TestLoad(t *testing.T) {
 	if !cfg.SessionCookieSecure {
 		t.Fatal("production SessionCookieSecure = false, want true")
 	}
+	if strings.Join(cfg.KafkaBrokers, ",") != "localhost:9092,kafka:19092" || cfg.KafkaTopic != "events-test" || cfg.KafkaConsumerGroup != "writer-test" {
+		t.Fatalf("Kafka 配置未正确解析: %#v", cfg)
+	}
 }
 
 func TestLoadUsesHTTPDefaults(t *testing.T) {
@@ -49,6 +55,9 @@ func TestLoadUsesHTTPDefaults(t *testing.T) {
 	t.Setenv("CLICKHOUSE_DSN", "clickhouse://monitor:password@localhost:9000/monitor_platform")
 	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
 	t.Setenv("SESSION_TTL", "")
+	t.Setenv("KAFKA_BROKERS", "")
+	t.Setenv("KAFKA_TELEMETRY_TOPIC", "")
+	t.Setenv("KAFKA_CONSUMER_GROUP", "")
 
 	cfg, err := Load()
 	if err != nil {
@@ -66,6 +75,27 @@ func TestLoadUsesHTTPDefaults(t *testing.T) {
 	}
 	if cfg.SessionCookieSecure {
 		t.Fatal("development SessionCookieSecure = true, want false")
+	}
+	if strings.Join(cfg.KafkaBrokers, ",") != "localhost:9092" || cfg.KafkaTopic != "telemetry-batches" || cfg.KafkaConsumerGroup != "telemetry-writer" {
+		t.Fatalf("Kafka 默认值错误: %#v", cfg)
+	}
+}
+
+func TestLoadRejectsInvalidKafkaConfiguration(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://database")
+	t.Setenv("CLICKHOUSE_DSN", "clickhouse://database")
+	t.Setenv("REDIS_URL", "redis://localhost:6379/0")
+	for _, test := range []struct{ brokers, topic string }{
+		{"localhost", "events"}, {"localhost:9092,", "events"}, {"localhost:0", "events"},
+		{"localhost:9092", ".."}, {"localhost:9092", "bad topic"},
+	} {
+		t.Run(test.brokers+"/"+test.topic, func(t *testing.T) {
+			t.Setenv("KAFKA_BROKERS", test.brokers)
+			t.Setenv("KAFKA_TELEMETRY_TOPIC", test.topic)
+			if _, err := Load(); err == nil {
+				t.Fatal("非法 Kafka 配置未被拒绝")
+			}
+		})
 	}
 }
 

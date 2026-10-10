@@ -13,10 +13,11 @@ Go server:8080
    │ data network（仅容器内部可达）
    ├─ PostgreSQL:5432
    ├─ ClickHouse:9000
-   └─ Redis:6379
+   ├─ Redis:6379
+   └─ Kafka:9092 → Go worker → PostgreSQL / ClickHouse
 ```
 
-生产配置只公开 Caddy 的 80、443 端口。PostgreSQL、ClickHouse、Redis 和 Go 服务都不映射宿主机端口。
+生产配置只公开 Caddy 的 80、443 端口。PostgreSQL、ClickHouse、Redis、Kafka 和 Go 服务都不映射宿主机端口。
 
 ## 1. 部署边界
 
@@ -43,12 +44,14 @@ https://你的域名/api/v1/events/batch
 
 ```text
 apps/server/Dockerfile
-└─ 构建 server 与 migrate 两个 Go 程序
+└─ 构建 server、worker 与 migrate 三个 Go 程序
 
 compose.production.yaml
 ├─ 生产数据库
+├─ Kafka 单节点与 kafka-init Topic 初始化任务
 ├─ 显式 migrate Job
 ├─ Go server
+├─ Go worker
 └─ Caddy
 
 deploy/Caddyfile
@@ -87,6 +90,8 @@ sudo ufw status
 8123   ClickHouse HTTP
 9000   ClickHouse Native
 8080   Go server
+9092   Kafka
+9093   Kafka controller
 ```
 
 ## 4. 获取代码
@@ -170,10 +175,11 @@ docker compose \
 
 ```text
 /app/server
+/app/worker
 /app/migrate
 ```
 
-两个程序均由非 root 用户运行，迁移 SQL 已通过 `go:embed` 编译进 `migrate`。
+三个程序均由非 root 用户运行，迁移 SQL 已通过 `go:embed` 编译进 `migrate`。
 
 ### 6.2 启动数据库
 
@@ -181,7 +187,7 @@ docker compose \
 docker compose \
   --env-file .env.production \
   -f compose.production.yaml \
-  up -d postgres clickhouse redis
+  up -d --wait postgres clickhouse redis kafka
 ```
 
 检查状态：
@@ -193,7 +199,7 @@ docker compose \
   ps
 ```
 
-等待三个数据库都显示 `healthy`。
+等待三个数据库和 Kafka 都显示 `healthy`。Kafka 的 Topic 由 `kafka-init` 创建，server 和 worker 启动前会等待它完成。
 
 ### 6.3 执行迁移
 
@@ -212,7 +218,7 @@ docker compose \
 docker compose \
   --env-file .env.production \
   -f compose.production.yaml \
-  up -d server caddy
+  up -d server worker caddy
 ```
 
 Caddy 会在域名解析正确且 80、443 可达时自动申请 HTTPS 证书。
@@ -234,7 +240,7 @@ docker compose \
 docker compose \
   --env-file .env.production \
   -f compose.production.yaml \
-  logs --tail=200 server
+  logs --tail=200 server worker
 ```
 
 查看 Caddy 证书和代理日志：
@@ -264,7 +270,17 @@ curl --fail --show-error https://api.monitor.example.com/healthz
 VITE_MONITOR_REPORT_URL=https://api.monitor.example.com/api/v1/events/batch
 ```
 
-使用真实 `appId` 与 `publicKey` 上报，并从日志确认 API 返回 `202 Accepted`。
+使用真实 `appId` 与 `publicKey` 上报，确认 API 返回 `202 Accepted`，再从管理端确认事件最终可查询。
+`202` 不保证 worker 已经入库，HTTP `/healthz` 也不检查消费者。可通过以下命令观察积压：
+
+```bash
+docker compose --env-file .env.production -f compose.production.yaml exec kafka \
+  /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server kafka:9092 \
+  --describe --group telemetry-writer
+```
+
+如果修改过 `KAFKA_CONSUMER_GROUP`，替换命令中的组名。首次从旧版本升级时，先启动 Kafka，再运行
+`docker compose --env-file .env.production -f compose.production.yaml run --rm kafka-init`，然后启动 server 和 worker。
 
 ## 8. 日常发布
 
@@ -298,7 +314,7 @@ docker compose \
 docker compose \
   --env-file .env.production \
   -f compose.production.yaml \
-  up -d --no-deps server
+  up -d --no-deps server worker
 ```
 
 单机更新会有短暂连接切换，不宣称零停机。
@@ -320,7 +336,7 @@ docker compose \
 docker compose \
   --env-file .env.production \
   -f compose.production.yaml \
-  up -d postgres clickhouse redis server caddy
+  up -d postgres clickhouse redis kafka server worker caddy
 ```
 
 不要执行：
@@ -329,7 +345,7 @@ docker compose \
 docker compose --env-file .env.production -f compose.production.yaml down -v
 ```
 
-`-v` 会删除 PostgreSQL、ClickHouse 和 Caddy 的持久卷。
+`-v` 会删除 PostgreSQL、ClickHouse、Kafka 和 Caddy 的持久卷。
 
 ## 10. 数据备份边界
 
@@ -345,6 +361,9 @@ PostgreSQL
 ClickHouse
 ├─ 原始事件
 └─ Issue 聚合来源
+
+Kafka
+└─ 尚未入库的事件日志与消费组位点
 ```
 
 PostgreSQL 可以先手工导出：
@@ -362,6 +381,9 @@ docker compose \
 
 备份文件必须再复制到 VPS 之外。ClickHouse 备份需要结合最终 VPS 提供商的卷快照或对象存储确定方案；在没有选定站外存储前，不在项目中伪造一个只保存在同一块磁盘上的“备份”。
 
+Kafka 当前为单节点、单副本，日志按 7 天保留策略清理。数据卷不能抵御宿主机或磁盘损坏，
+发布确认也不等于多副本容灾；必须观察积压和磁盘空间。Kafka 链路的失败边界见 [Kafka 上报链路](kafka-ingestion.md)。
+
 ## 11. 回滚边界
 
 应用镜像可以通过切回旧 commit 后重新构建来回滚：
@@ -369,17 +391,20 @@ docker compose \
 ```bash
 git checkout <previous-commit>
 docker compose --env-file .env.production -f compose.production.yaml build server
-docker compose --env-file .env.production -f compose.production.yaml up -d --no-deps server
+docker compose --env-file .env.production -f compose.production.yaml up -d --no-deps server worker
 ```
 
 数据库迁移目前只有向上执行。只有确认旧程序兼容已经升级的数据库结构时，才能单独回滚应用。涉及破坏性结构修改时，必须先从站外备份恢复数据库，不能依赖 `git checkout` 回滚数据。
+
+回滚到尚未接入 Kafka 的旧版本前，应停止新的上报入口，让当前 worker 处理完积压，再停止 worker。
+旧版本镜像不包含 `/app/worker`，需要连同 Compose 配置一起回滚，不能直接让旧镜像运行新的 worker 服务。
 
 ## 12. 上线后仍需完成
 
 这轮生产化不伪装成完整运维体系。正式对陌生公网用户开放前，还需要：
 
 - 为公开 SDK 上报接口增加限流；
-- 增加会检查 PostgreSQL、ClickHouse、Redis 的 `/readyz`；
+- 增加会检查 PostgreSQL、ClickHouse、Redis、Kafka 的 `/readyz`，并独立监控 worker 和消费积压；
 - 选定并验证 ClickHouse 站外备份；
 - 增加持续可用性监控和告警；
 - 将管理端与 `/api` 部署在同一个站点。

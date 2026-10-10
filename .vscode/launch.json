@@ -16,6 +16,14 @@
       "mode": "auto",
       "program": "${workspaceFolder}/apps/server/cmd/server",
       "cwd": "${workspaceFolder}/apps/server"
+    },
+    {
+      "name": "后端：Kafka 消费者",
+      "type": "go",
+      "request": "launch",
+      "mode": "auto",
+      "program": "${workspaceFolder}/apps/server/cmd/worker",
+      "cwd": "${workspaceFolder}/apps/server"
     }
   ]
 }

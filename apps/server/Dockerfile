@@ -28,6 +28,14 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     -o /out/migrate \
     ./cmd/migrate
 
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-s -w" \
+    -o /out/worker \
+    ./cmd/worker
+
 FROM alpine:3.22
 
 RUN apk add --no-cache ca-certificates tzdata \
@@ -38,6 +46,7 @@ WORKDIR /app
 
 COPY --from=build --chown=monitor:monitor /out/server /app/server
 COPY --from=build --chown=monitor:monitor /out/migrate /app/migrate
+COPY --from=build --chown=monitor:monitor /out/worker /app/worker
 
 USER monitor
 

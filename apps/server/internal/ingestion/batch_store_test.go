@@ -41,7 +41,7 @@ func TestBatchStoreWritesAndCompletesNewBatch(t *testing.T) {
 
 func TestBatchStoreReturnsCompletedBatchAsDuplicate(t *testing.T) {
 	receipts := &stubBatchReceiptStore{
-		result: BatchReservationResult{Duplicate: true},
+		result: BatchReservationResult{Existing: true, Completed: true},
 	}
 	writer := &stubEventWriter{}
 	store := NewBatchStore(receipts, writer)

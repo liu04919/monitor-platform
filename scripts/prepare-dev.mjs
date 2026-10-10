@@ -49,15 +49,16 @@ try {
     }
   }
 
-  run('docker compose -f compose.yaml up -d --wait --wait-timeout 120 postgres clickhouse redis')
+  run('docker compose -f compose.yaml up -d --wait --wait-timeout 180 postgres clickhouse redis kafka')
+  run('docker compose -f compose.yaml run --rm kafka-init')
   // 迁移程序按版本跳过已执行的 SQL，不重建表、不清空数据。
   run('go -C apps/server run ./cmd/migrate')
   // Demo 通过 link 引用 SDK 的 dist，每次启动先构建最新源码。
   run('pnpm --dir packages/monitor-sdk build')
 
-  console.log('\n[dev] 即将启动：后端 :8080 · 管理端 :5174 · Demo :5173（默认端口）')
+  console.log('\n[dev] 即将启动：后端 :8080 · Kafka 消费者 · 管理端 :5174 · Demo :5173（默认端口）')
   console.log('[dev] Demo 上报前请在 apps/monitor-demo/.env.local 填写自己的项目配置。')
-  console.log('[dev] Ctrl+C 停止三个应用；Docker 数据库继续运行，数据保留。\n')
+  console.log('[dev] Ctrl+C 停止四个应用；Docker 数据库和 Kafka 继续运行，数据保留。\n')
 } catch (error) {
   console.error(`\n[dev] ${error.message}`)
   process.exitCode = 1

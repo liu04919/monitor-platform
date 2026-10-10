@@ -13,8 +13,8 @@ var (
 	ErrBatchIDConflict  = errors.New("batch ID conflict")
 )
 
-// Result 表示 ingestion service 已经完成的持久化结果。
-// 在 Key 校验、幂等判断和持久化真正成功之前，HTTP Handler 不能自行推断这些值。
+// Result 表示接收结果；成功只保证已接手批次，不保证已经写入 ClickHouse。
+// 在 Key 校验、批次检查和可靠接收成功之前，HTTP Handler 不能自行推断这些值。
 type Result struct {
 	Accepted  int
 	Duplicate bool
@@ -35,7 +35,7 @@ type BatchStoreResult struct {
 	Duplicate bool
 }
 
-// BatchStore 负责批次的持久化和幂等判断。
+// BatchStore 负责接手批次和幂等判断，实现可以是队列接收或最终入库。
 // 相同 appID 和 batchID 对应不同请求内容时，实现应返回 ErrBatchIDConflict。
 type BatchStore interface {
 	Save(ctx context.Context, batch telemetry.Batch) (BatchStoreResult, error)

@@ -78,9 +78,9 @@ func (s *BatchReceiptStore) Reserve(
 
 	switch existing.Status {
 	case batchStatusPending:
-		return ingestion.BatchReservationResult{}, nil
+		return ingestion.BatchReservationResult{Existing: true}, nil
 	case batchStatusCompleted:
-		return ingestion.BatchReservationResult{Duplicate: true}, nil
+		return ingestion.BatchReservationResult{Existing: true, Completed: true}, nil
 	default:
 		return ingestion.BatchReservationResult{}, fmt.Errorf("未知批次状态 %q", existing.Status)
 	}

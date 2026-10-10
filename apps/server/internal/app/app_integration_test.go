@@ -18,12 +18,15 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"github.com/google/uuid"
+	kafkaclient "github.com/segmentio/kafka-go"
 	"gorm.io/gorm"
 
 	"github.com/liu04919/monitor-platform/apps/server/internal/app"
 	"github.com/liu04919/monitor-platform/apps/server/internal/config"
 	"github.com/liu04919/monitor-platform/apps/server/internal/database"
+	"github.com/liu04919/monitor-platform/apps/server/internal/ingestion"
 	"github.com/liu04919/monitor-platform/apps/server/internal/migration"
+	clickhousestore "github.com/liu04919/monitor-platform/apps/server/internal/storage/clickhouse"
 	postgresstore "github.com/liu04919/monitor-platform/apps/server/internal/storage/postgres"
 	"github.com/liu04919/monitor-platform/apps/server/internal/telemetry"
 )
@@ -32,8 +35,9 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	postgresDSN := os.Getenv("TEST_DATABASE_URL")
 	clickHouseDSN := os.Getenv("TEST_CLICKHOUSE_DSN")
 	redisURL := os.Getenv("TEST_REDIS_URL")
-	if postgresDSN == "" || clickHouseDSN == "" || redisURL == "" {
-		t.Skip("未设置 TEST_DATABASE_URL、TEST_CLICKHOUSE_DSN 或 TEST_REDIS_URL，跳过完整 HTTP 集成测试")
+	kafkaBrokers := os.Getenv("TEST_KAFKA_BROKERS")
+	if postgresDSN == "" || clickHouseDSN == "" || redisURL == "" || kafkaBrokers == "" {
+		t.Skip("未设置 TEST_DATABASE_URL、TEST_CLICKHOUSE_DSN、TEST_REDIS_URL 或 TEST_KAFKA_BROKERS，跳过完整 HTTP 集成测试")
 	}
 
 	ctx := context.Background()
@@ -83,12 +87,17 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 		}
 	})
 
-	application, err := app.New(ctx, config.Config{
-		DatabaseURL:   postgresDSN,
-		ClickHouseDSN: clickHouseDSN,
-		RedisURL:      redisURL,
-		SessionTTL:    time.Hour,
-	})
+	cfg := config.Config{
+		DatabaseURL:        postgresDSN,
+		ClickHouseDSN:      clickHouseDSN,
+		RedisURL:           redisURL,
+		SessionTTL:         time.Hour,
+		KafkaBrokers:       strings.Split(kafkaBrokers, ","),
+		KafkaTopic:         "test-app-" + suffix,
+		KafkaConsumerGroup: "test-writer-" + suffix,
+	}
+	kafkaClient := createApplicationTopic(t, cfg)
+	application, err := app.New(ctx, cfg)
 	if err != nil {
 		t.Fatalf("创建应用失败: %v", err)
 	}
@@ -297,6 +306,14 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 		t.Fatalf("batchId 内容冲突结果 = status %d, code %q", status, response.Error.Code)
 	}
 
+	// 消费者尚未启动：HTTP 已成功接收，但事件还没有入库。
+	assertApplicationEventCount(t, ctx, clickHouseConn, projectID, batch.BatchID, 0)
+	var pending postgresstore.IngestionBatch
+	if err := postgresDB.Where("project_id = ? AND batch_id = ?", projectID, batch.BatchID).Take(&pending).Error; err != nil || pending.Status != "pending" {
+		t.Fatalf("消费者启动前的批次账本 = %#v, error=%v", pending, err)
+	}
+	stopWorker := startApplicationWorker(t, cfg)
+	waitApplicationOffset(t, kafkaClient, cfg, 2)
 	assertApplicationReceiptCompleted(t, ctx, postgresDB, projectID, batch.BatchID)
 	assertApplicationEventCount(
 		t,
@@ -398,6 +415,65 @@ func TestApplicationHTTPWithPostgreSQLAndClickHouse(t *testing.T) {
 	if status := deleteApplicationSession(t, server.URL, otherSessionCookie); status != http.StatusNoContent {
 		t.Fatalf("其他用户退出状态码 = %d", status)
 	}
+
+	// 模拟消费者已入库、尚未提交位点就退出；重启必须重投且不重复入库。
+	stopWorker()
+	recoveryBatch := applicationBatch(projectID, rotatedPublicKey, "restart-"+suffix, now)
+	status, response = postTelemetryBatch(t, server.URL, recoveryBatch)
+	if status != http.StatusAccepted {
+		t.Fatalf("重启测试上报失败: %d %#v", status, response)
+	}
+	reader := kafkaclient.NewReader(kafkaclient.ReaderConfig{
+		Brokers: cfg.KafkaBrokers, Topic: cfg.KafkaTopic, GroupID: cfg.KafkaConsumerGroup,
+		MinBytes: 1, MaxBytes: 4 << 20, CommitInterval: 0,
+	})
+	t.Cleanup(func() { _ = reader.Close() })
+	fetchCtx, cancelFetch := context.WithTimeout(ctx, 30*time.Second)
+	message, err := reader.FetchMessage(fetchCtx)
+	cancelFetch()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var received telemetry.Batch
+	if err := json.Unmarshal(message.Value, &received); err != nil || received.BatchID != recoveryBatch.BatchID {
+		t.Fatalf("重启测试消息错误: %s, %v", received.BatchID, err)
+	}
+	store := ingestion.NewBatchStore(postgresstore.NewBatchReceiptStore(postgresDB), clickhousestore.NewEventWriter(clickHouseConn))
+	if _, err := store.Save(ctx, received); err != nil {
+		t.Fatal(err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatal(err)
+	}
+	waitApplicationOffset(t, kafkaClient, cfg, 2)
+	startApplicationWorker(t, cfg)
+	waitApplicationOffset(t, kafkaClient, cfg, 3)
+	assertApplicationEventCount(t, ctx, clickHouseConn, projectID, recoveryBatch.BatchID, uint64(len(recoveryBatch.Events)))
+
+	// broker 不可用时不能返回 202；恢复后同一 pending 批次仍能重新发布。
+	t.Run("Kafka 发布失败后重试", func(t *testing.T) {
+		unavailableConfig := cfg
+		unavailableConfig.KafkaBrokers = []string{"127.0.0.1:1"}
+		unavailableApp, err := app.New(ctx, unavailableConfig)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = unavailableApp.Close() })
+		unavailableServer := httptest.NewServer(unavailableApp.Handler)
+		t.Cleanup(unavailableServer.Close)
+		retryBatch := applicationBatch(projectID, rotatedPublicKey, "publish-retry-"+suffix, now)
+		status, response := postTelemetryBatch(t, unavailableServer.URL, retryBatch)
+		if status != http.StatusInternalServerError || response.Error.Code != "INTERNAL_ERROR" {
+			t.Fatalf("Kafka 不可用时 = %d %#v", status, response)
+		}
+		assertApplicationEventCount(t, ctx, clickHouseConn, projectID, retryBatch.BatchID, 0)
+		status, response = postTelemetryBatch(t, server.URL, retryBatch)
+		if status != http.StatusAccepted || !response.Data.Duplicate || response.Data.Accepted != 0 {
+			t.Fatalf("Kafka 恢复后重试 = %d %#v", status, response)
+		}
+		waitApplicationOffset(t, kafkaClient, cfg, 4)
+		assertApplicationEventCount(t, ctx, clickHouseConn, projectID, retryBatch.BatchID, uint64(len(retryBatch.Events)))
+	})
 }
 
 func assertTelemetryPreflight(t *testing.T, serverURL string) {

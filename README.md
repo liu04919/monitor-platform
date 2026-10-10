@@ -1,6 +1,8 @@
 # monitor-platform
 
-本地链路为：浏览器 SDK → Go ingestion API → PostgreSQL 控制面与批次账本 → ClickHouse 遥测事件。Go 在错误事件入库前生成稳定的 Issue 指纹，管理端再从 ClickHouse 聚合 Issue。PostgreSQL 保存用户和归属项目，Redis 只保存可过期的登录 Session。
+本地链路为：浏览器 SDK → Go ingestion API（身份与批次检查）→ Kafka → Go worker → ClickHouse。PostgreSQL 保存用户、项目和批次账本，Redis 只保存可过期的登录 Session。worker 在错误事件入库前生成稳定的 Issue 指纹，管理端再从 ClickHouse 聚合 Issue。
+
+Kafka 接收、位点提交、失败恢复和代码阅读顺序见 [Kafka 上报链路](docs/kafka-ingestion.md)。
 
 需要从数据库启动开始，人工走完注册、登录、创建项目、Demo 接入、错误上报、Issue 聚合、Beacon 和断网恢复时，请按照[本地完整人工验证教程](docs/manual-end-to-end-verification.md)操作。教程以 IDE 的 CMD 集成终端为主；需要断点调试时，也可以使用 `.vscode/launch.json` 中的 Go 启动配置。
 
@@ -18,17 +20,18 @@ pnpm install
 pnpm dev
 ```
 
-启动过程会创建缺失的本地环境文件（不覆盖已有配置）、安装尚未安装的子项目依赖、等待三个数据库健康、执行尚未应用的迁移、构建 SDK，随后并行启动：
+启动过程会创建缺失的本地环境文件（不覆盖已有配置）、安装尚未安装的子项目依赖、等待三个数据库和 Kafka 健康、创建缺失的 Topic、执行尚未应用的迁移、构建 SDK，随后并行启动：
 
 | 应用 | 默认地址 |
 | --- | --- |
 | 管理端 | http://127.0.0.1:5174 |
 | SDK Demo | http://127.0.0.1:5173 |
 | Go 后端健康检查 | http://127.0.0.1:8080/healthz |
+| Go Kafka 消费者 | 后台进程，无 HTTP 端口 |
 
 第一次使用先在管理端注册、登录和创建项目，再把项目配置填入 `apps/monitor-demo/.env.local`。启动脚本不会代替你创建账号或项目。
 
-按 `Ctrl+C` 停止三个应用，数据库继续运行，数据保留。CMD 如果询问 `Terminate batch job (Y/N)?`，输入 `Y` 回车即可。若其中一个应用退出，其余应用也会停止；端口被占用时不会自动杀掉已有服务，请先结束原来的启动终端。运行日志通过 `[server]`、`[admin]`、`[demo]` 区分。
+按 `Ctrl+C` 停止四个应用，数据库与 Kafka 继续运行，数据保留。CMD 如果询问 `Terminate batch job (Y/N)?`，输入 `Y` 回车即可。若其中一个应用退出，其余应用也会停止；端口被占用时不会自动杀掉已有服务，请先结束原来的启动终端。运行日志通过 `[server]`、`[worker]`、`[admin]`、`[demo]` 区分。
 
 前端支持 Vite 热更新；Go 没有接入热重载，SDK 也只在启动前构建一次。修改 Go 或 SDK 后，停止并重新执行 `pnpm dev`。拉取代码后如果子项目依赖发生变化，先执行 `pnpm install:apps` 更新依赖。
 
@@ -40,11 +43,20 @@ pnpm dev
 
 ```cmd
 if not exist .env copy .env.example .env
-docker compose up -d postgres clickhouse redis
+docker compose up -d --wait postgres clickhouse redis kafka
+docker compose run --rm kafka-init
 cd apps\server
 go run ./cmd/migrate
 go run ./cmd/server
 ```
+
+另外打开一个根目录终端启动入库消费者：
+
+```cmd
+go -C apps/server run ./cmd/worker
+```
+
+只启动 HTTP 服务也能接收上报，但事件会先留在 Kafka，直到 worker 启动才入库。已有 `.env` 缺少 Kafka 配置时使用本地默认值 `localhost:9092`、`telemetry-batches` 和 `telemetry-writer`。
 
 Go 标准库本身不会读取 `.env`；本项目的迁移和服务入口会从当前目录向上找到根目录 `.env` 并自动载入。操作系统已经注入的同名环境变量优先，不会被文件覆盖。需要断点调试时，可以直接使用 `.vscode/launch.json` 中的两个后端启动配置。
 
@@ -91,13 +103,13 @@ pnpm --dir apps/monitor-demo dev
 停止容器不会删除数据卷：
 
 ```cmd
-docker compose stop postgres clickhouse redis
+docker compose stop postgres clickhouse redis kafka
 ```
 
 只有明确要重建本项目数据时才执行 `docker compose down -v`。
 
 ## 生产部署
 
-后端生产环境采用单机 Docker Compose：Caddy 负责 HTTPS，Go、PostgreSQL、ClickHouse 和 Redis 只通过容器内部网络通信。数据库端口不会暴露到公网，迁移也不会随服务启动自动执行。
+后端生产环境采用单机 Docker Compose：Caddy 负责 HTTPS，Go server、Go worker、PostgreSQL、ClickHouse、Redis 和 Kafka 通过容器内部网络通信。数据库和 Kafka 端口不会暴露到公网，迁移也不会随服务启动自动执行。
 
 完整步骤见[后端生产部署指南](docs/backend-production-deployment.md)。生产配置使用 `compose.production.yaml` 和 `.env.production`，不要用本地开发的 `compose.yaml` 或 `.env` 直接上线。

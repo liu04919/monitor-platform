@@ -9,6 +9,7 @@ Docker 数据库
   → monitor-demo 接入项目配置
   → 浏览器 SDK 上报
   → PostgreSQL 批次账本
+  → Kafka 批次队列 → Go worker
   → ClickHouse 事件
   → 管理端事件与 Issue
 ```
@@ -24,7 +25,7 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm install` 只需首次使用或根目录依赖变化时执行。以后直接 `pnpm dev`，即可等待数据库健康、执行未应用的迁移、构建 SDK，并同时启动 Go 后端、管理端和 Demo。
+`pnpm install` 只需首次使用或根目录依赖变化时执行。以后直接 `pnpm dev`，即可等待数据库与 Kafka 健康、创建缺失的 Topic、执行未应用的迁移、构建 SDK，并同时启动 Go 后端、Kafka worker、管理端和 Demo。
 
 管理端地址为 `http://127.0.0.1:5174`，Demo 为 `http://127.0.0.1:5173`。首次使用仍需注册、登录、创建项目，并在 `apps/monitor-demo/.env.local` 中填写项目配置；这些步骤见下文第 4～6 节。修改 Go 或 SDK 后需要停止并重新执行 `pnpm dev`。
 
@@ -48,15 +49,16 @@ packages
 compose.yaml
 ```
 
-本教程建议在 IDE 中保留三个集成终端：
+本教程建议在 IDE 中保留四个集成终端：
 
 ```text
 server
+worker
 admin
 demo
 ```
 
-PostgreSQL、ClickHouse 和 Redis 由 Docker Desktop 在后台运行。
+PostgreSQL、ClickHouse、Redis 和 Kafka 由 Docker Desktop 在后台运行。
 
 ## 1. 启动数据库
 
@@ -87,7 +89,8 @@ cd /d D:\code\Go\monitor-platform
 启动数据库：
 
 ```cmd
-docker compose up -d postgres clickhouse redis
+docker compose up -d --wait postgres clickhouse redis kafka
+docker compose run --rm kafka-init
 ```
 
 检查状态：
@@ -96,12 +99,13 @@ docker compose up -d postgres clickhouse redis
 docker compose ps
 ```
 
-预期三个服务最终都显示为 `healthy`：
+预期四个常驻服务最终都显示为 `healthy`：
 
 ```text
 postgres
 clickhouse
 redis
+kafka
 ```
 
 刚启动时若暂时显示 `starting`，等待几秒后再次执行 `docker compose ps`。
@@ -120,6 +124,9 @@ Redis
 ClickHouse
 ├─ 原始遥测事件
 └─ Issue 聚合查询数据
+
+Kafka
+└─ 接收尚待 worker 入库的遥测批次
 ```
 
 ## 2. 在 IDE 中启动 Go 后端
@@ -147,14 +154,23 @@ go run ./cmd/server
 
 保持该终端运行，可以将终端标签重命名为 `server`。
 
+另开一个根目录终端启动消费者，并将标签重命名为 `worker`：
+
+```cmd
+go -C apps/server run ./cmd/worker
+```
+
+接口返回 `202` 只代表批次已接收。worker 未启动时数据会留在 Kafka，暂时无法在管理端查询。
+
 需要打断点调试 Go 时，再使用“运行和调试”面板中的可选配置：
 
 ```text
 后端：数据库迁移
 后端：启动服务
+后端：Kafka 消费者
 ```
 
-这两个入口与终端命令使用同一个 `.env` 加载流程。
+这三个入口与终端命令使用同一个 `.env` 加载流程。
 
 ### 2.3 验证后端健康状态
 
@@ -586,6 +602,7 @@ ClickHouse Native：9000
 在 IDE 中分别停止：
 
 - 在 `server` 终端按 `Ctrl+C`；
+- 在 `worker` 终端按 `Ctrl+C`；
 - 在 `admin` 终端按 `Ctrl+C`；
 - 在 `demo` 终端按 `Ctrl+C`。
 
@@ -593,7 +610,7 @@ ClickHouse Native：9000
 
 ```cmd
 cd /d D:\code\Go\monitor-platform
-docker compose stop postgres clickhouse redis
+docker compose stop postgres clickhouse redis kafka
 ```
 
 该命令只停止容器，不删除账号、项目、事件和数据库卷。
