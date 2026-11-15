@@ -29,6 +29,7 @@ export function IssueDetailPage() {
       <Group gap="xs">
         <TimeRangePicker value={range} onChange={setRange} />
         <ActionIcon
+          className={styles.refreshButton}
           variant="default"
           size={38}
           aria-label="刷新发生记录"

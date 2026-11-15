@@ -1,6 +1,19 @@
 .page {
   composes: page from '../../shared/styles/layout.module.css';
 }
+.refreshButton {
+  color: var(--muted);
+  border-color: var(--line);
+  border-radius: 7px;
+}
+.refreshButton:hover {
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+.refreshButton svg {
+  width: 17px;
+  height: 17px;
+}
 .backLink {
   margin-left: -8px;
   color: var(--muted);
